@@ -3,6 +3,7 @@ const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('api', {
     getTransactions: () => ipcRenderer.invoke('get-transactions'),
     addTransaction: (data) => ipcRenderer.invoke('add-transaction', data),
+    updateTransaction: (id, data) => ipcRenderer.invoke('update-transaction', { id, data }),
     deleteTransaction: (id) => ipcRenderer.invoke('delete-transaction', id),
     calculateForecast: (data) => ipcRenderer.invoke('calculate-forecast', data),
     getCategories: () => ipcRenderer.invoke('get-categories'),
@@ -20,6 +21,8 @@ contextBridge.exposeInMainWorld('api', {
     getBudgets: () => ipcRenderer.invoke('get-budgets'),
     setBudget: (category, amount, period, startDate, endDate) =>
         ipcRenderer.invoke('set-budget', { category, amount, period, startDate, endDate }),
+    updateBudget: (id, category, amount, period, startDate, endDate) =>
+        ipcRenderer.invoke('update-budget', { id, category, amount, period, startDate, endDate }),
     deleteBudget: (id) => ipcRenderer.invoke('delete-budget', id),
     exportData: () => ipcRenderer.invoke('export-data'),
     importData: (data) => ipcRenderer.invoke('import-data', data),

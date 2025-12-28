@@ -17,7 +17,14 @@ class WhatIfView extends BaseView {
     }
 
     setupListeners() {
-        $('#whatif-range')?.addEventListener('change', () => this.updateSimulation());
+        const toggleButtons = $$('#whatif-range-toggle .toggle-btn');
+        toggleButtons.forEach(btn => {
+            btn.addEventListener('click', () => {
+                toggleButtons.forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                this.updateSimulation();
+            });
+        });
 
         // Rule Listeners
         $('#wi-rule-min-balance')?.addEventListener('change', () => this.updateSimulation());
@@ -47,6 +54,22 @@ class WhatIfView extends BaseView {
                 $$('.wi-tab-content').forEach(c => c.classList.add('hidden'));
                 UIUtils.setHidden(`#wi-tab-${tab.dataset.tab}`, false);
             });
+        });
+
+        // Floating Chat Toggle
+        $('#toggle-bofo-chat')?.addEventListener('click', () => {
+            const win = $('#bofo-chat-window');
+            if (win) {
+                const isHidden = win.classList.toggle('hidden');
+                if (!isHidden) {
+                    UIUtils.refreshIcons();
+                    setTimeout(() => $('#wi-chat-input')?.focus(), 400);
+                }
+            }
+        });
+
+        $('#close-bofo-chat')?.addEventListener('click', () => {
+            UIUtils.setHidden('#bofo-chat-window', true);
         });
 
         this.setupChat();
@@ -243,17 +266,18 @@ class WhatIfView extends BaseView {
         this.app.setLoading(true);
 
         setTimeout(async () => {
-            const rangeEl = $('#whatif-range');
-            if (!rangeEl) {
+            const activeBtn = $('#whatif-range-toggle .toggle-btn.active');
+            if (!activeBtn) {
                 this.app.setLoading(false);
                 return;
             }
 
-            const range = parseInt(rangeEl.value);
+            const range = parseInt(activeBtn.dataset.value);
             const { state, chartManager, formatter } = this.app;
 
             const realityForecast = await window.api.calculateForecast({
                 transactions: state.transactions,
+                accounts: state.accounts,
                 months: range
             });
 
@@ -271,6 +295,7 @@ class WhatIfView extends BaseView {
 
             const scenarioForecast = await window.api.calculateForecast({
                 transactions: scenarioTransactions,
+                accounts: state.accounts,
                 months: range
             });
 

@@ -6,6 +6,7 @@ function createWindow() {
     const win = new BrowserWindow({
         width: 1200,
         height: 800,
+        icon: path.join(__dirname, '../../assets/icon.png'),
         webPreferences: {
             preload: path.join(__dirname, 'preload.js'),
             contextIsolation: true,
@@ -54,6 +55,15 @@ ipcMain.handle('add-transaction', async (event, transaction) => {
     }
 });
 
+ipcMain.handle('update-transaction', async (event, { id, data }) => {
+    try {
+        return await FinanceService.updateTransaction(id, data);
+    } catch (err) {
+        console.error('IPC update-transaction error:', err);
+        throw err;
+    }
+});
+
 ipcMain.handle('delete-transaction', async (event, id) => {
     try {
         return await FinanceService.deleteTransaction(id);
@@ -63,9 +73,9 @@ ipcMain.handle('delete-transaction', async (event, id) => {
     }
 });
 
-ipcMain.handle('calculate-forecast', async (event, { transactions, months }) => {
+ipcMain.handle('calculate-forecast', async (event, { transactions, months, accounts }) => {
     try {
-        return await FinanceService.calculateForecast(transactions, months);
+        return await FinanceService.calculateForecast(transactions, months, accounts);
     } catch (err) {
         console.error('IPC calculate-forecast error:', err);
         throw err;
@@ -196,6 +206,15 @@ ipcMain.handle('set-budget', async (event, { category, amount, period, startDate
         return await FinanceService.setBudget(category, amount, period, startDate, endDate);
     } catch (err) {
         console.error('IPC set-budget error:', err);
+        throw err;
+    }
+});
+
+ipcMain.handle('update-budget', async (event, { id, category, amount, period, startDate, endDate }) => {
+    try {
+        return await FinanceService.updateBudget(id, category, amount, period, startDate, endDate);
+    } catch (err) {
+        console.error('IPC update-budget error:', err);
         throw err;
     }
 });

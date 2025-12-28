@@ -51,7 +51,11 @@ class App {
 
     populateCurrencyDropdowns() {
         const html = this.currencies.map(c => `<option value="${c.code}">${c.code} - ${c.name}</option>`).join('');
-        $$('.currency-select').forEach(el => el.innerHTML = html);
+        $$('.currency-select').forEach(el => {
+            const current = el.value;
+            el.innerHTML = html;
+            if (current) el.value = current;
+        });
     }
 
     setupNavigation() {
@@ -76,9 +80,8 @@ class App {
         const optionsHtml = this.state.accounts.map(acc =>
             `<option value="${acc.id}">${acc.name} (${this.formatter.formatCurrency(acc.balance, acc.currency)})</option>`
         ).join('');
-        ['#tx-account', '#tx-to-account'].forEach(sel => {
-            const el = $(sel);
-            if (el) el.innerHTML = optionsHtml;
+        ['#tx-account', '#tx-to-account', '#edit-tx-account', '#edit-tx-to-account', '.dropdown-account'].forEach(sel => {
+            $$(sel).forEach(el => el.innerHTML = optionsHtml);
         });
     }
 

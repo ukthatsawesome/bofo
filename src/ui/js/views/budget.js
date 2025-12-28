@@ -2,6 +2,7 @@ class BudgetView extends BaseView {
     constructor(app) {
         super(app, 'budget');
         this.isInitialized = false;
+        this.editingBudgetId = null;
     }
 
     async onShow() {
@@ -14,7 +15,7 @@ class BudgetView extends BaseView {
         const monthFilter = $('#budget-month-filter');
         if (monthFilter) {
             monthFilter.value = state.budgetViewMonth;
-            UIUtils.setHidden('#budget-month-filter', state.budgetViewFilter === 'active');
+            UIUtils.setHidden('#budget-month-filter-container', state.budgetViewFilter === 'active');
         }
 
         $$('.view-toggle .toggle-btn').forEach(btn => {
@@ -55,6 +56,9 @@ class BudgetView extends BaseView {
             });
         }
 
+        let totalBudgeted = 0;
+        let totalSpent = 0;
+
         if (filteredBudgets.length === 0) {
             container.innerHTML = `
                 <div class="empty-state">
@@ -63,6 +67,7 @@ class BudgetView extends BaseView {
                     <button class="btn primary" onclick="app.views.budget.showBudgetModal()">✨ Add Budget</button>
                 </div>
             `;
+            this.updateSummary(0, 0);
             this.refreshIcons();
             return;
         }
@@ -81,6 +86,9 @@ class BudgetView extends BaseView {
                 })
                 .reduce((sum, t) => sum + t.amount, 0);
 
+            totalBudgeted += budget.amount;
+            totalSpent += spent;
+
             const percent = Math.min((spent / budget.amount) * 100, 100);
             const isOver = spent > budget.amount;
             const remaining = budget.amount - spent;
@@ -93,7 +101,7 @@ class BudgetView extends BaseView {
                             <span class="budget-period-badge">${budget.period} | ${budget.start_date} to ${budget.end_date}</span>
                         </div>
                         <div class="budget-actions">
-                            <button class="action-btn" onclick="app.views.budget.showBudgetModal('${budget.category}', ${budget.amount}, '${budget.period}', '${budget.start_date}', '${budget.end_date}')">
+                            <button class="action-btn" onclick="app.views.budget.handleEdit(${budget.id})">
                                 <i data-lucide="edit-3"></i>
                             </button>
                             <button class="action-btn danger" onclick="app.views.budget.handleDeleteBudget(${budget.id})">
@@ -117,7 +125,24 @@ class BudgetView extends BaseView {
             `;
         }).join('');
 
+        this.updateSummary(totalBudgeted, totalSpent);
         this.refreshIcons();
+    }
+
+    updateSummary(budgeted, spent) {
+        const remaining = budgeted - spent;
+        const fmt = this.app.formatter;
+
+        const budgetedEl = $('#total-budgeted-amt');
+        const spentEl = $('#total-spent-amt');
+        const remainingEl = $('#net-remaining-amt');
+
+        if (budgetedEl) budgetedEl.innerText = fmt.formatCurrency(budgeted);
+        if (spentEl) spentEl.innerText = fmt.formatCurrency(spent);
+        if (remainingEl) {
+            remainingEl.innerText = fmt.formatCurrency(Math.abs(remaining));
+            remainingEl.className = remaining < 0 ? 'text-danger' : 'text-success';
+        }
     }
 
     getProgressColor(percent) {
@@ -139,7 +164,7 @@ class BudgetView extends BaseView {
                 state.budgetViewFilter = btn.dataset.filter;
                 $$('.view-toggle .toggle-btn').forEach(b => b.classList.remove('active'));
                 btn.classList.add('active');
-                UIUtils.setHidden('#budget-month-filter', state.budgetViewFilter === 'active');
+                UIUtils.setHidden('#budget-month-filter-container', state.budgetViewFilter === 'active');
                 this.render();
             });
         });
@@ -154,10 +179,20 @@ class BudgetView extends BaseView {
                 const startDate = $('#budget-start-date').value;
                 const endDate = $('#budget-end-date').value;
 
-                await window.api.setBudget(category, amount, period, startDate, endDate);
-                this.hideBudgetModal();
-                await this.render();
-                notifications.toast('Budget Created', `${category} monthly limit set to ${this.app.formatter.formatCurrency(amount)}`, 'success');
+                try {
+                    if (this.editingBudgetId) {
+                        await window.api.updateBudget(this.editingBudgetId, category, amount, period, startDate, endDate);
+                        notifications.toast('Budget Updated', `${category} limit updated`, 'success');
+                    } else {
+                        await window.api.setBudget(category, amount, period, startDate, endDate);
+                        notifications.toast('Budget Created', `${category} limit set`, 'success');
+                    }
+
+                    this.hideBudgetModal();
+                    await this.render();
+                } catch (err) {
+                    notifications.alert('Error', err.message, 'error');
+                }
             };
         }
 
@@ -194,6 +229,15 @@ class BudgetView extends BaseView {
         $('#btn-add-budget')?.addEventListener('click', () => this.showBudgetModal());
     }
 
+    handleEdit(id) {
+        const b = this.app.state.budgets.find(item => item.id == id);
+        if (!b) return;
+
+        this.editingBudgetId = id;
+        this.showBudgetModal(b.category, b.amount, b.period, b.start_date, b.end_date);
+        $('#budget-modal h2').innerText = 'Edit Budget';
+    }
+
     showBudgetModal(category = '', amount = '', period = 'monthly', start = '', end = '') {
         const catInput = $('#budget-category');
         const amtInput = $('#budget-limit');
@@ -201,35 +245,40 @@ class BudgetView extends BaseView {
         const startInput = $('#budget-start-date');
         const endInput = $('#budget-end-date');
 
+        // Populate category dropdown if needed
         if (catInput && catInput.options.length <= 1) {
-            this.app.state.categories
-                .filter(c => c.type === 'expense')
-                .forEach(c => {
-                    const opt = document.createElement('option');
-                    opt.value = c.name;
-                    opt.textContent = c.name;
-                    catInput.appendChild(opt);
-                });
+            catInput.innerHTML = '<option value="" disabled selected>Select Category</option>' +
+                this.app.state.categories
+                    .filter(c => c.type === 'expense')
+                    .map(c => `<option value="${c.name}">${c.name}</option>`)
+                    .join('');
         }
 
         if (catInput) catInput.value = category;
         if (amtInput) amtInput.value = amount;
         if (perInput) perInput.value = period;
 
-        const now = new Date();
-        if (startInput) startInput.value = start || now.toISOString().split('T')[0];
-        if (endInput) {
-            if (end) endInput.value = end;
-            else {
-                const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-                endInput.value = lastDay.toISOString().split('T')[0];
+        if (!this.editingBudgetId) {
+            $('#budget-modal h2').innerText = 'Set New Budget';
+            const now = new Date();
+            if (startInput) startInput.value = start || now.toISOString().split('T')[0];
+            if (endInput) {
+                if (end) endInput.value = end;
+                else {
+                    const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+                    endInput.value = lastDay.toISOString().split('T')[0];
+                }
             }
+        } else {
+            if (startInput) startInput.value = start;
+            if (endInput) endInput.value = end;
         }
 
         UIUtils.setHidden('#budget-modal', false);
     }
 
     hideBudgetModal() {
+        this.editingBudgetId = null;
         UIUtils.setHidden('#budget-modal', true);
     }
 

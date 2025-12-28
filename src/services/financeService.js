@@ -15,6 +15,10 @@ class FinanceService {
         return txId;
     }
 
+    async updateTransaction(id, data) {
+        return await FinanceModel.updateTransaction(id, data);
+    }
+
     async deleteTransaction(id) {
         return await FinanceModel.deleteTransaction(id);
     }
@@ -73,13 +77,17 @@ class FinanceService {
         return await FinanceModel.updateSetting(key, value);
     }
 
-    async calculateForecast(transactions, months) {
+    async calculateForecast(transactions, months, accounts = []) {
         let txs = transactions;
         if (!txs) {
             txs = await FinanceModel.getAllTransactions();
         }
+        let accs = accounts;
+        if (!accs || accs.length === 0) {
+            accs = await FinanceModel.getAllAccounts();
+        }
         const settings = await FinanceModel.getAllSettings();
-        const engine = new ForecastEngine(txs, settings);
+        const engine = new ForecastEngine(txs, accs, settings);
         return engine.generateForecast(months);
     }
 
@@ -89,6 +97,10 @@ class FinanceService {
 
     async setBudget(category, amount, period, startDate, endDate) {
         return await FinanceModel.setBudget(category, amount, period, startDate, endDate);
+    }
+
+    async updateBudget(id, category, amount, period, startDate, endDate) {
+        return await FinanceModel.updateBudget(id, category, amount, period, startDate, endDate);
     }
 
     async deleteBudget(id) {

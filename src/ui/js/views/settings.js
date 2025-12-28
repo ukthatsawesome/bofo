@@ -132,10 +132,8 @@ class SettingsView extends BaseView {
 
     populateInputs(subViewId) {
         const fields = {
-            'budget-rules': ['set-budget-period', 'set-budget-rollover'],
-            'forecast-settings': ['set-forecast-horizon', 'set-inflation-enabled', 'set-inflation-rate'],
-            'currency-settings': ['set-currency-base', 'set-currency-precision'],
-            'appearance-settings': ['set-theme']
+            'forecast-settings': ['set-forecast-horizon', 'set-forecast-inflation-enabled', 'set-forecast-inflation-rate'],
+            'preferences-settings': ['set-currency-base', 'set-currency-precision', 'set-theme']
         };
 
         const { state } = this.app;
@@ -144,10 +142,27 @@ class SettingsView extends BaseView {
                 const el = $(`#${id}`);
                 if (!el) return;
                 const key = id.replace('set-', '').replace(/-/g, '_');
-                if (el.type === 'checkbox') el.checked = state.settings[key] === 'true';
-                else el.value = state.settings[key] || '';
+                if (el.type === 'checkbox') {
+                    el.checked = state.settings[key] === 'true';
+                } else {
+                    el.value = state.settings[key] || '';
+                }
             });
         }
+
+        if (subViewId === 'preferences-settings') {
+            this.app.populateCurrencyDropdowns(); // Ensure currency selects are populated
+        }
+
+        if (subViewId === 'forecast-settings') {
+            this.toggleInflationGroup();
+            $('#set-forecast-inflation-enabled')?.addEventListener('change', () => this.toggleInflationGroup());
+        }
+    }
+
+    toggleInflationGroup() {
+        const isEnabled = $('#set-forecast-inflation-enabled')?.checked;
+        UIUtils.setHidden('#inflation-rate-group', !isEnabled);
     }
 
     async renderAccountsTable() {

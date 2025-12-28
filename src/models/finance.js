@@ -257,6 +257,13 @@ const FinanceModel = {
         );
     },
 
+    updateBudget: async (id, category, amount, period, startDate, endDate) => {
+        return await run(
+            `UPDATE budgets SET category = ?, amount = ?, period = ?, start_date = ?, end_date = ? WHERE id = ?`,
+            [category, amount, period, startDate, endDate, id]
+        );
+    },
+
     deleteBudget: async (id) => {
         return await run(`DELETE FROM budgets WHERE id = ?`, [id]);
     },

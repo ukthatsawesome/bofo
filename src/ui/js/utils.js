@@ -27,7 +27,11 @@ const UIUtils = {
         if (!container) return;
 
         if (!items || items.length === 0) {
-            container.innerHTML = `<p class="text-muted text-center py-4">${emptyMsg}</p>`;
+            if (container.tagName === 'TBODY') {
+                container.innerHTML = `<tr><td colspan="100%" class="text-muted text-center py-4">${emptyMsg}</td></tr>`;
+            } else {
+                container.innerHTML = `<p class="text-muted text-center py-4">${emptyMsg}</p>`;
+            }
             return;
         }
 

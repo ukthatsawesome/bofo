@@ -8,6 +8,8 @@ class StateManager {
         this.txHistoryPage = 1;
         this.txHistoryPageSize = 10;
         this.txMonthFilter = ''; // Empty means all time
+        this.txSortField = 'start_date';
+        this.txSortOrder = 'desc'; // 'asc' or 'desc'
         this.categoryTableFilter = 'all';
         this.categoryTablePage = 1;
         this.categoryTablePageSize = 50;

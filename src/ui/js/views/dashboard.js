@@ -198,7 +198,8 @@ class DashboardView extends BaseView {
                 </div>
                 <div class="growth-value">
                     <div class="growth-pct ${item.pct >= 0 ? 'up' : 'down'}">
-                        ${item.pct >= 0 ? '↗' : '↘'} ${Math.abs(item.pct).toFixed(1)}%
+                        ${item.pct >= 0 ? '<i data-lucide="trending-up"></i>' : '<i data-lucide="trending-down"></i>'} 
+                        ${Math.abs(item.pct).toFixed(1)}%
                     </div>
                 </div>
             </div>
@@ -226,9 +227,11 @@ class DashboardView extends BaseView {
                 <div class="category-bar-wrapper">
                     <div class="category-bar-info">
                         <span>${name}</span>
-                        <span>${this.formatter.formatCurrency(amount)} (${share.toFixed(0)}%)</span>
+                        <span>${this.formatter.formatCurrency(amount)} <span style="opacity:0.6; font-weight:400; margin-left:4px;">(${share.toFixed(0)}%)</span></span>
                     </div>
-                    <div class="category-bar-bg"><div class="category-bar-fill" style="width: ${share}%"></div></div>
+                    <div class="category-bar-bg">
+                        <div class="category-bar-fill" style="width: ${share}%"></div>
+                    </div>
                 </div>
             `;
         }, 'No expenses this month.');
@@ -266,20 +269,22 @@ class DashboardView extends BaseView {
         const remaining = totalBudget - totalSpent;
 
         el.innerHTML = `
-            <div class="budget-summary-content" style="margin-top: 15px;">
-                <div class="flex-row" style="justify-content: space-between; font-weight: 700;">
-                    <span>${this.formatter.formatCurrency(totalSpent)}</span>
-                    <span class="text-muted" style="font-size: 0.9rem;">/ ${this.formatter.formatCurrency(totalBudget)}</span>
+            <div class="budget-summary-content">
+                <div class="budget-stats">
+                    <span class="budget-spent">${this.formatter.formatCurrency(totalSpent)}</span>
+                    <span class="budget-total">/ ${this.formatter.formatCurrency(totalBudget)}</span>
                 </div>
-                <div class="progress-bar-bg" style="height: 10px; margin-top: 10px; background: var(--bg-input); border-radius: 5px; overflow: hidden;">
+                <div class="progress-bar-bg">
                     <div class="progress-bar-fill ${pct > 90 ? 'danger' : 'success'}" 
-                         style="width: ${pct}%; height: 100%; transition: width 0.6s ease; background: ${pct > 90 ? 'var(--danger)' : 'var(--success)'}"></div>
+                         style="width: ${pct}%; transition: width 0.8s ease;"></div>
                 </div>
-                <p style="margin-top: 10px; font-size: 0.85rem; font-weight: 600; color: ${remaining > 0 ? 'var(--success)' : 'var(--danger)'}">
+                <div class="budget-remaining-tag ${remaining > 0 ? 'success' : 'danger'}">
+                    <i data-lucide="${remaining > 0 ? 'check-circle' : 'alert-circle'}" style="width:14px; height:14px; vertical-align: middle; margin-right: 4px;"></i>
                     ${remaining > 0 ? this.formatter.formatCurrency(remaining) + ' remaining' : 'Budget exceeded!'}
-                </p>
+                </div>
             </div>
         `;
+        this.refreshIcons();
     }
 }
 

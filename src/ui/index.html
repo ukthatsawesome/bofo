@@ -154,18 +154,20 @@
                     </div>
 
                     <div class="chart-container">
-                        <canvas id="mainChart"></canvas>
+                        <div class="chart-canvas-wrapper">
+                            <canvas id="mainChart"></canvas>
+                        </div>
                     </div>
                 </div>
 
                 <div class="insights-grid-row">
                     <div class="insight-card">
                         <h3><i data-lucide="trending-up"></i> Growth</h3>
-                        <div id="growth-list" class="flex-column" style="gap:10px; margin-top:15px;"></div>
+                        <div id="growth-list"></div>
                     </div>
                     <div class="insight-card">
                         <h3><i data-lucide="pie-chart"></i> Categories</h3>
-                        <div id="category-distribution" class="flex-column" style="gap:10px; margin-top:15px;"></div>
+                        <div id="category-distribution"></div>
                     </div>
                     <div class="insight-card" id="dashboard-budget-card-container">
                         <h3><i data-lucide="target"></i> Budget</h3>
@@ -179,26 +181,46 @@
                 <div class="modern-tx-container">
                     <div class="tx-history-section">
                         <div class="subview-header">
-                            <h2>Recent History</h2>
-                            <div class="flex-row">
-                                <div class="tx-history-filter">
-                                    <button class="filter-btn active" data-filter="all">All</button>
-                                    <button class="filter-btn" data-filter="income">Income</button>
-                                    <button class="filter-btn" data-filter="expense">Expense</button>
-                                    <button class="filter-btn" data-filter="transfer">Transfer</button>
-                                </div>
-                                <input type="month" id="tx-month-filter" class="form-group"
-                                    style="width: auto; margin-bottom: 25px;">
+                            <div class="tx-history-filter">
+                                <button class="filter-btn active" data-filter="all">All</button>
+                                <button class="filter-btn" data-filter="income">Income</button>
+                                <button class="filter-btn" data-filter="expense">Expense</button>
+                                <button class="filter-btn" data-filter="transfer">Transfer</button>
+                            </div>
+                            <div class="premium-month-selector">
+                                <i data-lucide="calendar" class="selector-icon"></i>
+                                <input type="month" id="tx-month-filter">
                             </div>
                         </div>
                         <div class="card overflow-hidden" style="padding: 0;">
-                            <table class="data-table">
+                            <table class="data-table sortable-table">
                                 <thead>
                                     <tr>
-                                        <th>Date</th>
-                                        <th>Category</th>
-                                        <th>Description</th>
-                                        <th>Amount</th>
+                                        <th class="sortable" data-sort="start_date">
+                                            <div class="header-content">
+                                                Date <i data-lucide="chevrons-up-down" class="sort-icon"></i>
+                                            </div>
+                                        </th>
+                                        <th class="sortable" data-sort="category">
+                                            <div class="header-content">
+                                                Category <i data-lucide="chevrons-up-down" class="sort-icon"></i>
+                                            </div>
+                                        </th>
+                                        <th class="sortable" data-sort="account_id">
+                                            <div class="header-content">
+                                                Account <i data-lucide="chevrons-up-down" class="sort-icon"></i>
+                                            </div>
+                                        </th>
+                                        <th class="sortable" data-sort="description">
+                                            <div class="header-content">
+                                                Description <i data-lucide="chevrons-up-down" class="sort-icon"></i>
+                                            </div>
+                                        </th>
+                                        <th class="sortable" data-sort="amount">
+                                            <div class="header-content">
+                                                Amount <i data-lucide="chevrons-up-down" class="sort-icon"></i>
+                                            </div>
+                                        </th>
                                         <th>Action</th>
                                     </tr>
                                 </thead>
@@ -249,29 +271,60 @@
                 <div class="chart-container large">
                     <div class="subview-header">
                         <h2>Financial Outlook</h2>
-                        <select id="forecast-range" class="form-group" style="width: auto;">
-                            <option value="1">1 Month</option>
-                            <option value="3">3 Months</option>
-                            <option value="6" selected>6 Months</option>
-                            <option value="12">1 Year</option>
-                        </select>
+                        <div class="view-toggle" id="forecast-range-toggle">
+                            <button class="toggle-btn" data-value="1">1 Month</button>
+                            <button class="toggle-btn" data-value="3">3 Months</button>
+                            <button class="toggle-btn active" data-value="6">6 Months</button>
+                            <button class="toggle-btn" data-value="12">1 Year</button>
+                            <button class="toggle-btn" data-value="custom">Custom</button>
+                        </div>
                     </div>
-                    <canvas id="forecastChart"></canvas>
+                    <div id="forecast-custom-dates" class="hidden flex-row"
+                        style="margin-bottom: 20px; gap: 15px; justify-content: flex-end;">
+                        <div class="premium-month-selector">
+                            <i data-lucide="calendar" class="selector-icon"></i>
+                            <input type="date" id="f-start-date">
+                        </div>
+                        <span class="text-muted" style="align-self: center;">to</span>
+                        <div class="premium-month-selector">
+                            <i data-lucide="calendar" class="selector-icon"></i>
+                            <input type="date" id="f-end-date">
+                        </div>
+                    </div>
+                    <div class="chart-canvas-wrapper">
+                        <canvas id="forecastChart"></canvas>
+                    </div>
                 </div>
             </section>
 
             <!-- Budget View -->
             <section id="budget" class="view">
                 <div class="subview-header">
-                    <h2>Budget Overview</h2>
                     <div class="flex-row">
                         <div class="view-toggle">
                             <button class="toggle-btn active" data-filter="active">Active</button>
                             <button class="toggle-btn" data-filter="past">History</button>
                         </div>
-                        <input type="month" id="budget-month-filter" class="form-group hidden"
-                            style="width: auto; margin-bottom: 25px;">
-                        <button class="btn primary" id="btn-add-budget">✨ Set Budget</button>
+                        <div class="premium-month-selector hidden" id="budget-month-filter-container">
+                            <i data-lucide="calendar" class="selector-icon"></i>
+                            <input type="month" id="budget-month-filter">
+                        </div>
+                    </div>
+                    <button class="btn primary" id="btn-add-budget">✨ Set Budget</button>
+                </div>
+
+                <div class="budget-summary-grid">
+                    <div class="stat-card">
+                        <h3>Total Budgeted</h3>
+                        <p id="total-budgeted-amt">$0.00</p>
+                    </div>
+                    <div class="stat-card">
+                        <h3>Total Spent</h3>
+                        <p id="total-spent-amt" class="text-danger">$0.00</p>
+                    </div>
+                    <div class="stat-card">
+                        <h3>Net Remaining</h3>
+                        <p id="net-remaining-amt" class="text-success">$0.00</p>
                     </div>
                 </div>
 
@@ -318,65 +371,80 @@
                 </div>
 
                 <div class="whatif-layout">
-                    <div class="whatif-sidebar">
-                        <div class="card">
-                            <h3><i data-lucide="shield"></i> Safety Rules</h3>
-                            <div class="form-group" style="margin-top: 15px;">
-                                <label>Min. Safety Net</label>
-                                <input type="number" id="wi-rule-min-balance" value="1000">
-                            </div>
-                            <div class="form-group">
-                                <label>Target Savings %</label>
-                                <input type="number" id="wi-rule-savings-rate" value="20">
-                            </div>
-                            <button class="btn primary" id="btn-add-sandbox" style="width: 100%;">✨ Add
-                                Hypothetical</button>
-                        </div>
-
-                        <div class="whatif-tabs" style="margin-top: 20px;">
-                            <button class="wi-tab-btn active" data-tab="sandbox">Hypotheticals</button>
-                            <button class="wi-tab-btn" data-tab="chat">Bofo Chat 🤖</button>
-                            <button class="wi-tab-btn" data-tab="reality">Reality</button>
-                        </div>
-
-                        <div id="wi-tab-sandbox" class="wi-tab-content" style="margin-top: 15px;">
-                            <div id="sandbox-list" class="flex-column"></div>
-                        </div>
-
-                        <div id="wi-tab-chat" class="wi-tab-content hidden" style="margin-top: 15px;">
-                            <div class="wi-chat-container">
-                                <div class="wi-chat-messages" id="wi-chat-messages">
-                                    <div class="chat-msg ai">
-                                        <p>Hi! Ask me about your finances or test scenarios.</p>
-                                    </div>
-                                </div>
-                                <div class="wi-chat-input-area">
-                                    <input type="text" id="wi-chat-input" placeholder="Can I afford a car?">
-                                    <button id="wi-chat-send" class="btn primary" style="padding: 10px;"><i
-                                            data-lucide="send"></i></button>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div id="wi-tab-reality" class="wi-tab-content hidden" style="margin-top: 15px;">
-                            <div id="reality-toggle-list" class="flex-column" style="gap:10px;"></div>
-                        </div>
-                    </div>
-
                     <div class="whatif-main">
                         <div class="chart-container large">
                             <div class="subview-header">
                                 <h2>Scenario Forecast</h2>
-                                <select id="whatif-range" class="form-group" style="width: auto;">
-                                    <option value="1">1 Month</option>
-                                    <option value="3">3 Months</option>
-                                    <option value="6" selected>6 Months</option>
-                                    <option value="12">1 Year</option>
-                                </select>
+                                <div class="view-toggle" id="whatif-range-toggle">
+                                    <button class="toggle-btn" data-value="1">1 Month</button>
+                                    <button class="toggle-btn" data-value="3">3 Months</button>
+                                    <button class="toggle-btn active" data-value="6">6 Months</button>
+                                    <button class="toggle-btn" data-value="12">1 Year</button>
+                                </div>
                             </div>
-                            <canvas id="whatifChart"></canvas>
+                            <div class="chart-canvas-wrapper">
+                                <canvas id="whatifChart"></canvas>
+                            </div>
                         </div>
                     </div>
+
+                    <div class="whatif-sidebar">
+                        <div class="card compact">
+                            <div class="flex-row" style="justify-content: space-between; margin-bottom: 12px;">
+                                <h3 style="margin:0; font-size: 0.95rem;"><i data-lucide="shield"
+                                        style="width:16px;"></i> Rules</h3>
+                                <button class="btn primary sm" id="btn-add-sandbox">✨ Mock Transaction</button>
+                            </div>
+                            <div class="flex-row" style="gap: 12px;">
+                                <div class="form-group-compact" style="flex:1">
+                                    <label>Safety Net</label>
+                                    <input type="number" id="wi-rule-min-balance" value="1000">
+                                </div>
+                                <div class="form-group-compact" style="flex:1">
+                                    <label>Target %</label>
+                                    <input type="number" id="wi-rule-savings-rate" value="20">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="whatif-tabs-compact">
+                            <button class="wi-tab-btn active" data-tab="sandbox">Hypotheticals</button>
+                            <button class="wi-tab-btn" data-tab="reality">Reality</button>
+                        </div>
+
+                        <div id="wi-tab-sandbox" class="wi-tab-content">
+                            <div id="sandbox-list" class="flex-column" style="gap:8px;"></div>
+                        </div>
+
+                        <div id="wi-tab-reality" class="wi-tab-content hidden">
+                            <div id="reality-toggle-list" class="flex-column" style="gap:8px;"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Floating Bofo Chat -->
+                <div class="bofo-chat-floating">
+                    <div id="bofo-chat-window" class="bofo-chat-window hidden">
+                        <div class="bofo-chat-header">
+                            <h3><i data-lucide="bot"></i> Bofo Assistant</h3>
+                            <button class="btn-text" id="close-bofo-chat"><i data-lucide="x"></i></button>
+                        </div>
+                        <div class="wi-chat-container">
+                            <div class="wi-chat-messages" id="wi-chat-messages">
+                                <div class="chat-msg ai">
+                                    <p>Hi! Ask me about your finances or test scenarios.</p>
+                                </div>
+                            </div>
+                            <div class="wi-chat-input-area">
+                                <input type="text" id="wi-chat-input" placeholder="Can I afford a car?">
+                                <button id="wi-chat-send" class="btn primary" style="padding: 10px;"><i
+                                        data-lucide="send"></i></button>
+                            </div>
+                        </div>
+                    </div>
+                    <button id="toggle-bofo-chat" class="bofo-fab">
+                        <i data-lucide="message-square"></i>
+                    </button>
                 </div>
             </section>
 
@@ -402,11 +470,27 @@
                             </div>
                             <i data-lucide="chevron-right"></i>
                         </div>
+                        <div class="settings-menu-item" onclick="app.showSettingsSubView('preferences-settings')">
+                            <div class="menu-icon"><i data-lucide="palette"></i></div>
+                            <div class="menu-text">
+                                <h3>Preferences</h3>
+                                <p>Theme, Currency and Precision</p>
+                            </div>
+                            <i data-lucide="chevron-right"></i>
+                        </div>
+                        <div class="settings-menu-item" onclick="app.showSettingsSubView('forecast-settings')">
+                            <div class="menu-icon"><i data-lucide="line-chart"></i></div>
+                            <div class="menu-text">
+                                <h3>Forecast Logic</h3>
+                                <p>Horizon, Inflation and Simulation</p>
+                            </div>
+                            <i data-lucide="chevron-right"></i>
+                        </div>
                         <div class="settings-menu-item" onclick="app.showSettingsSubView('ai-settings')">
                             <div class="menu-icon"><i data-lucide="bot"></i></div>
                             <div class="menu-text">
                                 <h3>AI & Intelligence</h3>
-                                <p>Configure Ollama</p>
+                                <p>Configure Ollama & Insights</p>
                             </div>
                             <i data-lucide="chevron-right"></i>
                         </div>
@@ -472,6 +556,67 @@
                             </thead>
                             <tbody id="category-table-body"></tbody>
                         </table>
+                    </div>
+                </div>
+
+                <!-- Preferences Sub-View -->
+                <div id="preferences-settings" class="settings-sub-view hidden">
+                    <div class="subview-header">
+                        <button class="btn-text" onclick="app.showSettingsHome()">&larr; Back</button>
+                        <h2>General Preferences</h2>
+                    </div>
+                    <div class="card">
+                        <div class="form-group">
+                            <label>Application Theme</label>
+                            <select id="set-theme" onchange="app.updateAppSetting('theme', this.value)">
+                                <option value="dark">Dark Theme (Premium)</option>
+                                <option value="light">Light Theme (Clean)</option>
+                                <option value="system">Follow System</option>
+                            </select>
+                        </div>
+                        <div class="flex-row">
+                            <div class="form-group" style="flex:2">
+                                <label>Base Currency</label>
+                                <select id="set-currency-base" class="currency-select"
+                                    onchange="app.updateAppSetting('currency_base', this.value)"></select>
+                            </div>
+                            <div class="form-group" style="flex:1">
+                                <label>Precision</label>
+                                <select id="set-currency-precision"
+                                    onchange="app.updateAppSetting('currency_precision', this.value)">
+                                    <option value="0">0 (e.g. $1)</option>
+                                    <option value="1">1 (e.g. $1.0)</option>
+                                    <option value="2">2 (e.g. $1.00)</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Forecast Settings Sub-View -->
+                <div id="forecast-settings" class="settings-sub-view hidden">
+                    <div class="subview-header">
+                        <button class="btn-text" onclick="app.showSettingsHome()">&larr; Back</button>
+                        <h2>Forecast & Projections</h2>
+                    </div>
+                    <div class="card">
+                        <div class="form-group">
+                            <label>Default Horizon (Months)</label>
+                            <input type="number" id="set-forecast-horizon" min="1" max="60"
+                                onchange="app.updateAppSetting('forecast_horizon', this.value)">
+                        </div>
+                        <div class="form-group checkbox">
+                            <label>
+                                <input type="checkbox" id="set-forecast-inflation-enabled"
+                                    onchange="app.updateAppSetting('forecast_inflation_enabled', this.checked)">
+                                Enable Annual Inflation
+                            </label>
+                        </div>
+                        <div id="inflation-rate-group" class="form-group">
+                            <label>Annual Inflation Rate (%)</label>
+                            <input type="number" id="set-forecast-inflation-rate" step="0.1"
+                                onchange="app.updateAppSetting('forecast_inflation_rate', this.value)">
+                        </div>
                     </div>
                 </div>
 
@@ -562,9 +707,19 @@
                     <label>Category</label>
                     <select id="budget-category" required></select>
                 </div>
-                <div class="form-group">
-                    <label>Limit Amount</label>
-                    <input type="number" id="budget-limit" step="0.01" required>
+                <div class="flex-row">
+                    <div class="form-group" style="flex:2">
+                        <label>Limit Amount</label>
+                        <input type="number" id="budget-limit" step="0.01" required>
+                    </div>
+                    <div class="form-group" style="flex:1">
+                        <label>Period</label>
+                        <select id="budget-period">
+                            <option value="monthly">Monthly</option>
+                            <option value="weekly">Weekly</option>
+                            <option value="yearly">Yearly</option>
+                        </select>
+                    </div>
                 </div>
                 <div class="flex-row">
                     <div class="form-group" style="flex:1">
@@ -581,6 +736,52 @@
                     <button type="submit" class="btn primary">Save Budget</button>
                 </div>
             </form>
+        </div>
+    </div>
+
+    <!-- Transaction Edit Modal -->
+    <div id="tx-modal" class="modal hidden">
+        <div class="modal-content">
+            <span class="close" id="close-tx-modal">&times;</span>
+            <h2 id="tx-modal-title">Edit Transaction</h2>
+            <div class="tx-type-toggle" style="width: 100%; margin-bottom: 20px;">
+                <button class="type-btn active" data-type="income" id="edit-tx-income">Income</button>
+                <button class="type-btn" data-type="expense" id="edit-tx-expense">Expense</button>
+                <button class="type-btn" data-type="transfer" id="edit-tx-transfer">Transfer</button>
+            </div>
+
+            <div class="amount-entry" style="margin: 0 0 20px 0; padding: 15px;">
+                <span class="currency-symbol">$</span>
+                <input type="number" id="edit-tx-amount" placeholder="0.00" step="0.01">
+            </div>
+
+            <div class="tx-details-compact">
+                <div class="form-group">
+                    <label>Account</label>
+                    <select id="edit-tx-account" class="dropdown-account"></select>
+                </div>
+                <div class="form-group hidden" id="edit-tx-to-account-group">
+                    <label>To Account</label>
+                    <select id="edit-tx-to-account" class="dropdown-account"></select>
+                </div>
+                <div class="form-group">
+                    <label>Category</label>
+                    <select id="edit-tx-category"></select>
+                </div>
+                <div class="form-group">
+                    <label>Date</label>
+                    <input type="date" id="edit-tx-date">
+                </div>
+                <div class="form-group full-width">
+                    <label>Description</label>
+                    <input type="text" id="edit-tx-description" placeholder="Short note...">
+                </div>
+            </div>
+
+            <div class="modal-actions flex-row" style="justify-content: flex-end; margin-top:20px;">
+                <button class="btn" id="cancel-edit-tx">Cancel</button>
+                <button class="btn primary" id="confirm-save-tx">✨ Update Transaction</button>
+            </div>
         </div>
     </div>
 
