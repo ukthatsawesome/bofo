@@ -1,0 +1,41 @@
+const $ = (selector) => document.querySelector(selector);
+const $$ = (selector) => document.querySelectorAll(selector);
+
+const UIUtils = {
+    createElement(tag, className = '', innerHTML = '') {
+        const el = document.createElement(tag);
+        if (className) el.className = className;
+        if (innerHTML) el.innerHTML = innerHTML;
+        return el;
+    },
+
+    setHidden(selector, hidden) {
+        const el = $(selector);
+        if (el) {
+            if (hidden) el.classList.add('hidden');
+            else el.classList.remove('hidden');
+        }
+    },
+
+    refreshIcons() {
+        if (window.lucide) lucide.createIcons();
+    },
+
+    // Higher order helper for list rendering
+    renderList(containerId, items, templateFn, emptyMsg = 'No items found.') {
+        const container = document.getElementById(containerId);
+        if (!container) return;
+
+        if (!items || items.length === 0) {
+            container.innerHTML = `<p class="text-muted text-center py-4">${emptyMsg}</p>`;
+            return;
+        }
+
+        container.innerHTML = items.map(templateFn).join('');
+        this.refreshIcons();
+    }
+};
+
+window.$ = $;
+window.$$ = $$;
+window.UIUtils = UIUtils;

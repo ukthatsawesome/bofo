@@ -1,0 +1,21 @@
+{
+  "name": "bofo",
+  "version": "1.0.0",
+  "main": "src/main/main.js",
+  "scripts": {
+    "start": "electron .",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "chart.js": "^4.5.1",
+    "electron": "^39.2.7",
+    "sqlite3": "^5.1.7"
+  },
+  "devDependencies": {
+    "@electron/rebuild": "^4.0.2"
+  }
+}

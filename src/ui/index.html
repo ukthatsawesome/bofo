@@ -1,0 +1,652 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Bofo - Your Personal AI Financial Manager">
+    <title>Bofo - AI Finance</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+
+    <!-- External Libs -->
+    <script src="lib/chart.umd.js"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <!-- Application State & Utilities -->
+    <script src="js/utils.js"></script>
+    <script src="js/state.js"></script>
+    <script src="js/formatter.js"></script>
+    <script src="js/charts.js"></script>
+    <script src="js/notifications.js"></script>
+
+    <!-- View Handlers -->
+    <script src="js/views/baseView.js"></script>
+    <script src="js/views/dashboard.js"></script>
+    <script src="js/views/transactions.js"></script>
+    <script src="js/views/forecast.js"></script>
+    <script src="js/views/budget.js"></script>
+    <script src="js/views/whatif.js"></script>
+    <script src="js/views/settings.js"></script>
+
+    <!-- Application Entry -->
+    <script src="js/app.js"></script>
+    <script src="renderer.js" defer></script>
+</head>
+
+<body>
+    <div class="app-container">
+        <!-- Sidebar Navigation -->
+        <nav class="sidebar">
+            <ul class="nav-links top-nav">
+                <li class="active logo-nav" data-view="dashboard" title="Dashboard">
+                    <i data-lucide="piggy-bank"></i>
+                </li>
+                <li data-view="transactions" title="Transactions">
+                    <i data-lucide="arrow-left-right" class="nav-icon"></i>
+                </li>
+                <li data-view="forecast" title="Forecast">
+                    <i data-lucide="trending-up" class="nav-icon"></i>
+                </li>
+                <li data-view="budget" title="Budget">
+                    <i data-lucide="pie-chart" class="nav-icon"></i>
+                </li>
+                <li data-view="whatif" title="Sandbox">
+                    <i data-lucide="sparkles" class="nav-icon"></i>
+                </li>
+            </ul>
+            <ul class="nav-links bottom-nav">
+                <li data-view="settings" title="Settings">
+                    <i data-lucide="settings" class="nav-icon"></i>
+                </li>
+            </ul>
+        </nav>
+
+        <!-- Main Content Area -->
+        <main class="content">
+
+            <!-- Dashboard View -->
+            <section id="dashboard" class="view active">
+                <div class="insight-row-full" id="daily-insight-container">
+                    <div class="insight-card-special">
+                        <div class="insight-icon-large"><i data-lucide="lightbulb"></i></div>
+                        <div class="insight-content">
+                            <h3>Bofo's Insight</h3>
+                            <p id="daily-insight-text">Analyzing your finances... ✨</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <h3><i data-lucide="landmark"></i> Current Balance</h3>
+                        <p id="stat-balance">$0.00</p>
+                    </div>
+                    <div class="stat-card">
+                        <h3><i data-lucide="gem"></i> Net Worth</h3>
+                        <p id="stat-networth">$0.00</p>
+                    </div>
+                    <div class="stat-card">
+                        <h3><i data-lucide="wallet"></i> Average Income</h3>
+                        <p id="stat-income">$0.00</p>
+                    </div>
+                    <div class="stat-card">
+                        <h3><i data-lucide="trending-down"></i> Average Expenses</h3>
+                        <p id="stat-expense">$0.00</p>
+                    </div>
+                </div>
+
+                <div class="dashboard-main-grid">
+                    <div class="tx-entry-card dashboard-entry">
+                        <div class="tx-type-toggle">
+                            <button class="type-btn active" data-type="income">Income</button>
+                            <button class="type-btn" data-type="expense">Expense</button>
+                            <button class="type-btn" data-type="transfer">Transfer</button>
+                        </div>
+
+                        <div class="amount-entry">
+                            <span class="currency-symbol">$</span>
+                            <input type="number" id="tx-amount" placeholder="0.00" step="0.01" autocomplete="off">
+                        </div>
+
+                        <div class="tx-details-compact">
+                            <div class="form-group">
+                                <label>Account</label>
+                                <select id="tx-account"></select>
+                            </div>
+                            <div class="form-group hidden" id="tx-to-account-group">
+                                <label>To Account</label>
+                                <select id="tx-to-account"></select>
+                            </div>
+                            <div class="form-group">
+                                <label>Category</label>
+                                <select id="tx-category"></select>
+                                <small id="budget-hint" class="text-muted"></small>
+                            </div>
+                            <div class="form-group">
+                                <label>Date</label>
+                                <input type="date" id="tx-date">
+                            </div>
+                            <div class="form-group full-width">
+                                <label>Description</label>
+                                <input type="text" id="tx-description" placeholder="Short note...">
+                            </div>
+                            <div class="form-group full-width">
+                                <div class="file-upload-zone compact" id="upload-zone">
+                                    <span class="upload-icon">📎</span>
+                                    <span class="upload-text">Attach Receipt</span>
+                                    <input type="file" id="tx-attachment" hidden>
+                                </div>
+                                <div id="file-preview" class="hidden flex-row">
+                                    <span id="file-name" style="font-size: 0.75rem;"></span>
+                                    <button class="btn-text danger" id="remove-file"
+                                        style="font-size: 0.75rem; padding: 0;">&times;</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="tx-actions centered">
+                            <button class="btn primary" id="save-tx">✨ Record Transaction</button>
+                        </div>
+                    </div>
+
+                    <div class="chart-container">
+                        <canvas id="mainChart"></canvas>
+                    </div>
+                </div>
+
+                <div class="insights-grid-row">
+                    <div class="insight-card">
+                        <h3><i data-lucide="trending-up"></i> Growth</h3>
+                        <div id="growth-list" class="flex-column" style="gap:10px; margin-top:15px;"></div>
+                    </div>
+                    <div class="insight-card">
+                        <h3><i data-lucide="pie-chart"></i> Categories</h3>
+                        <div id="category-distribution" class="flex-column" style="gap:10px; margin-top:15px;"></div>
+                    </div>
+                    <div class="insight-card" id="dashboard-budget-card-container">
+                        <h3><i data-lucide="target"></i> Budget</h3>
+                        <div id="dashboard-budget-content"></div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Transactions View -->
+            <section id="transactions" class="view">
+                <div class="modern-tx-container">
+                    <div class="tx-history-section">
+                        <div class="subview-header">
+                            <h2>Recent History</h2>
+                            <div class="flex-row">
+                                <div class="tx-history-filter">
+                                    <button class="filter-btn active" data-filter="all">All</button>
+                                    <button class="filter-btn" data-filter="income">Income</button>
+                                    <button class="filter-btn" data-filter="expense">Expense</button>
+                                    <button class="filter-btn" data-filter="transfer">Transfer</button>
+                                </div>
+                                <input type="month" id="tx-month-filter" class="form-group"
+                                    style="width: auto; margin-bottom: 25px;">
+                            </div>
+                        </div>
+                        <div class="card overflow-hidden" style="padding: 0;">
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>Date</th>
+                                        <th>Category</th>
+                                        <th>Description</th>
+                                        <th>Amount</th>
+                                        <th>Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tx-table-body"></tbody>
+                            </table>
+                        </div>
+                        <div class="pagination flex-row" id="tx-pagination"
+                            style="margin-top: 20px; justify-content: center;">
+                            <button class="btn-text" id="prev-tx">Previous</button>
+                            <span id="tx-page-info">Page 1</span>
+                            <button class="btn-text" id="next-tx">Next</button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Forecast View -->
+            <section id="forecast" class="view">
+                <div class="insight-row-full">
+                    <div class="insight-card-special">
+                        <div class="insight-icon-large"><i data-lucide="zap"></i></div>
+                        <div class="insight-content">
+                            <h3>Critical Insights & Milestones</h3>
+                            <div id="forecast-insights-list" class="flex-column" style="gap:15px;"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="stats-grid" id="forecast-stats">
+                    <div class="stat-card">
+                        <h3>Projected Income</h3>
+                        <p id="f-projected-income">$0.00</p>
+                    </div>
+                    <div class="stat-card">
+                        <h3>Projected Expense</h3>
+                        <p id="f-projected-expense">$0.00</p>
+                    </div>
+                    <div class="stat-card">
+                        <h3>Projected Savings</h3>
+                        <p id="f-projected-savings">$0.00</p>
+                    </div>
+                    <div class="stat-card">
+                        <h3>Runway</h3>
+                        <p id="f-runway">0 Months</p>
+                    </div>
+                </div>
+
+                <div class="chart-container large">
+                    <div class="subview-header">
+                        <h2>Financial Outlook</h2>
+                        <select id="forecast-range" class="form-group" style="width: auto;">
+                            <option value="1">1 Month</option>
+                            <option value="3">3 Months</option>
+                            <option value="6" selected>6 Months</option>
+                            <option value="12">1 Year</option>
+                        </select>
+                    </div>
+                    <canvas id="forecastChart"></canvas>
+                </div>
+            </section>
+
+            <!-- Budget View -->
+            <section id="budget" class="view">
+                <div class="subview-header">
+                    <h2>Budget Overview</h2>
+                    <div class="flex-row">
+                        <div class="view-toggle">
+                            <button class="toggle-btn active" data-filter="active">Active</button>
+                            <button class="toggle-btn" data-filter="past">History</button>
+                        </div>
+                        <input type="month" id="budget-month-filter" class="form-group hidden"
+                            style="width: auto; margin-bottom: 25px;">
+                        <button class="btn primary" id="btn-add-budget">✨ Set Budget</button>
+                    </div>
+                </div>
+
+                <div class="stats-grid" id="budget-list"></div>
+            </section>
+
+            <!-- Sandbox View -->
+            <section id="whatif" class="view">
+                <div class="insight-row-full">
+                    <div class="insight-card-special">
+                        <div class="insight-icon-large"><i data-lucide="brain"></i></div>
+                        <div class="insight-content">
+                            <h3>Decision Impact Analysis</h3>
+                            <div id="whatif-insights-list"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <h3>Real Balance</h3>
+                        <p id="wi-base-balance">$0.00</p>
+                    </div>
+                    <div class="stat-card" id="wi-delta-container">
+                        <h3>Net Impact</h3>
+                        <p id="wi-delta">$0.00</p>
+                    </div>
+                    <div class="stat-card">
+                        <h3>Scenario Balance</h3>
+                        <p id="wi-scenario-balance">$0.00</p>
+                    </div>
+                    <div class="stat-card">
+                        <h3>Scenario Income</h3>
+                        <p id="wi-scenario-income">$0.00</p>
+                    </div>
+                    <div class="stat-card">
+                        <h3>Scenario Expenses</h3>
+                        <p id="wi-scenario-expense">$0.00</p>
+                    </div>
+                    <div class="stat-card">
+                        <h3>Scenario Runway</h3>
+                        <p id="wi-scenario-runway">0 Mos</p>
+                    </div>
+                </div>
+
+                <div class="whatif-layout">
+                    <div class="whatif-sidebar">
+                        <div class="card">
+                            <h3><i data-lucide="shield"></i> Safety Rules</h3>
+                            <div class="form-group" style="margin-top: 15px;">
+                                <label>Min. Safety Net</label>
+                                <input type="number" id="wi-rule-min-balance" value="1000">
+                            </div>
+                            <div class="form-group">
+                                <label>Target Savings %</label>
+                                <input type="number" id="wi-rule-savings-rate" value="20">
+                            </div>
+                            <button class="btn primary" id="btn-add-sandbox" style="width: 100%;">✨ Add
+                                Hypothetical</button>
+                        </div>
+
+                        <div class="whatif-tabs" style="margin-top: 20px;">
+                            <button class="wi-tab-btn active" data-tab="sandbox">Hypotheticals</button>
+                            <button class="wi-tab-btn" data-tab="chat">Bofo Chat 🤖</button>
+                            <button class="wi-tab-btn" data-tab="reality">Reality</button>
+                        </div>
+
+                        <div id="wi-tab-sandbox" class="wi-tab-content" style="margin-top: 15px;">
+                            <div id="sandbox-list" class="flex-column"></div>
+                        </div>
+
+                        <div id="wi-tab-chat" class="wi-tab-content hidden" style="margin-top: 15px;">
+                            <div class="wi-chat-container">
+                                <div class="wi-chat-messages" id="wi-chat-messages">
+                                    <div class="chat-msg ai">
+                                        <p>Hi! Ask me about your finances or test scenarios.</p>
+                                    </div>
+                                </div>
+                                <div class="wi-chat-input-area">
+                                    <input type="text" id="wi-chat-input" placeholder="Can I afford a car?">
+                                    <button id="wi-chat-send" class="btn primary" style="padding: 10px;"><i
+                                            data-lucide="send"></i></button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div id="wi-tab-reality" class="wi-tab-content hidden" style="margin-top: 15px;">
+                            <div id="reality-toggle-list" class="flex-column" style="gap:10px;"></div>
+                        </div>
+                    </div>
+
+                    <div class="whatif-main">
+                        <div class="chart-container large">
+                            <div class="subview-header">
+                                <h2>Scenario Forecast</h2>
+                                <select id="whatif-range" class="form-group" style="width: auto;">
+                                    <option value="1">1 Month</option>
+                                    <option value="3">3 Months</option>
+                                    <option value="6" selected>6 Months</option>
+                                    <option value="12">1 Year</option>
+                                </select>
+                            </div>
+                            <canvas id="whatifChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Settings View -->
+            <section id="settings" class="view">
+                <!-- Settings Home -->
+                <div id="settings-home">
+                    <h1>Settings</h1>
+                    <div class="settings-menu">
+                        <div class="settings-menu-item" onclick="app.showSettingsSubView('accounts-mgmt')">
+                            <div class="menu-icon"><i data-lucide="credit-card"></i></div>
+                            <div class="menu-text">
+                                <h3>Accounts</h3>
+                                <p>Manage bank accounts and wallets</p>
+                            </div>
+                            <i data-lucide="chevron-right"></i>
+                        </div>
+                        <div class="settings-menu-item" onclick="app.showSettingsSubView('categories-mgmt')">
+                            <div class="menu-icon"><i data-lucide="folder-tree"></i></div>
+                            <div class="menu-text">
+                                <h3>Categories</h3>
+                                <p>Manage classification</p>
+                            </div>
+                            <i data-lucide="chevron-right"></i>
+                        </div>
+                        <div class="settings-menu-item" onclick="app.showSettingsSubView('ai-settings')">
+                            <div class="menu-icon"><i data-lucide="bot"></i></div>
+                            <div class="menu-text">
+                                <h3>AI & Intelligence</h3>
+                                <p>Configure Ollama</p>
+                            </div>
+                            <i data-lucide="chevron-right"></i>
+                        </div>
+                        <div class="settings-menu-item" onclick="app.showSettingsSubView('safety-settings')">
+                            <div class="menu-icon"><i data-lucide="shield-check"></i></div>
+                            <div class="menu-text">
+                                <h3>Data & Backup</h3>
+                                <p>Export and import</p>
+                            </div>
+                            <i data-lucide="chevron-right"></i>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Sub-Views (Moved to JS rendering in future, kept for now) -->
+                <!-- Accounts Management Sub-View -->
+                <div id="accounts-mgmt" class="settings-sub-view hidden">
+                    <div class="subview-header">
+                        <div class="header-left flex-row">
+                            <button class="btn-text" onclick="app.showSettingsHome()">&larr; Back</button>
+                            <h2>Manage Accounts</h2>
+                        </div>
+                        <button id="btn-add-account" class="btn primary">✨ New Account</button>
+                    </div>
+                    <div class="card overflow-hidden" style="padding: 0;">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Type</th>
+                                    <th>Balance</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="accounts-table-body"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Categories Management Sub-View -->
+                <div id="categories-mgmt" class="settings-sub-view hidden">
+                    <div class="subview-header">
+                        <button class="btn-text" onclick="app.showSettingsHome()">&larr; Back</button>
+                        <h2>Category Management</h2>
+                    </div>
+                    <div class="card">
+                        <div class="flex-row" style="margin-bottom: 20px;">
+                            <input type="text" id="new-cat-name" placeholder="New category name..." class="form-group"
+                                style="margin-bottom:0">
+                            <select id="new-cat-type" class="form-group" style="margin-bottom:0">
+                                <option value="income">Income</option>
+                                <option value="expense">Expense</option>
+                            </select>
+                            <button class="btn primary" onclick="app.handleAddNewCategory()">Add</button>
+                        </div>
+                        <table class="data-table" id="category-table">
+                            <thead>
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Type</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="category-table-body"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- AI Settings Sub-View -->
+                <div id="ai-settings" class="settings-sub-view hidden">
+                    <div class="subview-header">
+                        <button class="btn-text" onclick="app.showSettingsHome()">&larr; Back</button>
+                        <h2>AI Integration</h2>
+                    </div>
+                    <div class="card">
+                        <div class="form-group checkbox">
+                            <label><input type="checkbox" id="set-ai-enabled"> Enable AI Features</label>
+                        </div>
+                        <div class="form-group">
+                            <label>Ollama API URL</label>
+                            <input type="text" id="set-ai-url" placeholder="http://127.0.0.1:11434">
+                        </div>
+                        <div class="form-group">
+                            <label>Model Name</label>
+                            <select id="set-ai-model" class="form-group"></select>
+                        </div>
+                        <button class="btn primary" id="btn-save-ai">Save & Test</button>
+                    </div>
+                </div>
+
+                <!-- Safety Settings Sub-View -->
+                <div id="safety-settings" class="settings-sub-view hidden">
+                    <div class="subview-header">
+                        <button class="btn-text" onclick="app.showSettingsHome()">&larr; Back</button>
+                        <h2>Data & Backup</h2>
+                    </div>
+                    <div class="card">
+                        <p class="text-muted" style="margin-bottom: 20px;">Backup and Restore your financial data.</p>
+                        <div class="flex-row">
+                            <button class="btn" onclick="app.handleExportData('json')">Export JSON</button>
+                            <button class="btn" onclick="app.handleExportData('csv')">Export CSV</button>
+                        </div>
+                        <hr style="margin: 20px 0; border: none; border-top: 1px solid var(--border);">
+                        <input type="file" id="import-file-input" class="hidden" onchange="app.handleImportData(this)">
+                        <button class="btn danger"
+                            onclick="document.getElementById('import-file-input').click()">Restore from Backup</button>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Modals -->
+    <div id="account-modal" class="modal hidden">
+        <div class="modal-content">
+            <span class="close" id="close-acc-modal">&times;</span>
+            <h2>Setup New Account</h2>
+            <div class="form-group">
+                <label>Account Name</label>
+                <input type="text" id="acc-name">
+            </div>
+            <div class="form-group">
+                <label>Type</label>
+                <select id="acc-type">
+                    <option value="bank">Bank Account</option>
+                    <option value="wallet">Wallet</option>
+                    <option value="credit_card">Credit Card</option>
+                    <option value="loan">Loan</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Initial Balance</label>
+                <input type="number" id="acc-balance" value="0.00" step="0.01">
+            </div>
+            <div class="form-group">
+                <label>Currency</label>
+                <select id="acc-currency" class="currency-select"></select>
+            </div>
+            <div class="modal-actions flex-row" style="justify-content: flex-end; margin-top:20px;">
+                <button class="btn"
+                    onclick="document.getElementById('account-modal').classList.add('hidden')">Cancel</button>
+                <button class="btn primary" id="save-account">Save Account</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="budget-modal" class="modal hidden">
+        <div class="modal-content">
+            <span class="close" id="close-budget-modal">&times;</span>
+            <h2>Set Budget</h2>
+            <form id="budget-form">
+                <div class="form-group">
+                    <label>Category</label>
+                    <select id="budget-category" required></select>
+                </div>
+                <div class="form-group">
+                    <label>Limit Amount</label>
+                    <input type="number" id="budget-limit" step="0.01" required>
+                </div>
+                <div class="flex-row">
+                    <div class="form-group" style="flex:1">
+                        <label>Start Date</label>
+                        <input type="date" id="budget-start-date" required>
+                    </div>
+                    <div class="form-group" style="flex:1">
+                        <label>End Date</label>
+                        <input type="date" id="budget-end-date" required>
+                    </div>
+                </div>
+                <div class="modal-actions flex-row" style="justify-content: flex-end; margin-top:20px;">
+                    <button type="button" class="btn" id="cancel-budget">Cancel</button>
+                    <button type="submit" class="btn primary">Save Budget</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="sandbox-modal" class="modal hidden">
+        <div class="modal-content">
+            <span class="close" id="close-sandbox-modal">&times;</span>
+            <h2>Add Hypothetical Item</h2>
+            <form id="sandbox-form">
+                <div class="form-group">
+                    <label>Description</label>
+                    <input type="text" id="sb-desc" placeholder="e.g. New Side Hustle or Car Payment" required>
+                </div>
+                <div class="flex-row">
+                    <div class="form-group" style="flex:1">
+                        <label>Type</label>
+                        <select id="sb-type">
+                            <option value="income">Income</option>
+                            <option value="expense">Expense</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="flex:1">
+                        <label>Amount</label>
+                        <input type="number" id="sb-amount" step="0.01" required>
+                    </div>
+                </div>
+                <div class="flex-row">
+                    <div class="form-group" style="flex:1">
+                        <label>Frequency</label>
+                        <select id="sb-frequency">
+                            <option value="once">Once</option>
+                            <option value="weekly">Weekly</option>
+                            <option value="monthly">Monthly</option>
+                            <option value="yearly">Yearly</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="flex:1">
+                        <label>Start Date</label>
+                        <input type="date" id="sb-date" required>
+                    </div>
+                </div>
+                <div class="modal-actions flex-row" style="justify-content: flex-end; margin-top:20px;">
+                    <button type="button" class="btn" id="cancel-sandbox">Cancel</button>
+                    <button type="submit" class="btn primary">Add to Scenario</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="notification-modal" class="modal hidden">
+        <div class="modal-content">
+            <div id="notification-icon" class="notification-icon"></div>
+            <h2 id="notification-title">Notification</h2>
+            <p id="notification-message" style="margin: 20px 0;"></p>
+            <div class="modal-actions flex-row" style="justify-content: flex-end;">
+                <button class="btn" id="notification-cancel">Cancel</button>
+                <button class="btn primary" id="notification-confirm">OK</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="toast-container" class="toast-container"></div>
+
+    <div id="global-loader" class="loader-overlay hidden">
+        <div class="spinner"></div>
+        <p style="margin-top: 15px;">Crunching numbers...</p>
+    </div>
+</body>
+
+</html>

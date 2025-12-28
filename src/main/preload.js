@@ -1,0 +1,37 @@
+const { contextBridge, ipcRenderer } = require('electron');
+
+contextBridge.exposeInMainWorld('api', {
+    getTransactions: () => ipcRenderer.invoke('get-transactions'),
+    addTransaction: (data) => ipcRenderer.invoke('add-transaction', data),
+    deleteTransaction: (id) => ipcRenderer.invoke('delete-transaction', id),
+    calculateForecast: (data) => ipcRenderer.invoke('calculate-forecast', data),
+    getCategories: () => ipcRenderer.invoke('get-categories'),
+    isCategoryInUse: (name) => ipcRenderer.invoke('is-category-in-use', name),
+    addCategory: (data) => ipcRenderer.invoke('add-category', data),
+    deleteCategory: (id) => ipcRenderer.invoke('delete-category', id),
+    archiveCategory: (id) => ipcRenderer.invoke('archive-category', id),
+    unarchiveCategory: (id) => ipcRenderer.invoke('unarchive-category', id),
+    getAccounts: () => ipcRenderer.invoke('get-accounts'),
+    addAccount: (data) => ipcRenderer.invoke('add-account', data),
+    updateAccount: (data) => ipcRenderer.invoke('update-account', data),
+    deleteAccount: (id) => ipcRenderer.invoke('delete-account', id),
+    getSettings: () => ipcRenderer.invoke('get-settings'),
+    updateSetting: (data) => ipcRenderer.invoke('update-setting', data),
+    getBudgets: () => ipcRenderer.invoke('get-budgets'),
+    setBudget: (category, amount, period, startDate, endDate) =>
+        ipcRenderer.invoke('set-budget', { category, amount, period, startDate, endDate }),
+    deleteBudget: (id) => ipcRenderer.invoke('delete-budget', id),
+    exportData: () => ipcRenderer.invoke('export-data'),
+    importData: (data) => ipcRenderer.invoke('import-data', data),
+    exportCSV: () => ipcRenderer.invoke('export-csv'),
+    // AI
+    getAISettings: () => ipcRenderer.invoke('get-ai-settings'),
+    getAIDefaults: () => ipcRenderer.invoke('get-ai-defaults'),
+    saveAISettings: (settings) => ipcRenderer.invoke('save-ai-settings', settings),
+    getAIModels: (url) => ipcRenderer.invoke('get-ai-models', url),
+    checkAIConnection: () => ipcRenderer.invoke('check-ai-connection'),
+    parseTransactionAI: (text) => ipcRenderer.invoke('parse-transaction-ai', text),
+    getAIInsight: (summary) => ipcRenderer.invoke('get-ai-insight', summary),
+    chatSandbox: (text, context) => ipcRenderer.invoke('chat-sandbox', { text, context }),
+    onChatSandboxChunk: (callback) => ipcRenderer.on('chat-sandbox-chunk', (event, chunk) => callback(chunk)),
+});
