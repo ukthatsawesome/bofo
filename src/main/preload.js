@@ -1,32 +1,67 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('api', {
+    // Transactions
     getTransactions: () => ipcRenderer.invoke('get-transactions'),
     addTransaction: (data) => ipcRenderer.invoke('add-transaction', data),
     updateTransaction: (id, data) => ipcRenderer.invoke('update-transaction', { id, data }),
     deleteTransaction: (id) => ipcRenderer.invoke('delete-transaction', id),
     calculateForecast: (data) => ipcRenderer.invoke('calculate-forecast', data),
+
+    // Categories
     getCategories: () => ipcRenderer.invoke('get-categories'),
     isCategoryInUse: (name) => ipcRenderer.invoke('is-category-in-use', name),
     addCategory: (data) => ipcRenderer.invoke('add-category', data),
     deleteCategory: (id) => ipcRenderer.invoke('delete-category', id),
     archiveCategory: (id) => ipcRenderer.invoke('archive-category', id),
     unarchiveCategory: (id) => ipcRenderer.invoke('unarchive-category', id),
+
+    // Accounts
     getAccounts: () => ipcRenderer.invoke('get-accounts'),
     addAccount: (data) => ipcRenderer.invoke('add-account', data),
     updateAccount: (data) => ipcRenderer.invoke('update-account', data),
     deleteAccount: (id) => ipcRenderer.invoke('delete-account', id),
+
+    // Settings
     getSettings: () => ipcRenderer.invoke('get-settings'),
     updateSetting: (data) => ipcRenderer.invoke('update-setting', data),
+
+    // Budgets
     getBudgets: () => ipcRenderer.invoke('get-budgets'),
     setBudget: (category, amount, period, startDate, endDate) =>
         ipcRenderer.invoke('set-budget', { category, amount, period, startDate, endDate }),
     updateBudget: (id, category, amount, period, startDate, endDate) =>
         ipcRenderer.invoke('update-budget', { id, category, amount, period, startDate, endDate }),
     deleteBudget: (id) => ipcRenderer.invoke('delete-budget', id),
+
+    // Goals
+    getGoals: () => ipcRenderer.invoke('get-goals'),
+    getActiveGoals: () => ipcRenderer.invoke('get-active-goals'),
+    getGoal: (id) => ipcRenderer.invoke('get-goal', id),
+    createGoal: (data) => ipcRenderer.invoke('create-goal', data),
+    updateGoal: (id, data) => ipcRenderer.invoke('update-goal', { id, data }),
+    deleteGoal: (id) => ipcRenderer.invoke('delete-goal', id),
+    contributeToGoal: (goalId, amount, source, notes) =>
+        ipcRenderer.invoke('contribute-to-goal', { goalId, amount, source, notes }),
+    getGoalContributions: (goalId) => ipcRenderer.invoke('get-goal-contributions', goalId),
+    getGoalsSummary: () => ipcRenderer.invoke('get-goals-summary'),
+
+    // Recurring Charges
+    getRecurringCharges: () => ipcRenderer.invoke('get-recurring-charges'),
+    getActiveRecurringCharges: () => ipcRenderer.invoke('get-active-recurring-charges'),
+    createRecurringCharge: (data) => ipcRenderer.invoke('create-recurring-charge', data),
+    updateRecurringCharge: (id, data) => ipcRenderer.invoke('update-recurring-charge', { id, data }),
+    deleteRecurringCharge: (id) => ipcRenderer.invoke('delete-recurring-charge', id),
+    getMonthlyRecurringTotal: () => ipcRenderer.invoke('get-monthly-recurring-total'),
+
+    // Financial Summary
+    getAvailableForGoals: () => ipcRenderer.invoke('get-available-for-goals'),
+
+    // Data Export/Import
     exportData: () => ipcRenderer.invoke('export-data'),
     importData: (data) => ipcRenderer.invoke('import-data', data),
     exportCSV: () => ipcRenderer.invoke('export-csv'),
+
     // AI
     getAISettings: () => ipcRenderer.invoke('get-ai-settings'),
     getAIDefaults: () => ipcRenderer.invoke('get-ai-defaults'),

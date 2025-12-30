@@ -94,3 +94,50 @@ CREATE TABLE IF NOT EXISTS budgets (
     end_date TEXT NOT NULL,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
+
+-- Goals: Track savings targets (e.g., laptop, vacation, emergency fund)
+CREATE TABLE IF NOT EXISTS goals (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    description TEXT,
+    target_amount REAL NOT NULL,
+    current_amount REAL DEFAULT 0,
+    monthly_contribution REAL DEFAULT 0,
+    icon TEXT DEFAULT 'target',
+    color TEXT DEFAULT '#a29bfe',
+    priority INTEGER DEFAULT 1,
+    target_date TEXT,
+    status TEXT DEFAULT 'active' CHECK(status IN ('active', 'completed', 'paused', 'cancelled')),
+    auto_contribute INTEGER DEFAULT 0,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    completed_at DATETIME
+);
+
+-- Recurring Charges: Fixed expenses that repeat (rent, subscriptions, utilities)
+CREATE TABLE IF NOT EXISTS recurring_charges (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    category TEXT NOT NULL,
+    name TEXT NOT NULL,
+    amount REAL NOT NULL,
+    frequency TEXT CHECK(frequency IN ('weekly', 'monthly', 'yearly')) NOT NULL DEFAULT 'monthly',
+    due_day INTEGER DEFAULT 1,
+    next_due_date TEXT,
+    is_active INTEGER DEFAULT 1,
+    notes TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Goal Contributions: Track individual contributions to goals
+CREATE TABLE IF NOT EXISTS goal_contributions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    goal_id INTEGER NOT NULL,
+    amount REAL NOT NULL,
+    source TEXT,
+    notes TEXT,
+    contributed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(goal_id) REFERENCES goals(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_goals_status ON goals(status);
+CREATE INDEX IF NOT EXISTS idx_recurring_active ON recurring_charges(is_active);
+CREATE INDEX IF NOT EXISTS idx_contributions_goal ON goal_contributions(goal_id);

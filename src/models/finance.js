@@ -344,7 +344,186 @@ const FinanceModel = {
         ]);
 
         return [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+    },
+
+    // ==================== GOALS ====================
+
+    getAllGoals: async () => {
+        return await all(`SELECT * FROM goals ORDER BY priority ASC, created_at DESC`);
+    },
+
+    getActiveGoals: async () => {
+        return await all(`SELECT * FROM goals WHERE status = 'active' ORDER BY priority ASC`);
+    },
+
+    getGoalById: async (id) => {
+        return await get(`SELECT * FROM goals WHERE id = ?`, [id]);
+    },
+
+    createGoal: async (data) => {
+        const sql = `INSERT INTO goals (name, description, target_amount, current_amount, monthly_contribution, icon, color, priority, target_date, auto_contribute)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+        return await run(sql, [
+            data.name,
+            data.description || null,
+            data.target_amount,
+            data.current_amount || 0,
+            data.monthly_contribution || 0,
+            data.icon || 'target',
+            data.color || '#a29bfe',
+            data.priority || 1,
+            data.target_date || null,
+            data.auto_contribute ? 1 : 0
+        ]);
+    },
+
+    updateGoal: async (id, data) => {
+        const fields = [];
+        const params = [];
+        const allowedFields = ['name', 'description', 'target_amount', 'current_amount', 'monthly_contribution', 'icon', 'color', 'priority', 'target_date', 'status', 'auto_contribute'];
+
+        for (let key in data) {
+            if (allowedFields.includes(key)) {
+                fields.push(`${key} = ?`);
+                params.push(key === 'auto_contribute' ? (data[key] ? 1 : 0) : data[key]);
+            }
+        }
+
+        // Auto-complete if target reached
+        if (data.current_amount >= data.target_amount && data.status !== 'completed') {
+            fields.push('status = ?', 'completed_at = ?');
+            params.push('completed', new Date().toISOString());
+        }
+
+        params.push(id);
+        const sql = `UPDATE goals SET ${fields.join(', ')} WHERE id = ?`;
+        return await run(sql, params);
+    },
+
+    deleteGoal: async (id) => {
+        await run(`DELETE FROM goal_contributions WHERE goal_id = ?`, [id]);
+        return await run(`DELETE FROM goals WHERE id = ?`, [id]);
+    },
+
+    contributeToGoal: async (goalId, amount, source = null, notes = null) => {
+        // Add contribution record
+        await run(`INSERT INTO goal_contributions (goal_id, amount, source, notes) VALUES (?, ?, ?, ?)`,
+            [goalId, amount, source, notes]);
+
+        // Update goal current amount
+        const goal = await get(`SELECT current_amount, target_amount FROM goals WHERE id = ?`, [goalId]);
+        const newAmount = (goal.current_amount || 0) + amount;
+
+        const updates = { current_amount: newAmount };
+        if (newAmount >= goal.target_amount) {
+            updates.status = 'completed';
+        }
+
+        return await FinanceModel.updateGoal(goalId, updates);
+    },
+
+    getGoalContributions: async (goalId) => {
+        return await all(`SELECT * FROM goal_contributions WHERE goal_id = ? ORDER BY contributed_at DESC`, [goalId]);
+    },
+
+    // ==================== RECURRING CHARGES ====================
+
+    getAllRecurringCharges: async () => {
+        return await all(`SELECT * FROM recurring_charges ORDER BY category, name`);
+    },
+
+    getActiveRecurringCharges: async () => {
+        return await all(`SELECT * FROM recurring_charges WHERE is_active = 1 ORDER BY category, name`);
+    },
+
+    createRecurringCharge: async (data) => {
+        const sql = `INSERT INTO recurring_charges (category, name, amount, frequency, due_day, next_due_date, notes)
+                     VALUES (?, ?, ?, ?, ?, ?, ?)`;
+        return await run(sql, [
+            data.category,
+            data.name,
+            data.amount,
+            data.frequency || 'monthly',
+            data.due_day || 1,
+            data.next_due_date || null,
+            data.notes || null
+        ]);
+    },
+
+    updateRecurringCharge: async (id, data) => {
+        const fields = [];
+        const params = [];
+        const allowedFields = ['category', 'name', 'amount', 'frequency', 'due_day', 'next_due_date', 'is_active', 'notes'];
+
+        for (let key in data) {
+            if (allowedFields.includes(key)) {
+                fields.push(`${key} = ?`);
+                params.push(data[key]);
+            }
+        }
+        params.push(id);
+        const sql = `UPDATE recurring_charges SET ${fields.join(', ')} WHERE id = ?`;
+        return await run(sql, params);
+    },
+
+    deleteRecurringCharge: async (id) => {
+        return await run(`DELETE FROM recurring_charges WHERE id = ?`, [id]);
+    },
+
+    // ==================== FINANCIAL SUMMARY ====================
+
+    getMonthlyRecurringTotal: async () => {
+        const charges = await all(`SELECT amount, frequency FROM recurring_charges WHERE is_active = 1`);
+        let monthlyTotal = 0;
+
+        charges.forEach(c => {
+            if (c.frequency === 'weekly') monthlyTotal += c.amount * 4.33;
+            else if (c.frequency === 'monthly') monthlyTotal += c.amount;
+            else if (c.frequency === 'yearly') monthlyTotal += c.amount / 12;
+        });
+
+        return monthlyTotal;
+    },
+
+    getGoalsSummary: async () => {
+        const goals = await all(`SELECT * FROM goals WHERE status = 'active'`);
+        const totalTarget = goals.reduce((sum, g) => sum + g.target_amount, 0);
+        const totalSaved = goals.reduce((sum, g) => sum + g.current_amount, 0);
+        const totalMonthlyContribution = goals.reduce((sum, g) => sum + (g.monthly_contribution || 0), 0);
+
+        return {
+            activeGoals: goals.length,
+            totalTarget,
+            totalSaved,
+            totalProgress: totalTarget > 0 ? (totalSaved / totalTarget) * 100 : 0,
+            totalMonthlyContribution
+        };
+    },
+
+    getAvailableForGoals: async () => {
+        // Calculate: Average Monthly Income - Recurring Charges - Existing Goal Contributions
+        const settings = await FinanceModel.getAllSettings();
+
+        // Get average monthly income from last 3 months
+        const threeMonthsAgo = new Date();
+        threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
+        const incomeData = await get(`
+            SELECT SUM(amount) as total FROM transactions 
+            WHERE type = 'income' AND start_date >= ? AND is_active = 1
+        `, [threeMonthsAgo.toISOString().split('T')[0]]);
+
+        const avgMonthlyIncome = (incomeData.total || 0) / 3;
+        const recurringTotal = await FinanceModel.getMonthlyRecurringTotal();
+        const goalsSummary = await FinanceModel.getGoalsSummary();
+
+        return {
+            avgMonthlyIncome,
+            recurringCharges: recurringTotal,
+            goalContributions: goalsSummary.totalMonthlyContribution,
+            available: avgMonthlyIncome - recurringTotal - goalsSummary.totalMonthlyContribution
+        };
     }
 };
 
 module.exports = FinanceModel;
+
