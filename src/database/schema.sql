@@ -141,3 +141,32 @@ CREATE TABLE IF NOT EXISTS goal_contributions (
 CREATE INDEX IF NOT EXISTS idx_goals_status ON goals(status);
 CREATE INDEX IF NOT EXISTS idx_recurring_active ON recurring_charges(is_active);
 CREATE INDEX IF NOT EXISTS idx_contributions_goal ON goal_contributions(goal_id);
+
+-- Bills Tracking
+CREATE TABLE IF NOT EXISTS bill_types (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    unit_name TEXT DEFAULT 'Units',
+    cost_per_unit REAL DEFAULT 0,
+    category_name TEXT, -- Link to main categories
+    account_id INTEGER, -- Link to specific account
+    auto_transaction INTEGER DEFAULT 0, -- Toggle for auto-recording
+    icon TEXT DEFAULT 'file-text',
+    color TEXT DEFAULT '#7c3aed',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(account_id) REFERENCES accounts(id)
+);
+
+CREATE TABLE IF NOT EXISTS bill_readings (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    bill_type_id INTEGER NOT NULL,
+    date TEXT NOT NULL,
+    units_used REAL NOT NULL,
+    total_cost REAL NOT NULL,
+    notes TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(bill_type_id) REFERENCES bill_types(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_bills_date ON bill_readings(date);
+CREATE INDEX IF NOT EXISTS idx_bills_type ON bill_readings(bill_type_id);

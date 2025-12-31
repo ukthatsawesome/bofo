@@ -77,6 +77,15 @@ export class SettingsView extends BaseView {
                             </div>
                         </div>
                     </div>
+                    <div class="card clickable-card" onclick="app.views.settings.showSubView('bills-mgmt')">
+                        <div class="card-body flex-row align-center gap-4">
+                            <div class="icon-box primary"><i data-lucide="receipt"></i></div>
+                            <div>
+                                <h3>Manage Bills</h3>
+                                <p class="text-muted">Configure bill types and cost per unit</p>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -158,7 +167,6 @@ export class SettingsView extends BaseView {
                                     </div>
                                 </label>
                             </div>
-                            
                             <div class="form-group full-width">
                                 <div class="flex-row justify-between align-center mb-2">
                                     <label>Transaction Prompt</label>
@@ -166,7 +174,6 @@ export class SettingsView extends BaseView {
                                 </div>
                                 <textarea id="set-ai-prompt-tx" class="form-control" rows="3"></textarea>
                             </div>
-                            
                             <div class="form-group full-width">
                                 <div class="flex-row justify-between align-center mb-2">
                                     <label>Insights Prompt</label>
@@ -174,7 +181,6 @@ export class SettingsView extends BaseView {
                                 </div>
                                 <textarea id="set-ai-prompt-insight" class="form-control" rows="3"></textarea>
                             </div>
-
                             <div class="form-group full-width">
                                 <div class="flex-row justify-between align-center mb-2">
                                     <label>Chat/Sandbox Prompt</label>
@@ -257,6 +263,33 @@ export class SettingsView extends BaseView {
                     </div>
                 </div>
             </div>
+
+            <div id="bills-mgmt" class="settings-sub-view hidden">
+                <div class="card">
+                    <div class="card-header flex-row justify-between align-center">
+                        <div class="flex-row align-center gap-2">
+                            <button class="btn icon" onclick="app.views.settings.showHome()"><i data-lucide="arrow-left"></i></button>
+                            <h3>Manage Bills</h3>
+                        </div>
+                        <button class="btn primary" onclick="app.views.settings.handleNewBillType()"><i data-lucide="plus"></i> New Bill Type</button>
+                    </div>
+                    <div class="card-body no-padding">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Unit</th>
+                                    <th>Cost per Unit</th>
+                                    <th>Linkage (Cat / Acc)</th>
+                                    <th>Auto-Sync</th>
+                                    <th class="text-right">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="bills-table-body"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
         `;
         this.refreshIcons();
     }
@@ -310,6 +343,7 @@ export class SettingsView extends BaseView {
         else if (subViewId === 'accounts-mgmt') this.renderAccountsTable();
         else if (subViewId === 'ai-settings') await this.renderAISettings();
         else if (subViewId === 'recurring-charges') await this.renderRecurringCharges();
+        else if (subViewId === 'bills-mgmt') await this.renderBillsTable();
         else this.populateInputs(subViewId);
     }
 
@@ -876,7 +910,154 @@ export class SettingsView extends BaseView {
         this.renderCategoryTable();
     }
 
+    // --- Bill Type Management ---
 
+    async renderBillsTable() {
+        const { state } = this.app;
+        await state.loadBillTypes();
+
+        UIUtils.renderList('bills-table-body', state.billTypes, bt => {
+            return `
+                <tr class="hover:bg-brand-primary/5 transition-colors border-b border-border last:border-0">
+                    <td class="px-5 py-4 text-sm font-bold text-text-primary">
+                        <div class="flex-row align-center gap-3">
+                            <div class="icon-box sm flex-shrink-0" style="background: ${bt.color}20; color: ${bt.color}">
+                                <i data-lucide="${bt.icon || 'file-text'}" class="w-4 h-4"></i>
+                            </div>
+                            <span>${bt.name}</span>
+                        </div>
+                    </td>
+                    <td class="px-5 py-4 text-sm text-text-secondary">${bt.unit_name}</td>
+                    <td class="px-5 py-4 text-sm font-medium">${this.formatter.formatCurrency(bt.cost_per_unit)}/${bt.unit_name}</td>
+                    <td class="px-5 py-4">
+                        <div class="flex-col gap-1">
+                            <span class="text-xs font-bold text-text-primary">Cat: <span class="text-brand-primary">${bt.category_name || 'None'}</span></span>
+                            <span class="text-xs text-text-muted">Acc: ${bt.account_name || 'System Default'}</span>
+                        </div>
+                    </td>
+                    <td class="px-5 py-4">
+                        ${bt.auto_transaction ?
+                    '<span class="badge success xs"><i data-lucide="refresh-cw" class="w-3 h-3 mr-1"></i> Active</span>' :
+                    '<span class="badge text-text-muted xs">Off</span>'
+                }
+                    </td>
+                    <td class="px-5 py-4 text-right">
+                        <div class="row-actions flex justify-end gap-2">
+                            <button class="action-btn p-2 hover:text-brand-primary transition-colors" onclick="app.views.settings.handleEditBillType('${bt.id}')" title="Edit">
+                                <i data-lucide="edit-3" class="w-4 h-4"></i>
+                            </button>
+                            <button class="action-btn p-2 hover:text-danger transition-colors" onclick="app.views.settings.handleDeleteBillType('${bt.id}')" title="Delete">
+                                <i data-lucide="trash-2" class="w-4 h-4"></i>
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+            `;
+        }, 'No bill types configured yet.');
+
+        this.refreshIcons();
+    }
+
+    handleNewBillType() {
+        this.editingBillTypeId = null;
+        this.showBillTypeModal();
+    }
+
+    handleEditBillType(id) {
+        const bt = this.app.state.billTypes.find(b => b.id == id);
+        if (!bt) return;
+        this.editingBillTypeId = id;
+        this.showBillTypeModal(bt);
+    }
+
+    async handleDeleteBillType(id) {
+        const bt = this.app.state.billTypes.find(b => b.id == id);
+        if (!bt) return;
+
+        if (await this.app.notifications.confirm('Delete Bill Type', `Are you sure you want to delete "${bt.name}"? All reading history for this bill will also be deleted.`)) {
+            try {
+                await window.api.deleteBillType(id);
+                this.app.notifications.toast('Deleted', 'Bill type removed');
+                this.renderBillsTable();
+            } catch (err) {
+                this.app.notifications.alert('Error', err.message);
+            }
+        }
+    }
+
+    showBillTypeModal(bt = null) {
+        const modal = $('#bill-type-modal');
+        if (!modal) return;
+
+        const title = modal.querySelector('h2');
+        const saveBtn = $('#save-bill-type');
+
+        if (title) title.innerText = bt ? 'Edit Bill Type' : 'Add New Bill Type';
+        if (saveBtn) saveBtn.innerText = bt ? 'Update Bill Type' : 'Save Bill Type';
+
+        // Set inputs
+        $('#bill-name') && ($('#bill-name').value = bt ? bt.name : '');
+        $('#bill-unit') && ($('#bill-unit').value = bt ? bt.unit_name : '');
+        $('#bill-cost') && ($('#bill-cost').value = bt ? bt.cost_per_unit : '');
+        $('#bill-icon') && ($('#bill-icon').value = bt ? bt.icon : 'zap');
+        $('#bill-color') && ($('#bill-color').value = bt ? bt.color : '#7c3aed');
+
+        // Populate Categories
+        const catSelect = $('#bill-category');
+        if (catSelect) {
+            const expenseCats = this.app.state.categories.filter(c => c.type === 'expense');
+            catSelect.innerHTML = '<option value="">No linked category</option>' +
+                expenseCats.map(c => `<option value="${c.name}" ${bt && bt.category_name === c.name ? 'selected' : ''}>${c.name}</option>`).join('');
+        }
+
+        // Populate Accounts
+        const accSelect = $('#bill-account');
+        if (accSelect) {
+            const accounts = this.app.state.accounts.filter(a => a.status === 'active');
+            accSelect.innerHTML = '<option value="">Use System Default</option>' +
+                accounts.map(a => `<option value="${a.id}" ${bt && bt.account_id == a.id ? 'selected' : ''}>${a.name} (${this.formatter.formatCurrency(a.balance)})</option>`).join('');
+        }
+
+        // Set Toggle
+        const autoTxToggle = $('#bill-auto-tx');
+        if (autoTxToggle) {
+            autoTxToggle.checked = bt ? !!bt.auto_transaction : false;
+        }
+
+        UIUtils.setHidden('#bill-type-modal', false);
+
+        // Save logic
+        if (!saveBtn.dataset.bound) {
+            saveBtn.addEventListener('click', async () => {
+                const name = $('#bill-name').value.trim();
+                const unit_name = $('#bill-unit').value.trim();
+                const cost_per_unit = parseFloat($('#bill-cost').value) || 0;
+                const icon = $('#bill-icon').value;
+                const color = $('#bill-color').value;
+                const category_name = $('#bill-category').value;
+                const account_id = parseInt($('#bill-account').value) || null;
+                const auto_transaction = $('#bill-auto-tx').checked ? 1 : 0;
+
+                if (!name || !unit_name) return this.app.notifications.toast('Validation Error', 'Name and Unit are required', 'error');
+
+                try {
+                    const data = { name, unit_name, cost_per_unit, icon, color, category_name, account_id, auto_transaction };
+                    if (this.editingBillTypeId) {
+                        await window.api.updateBillType({ id: this.editingBillTypeId, data });
+                        this.app.notifications.toast('Updated', `${name} updated`);
+                    } else {
+                        await window.api.addBillType(data);
+                        this.app.notifications.toast('Added', `${name} created`);
+                    }
+                    UIUtils.setHidden('#bill-type-modal', true);
+                    this.renderBillsTable();
+                } catch (err) {
+                    this.app.notifications.alert('Error', err.message);
+                }
+            });
+            saveBtn.dataset.bound = 'true';
+        }
+    }
 }
 
 window.SettingsView = SettingsView;

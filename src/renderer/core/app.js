@@ -16,6 +16,7 @@ import { BudgetView } from '../views/BudgetView.js';
 import { GoalsView } from '../views/GoalsView.js';
 import { SandboxView } from '../views/SandboxView.js';
 import { RecurringChargesView } from '../views/RecurringChargesView.js';
+import { BillsView } from '../views/BillsView.js';
 import { SettingsView } from '../views/SettingsView.js';
 
 // Modals
@@ -24,6 +25,8 @@ import { AccountModal } from '../modals/AccountModal.js';
 import { CategoryModal } from '../modals/CategoryModal.js';
 import { BudgetModal } from '../modals/BudgetModal.js';
 import { SandboxModal } from '../modals/SandboxModal.js';
+import { BillTypeModal } from '../modals/BillTypeModal.js';
+import { BillReadingModal } from '../modals/BillReadingModal.js';
 
 export class App {
     constructor() {
@@ -40,6 +43,7 @@ export class App {
             goals: new GoalsView(this, 'goals'),
             whatif: new SandboxView(this, 'whatif'),
             recurring: new RecurringChargesView(this, 'recurring'),
+            bills: new BillsView(this, 'bills'),
             settings: new SettingsView(this, 'settings')
         };
 
@@ -87,6 +91,8 @@ export class App {
             ${CategoryModal()}
             ${BudgetModal({ categories })}
             ${SandboxModal()}
+            ${BillTypeModal()}
+            ${BillReadingModal({ billTypes: this.state.billTypes || [] })}
         `;
 
         const notificationContainer = document.getElementById('notification-modal-container');
@@ -114,6 +120,14 @@ export class App {
 
         document.getElementById('cancel-account')?.addEventListener('click', () => {
             UIUtils.setHidden('#account-modal', true);
+        });
+
+        document.getElementById('cancel-bill-type')?.addEventListener('click', () => {
+            UIUtils.setHidden('#bill-type-modal', true);
+        });
+
+        document.getElementById('cancel-bill-reading')?.addEventListener('click', () => {
+            UIUtils.setHidden('#bill-reading-modal', true);
         });
     }
 

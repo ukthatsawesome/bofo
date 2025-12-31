@@ -77,4 +77,15 @@ contextBridge.exposeInMainWorld('api', {
     getAIInsight: (summary) => ipcRenderer.invoke('get-ai-insight', summary),
     chatSandbox: (text, context) => ipcRenderer.invoke('chat-sandbox', { text, context }),
     onChatSandboxChunk: (callback) => ipcRenderer.on('chat-sandbox-chunk', (event, chunk) => callback(chunk)),
+
+    // Bills
+    getBillTypes: () => ipcRenderer.invoke('get-bill-types'),
+    addBillType: (data) => ipcRenderer.invoke('add-bill-type', data),
+    updateBillType: (data) => ipcRenderer.invoke('update-bill-type', data),
+    deleteBillType: (id) => ipcRenderer.invoke('delete-bill-type', id),
+    getBillReadings: (filters) => ipcRenderer.invoke('get-bill-readings', filters),
+    addBillReading: (data) => ipcRenderer.invoke('add-bill-reading', data),
+    updateBillReading: (id, data) => ipcRenderer.invoke('update-bill-reading', { id, data }),
+    deleteBillReading: (id) => ipcRenderer.invoke('delete-bill-reading', id),
+    getBillProjections: (months) => ipcRenderer.invoke('get-bill-projections', months),
 });

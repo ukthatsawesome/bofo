@@ -112,6 +112,36 @@ const MIGRATIONS = [
                 await run(`UPDATE budgets SET start_date = ?, end_date = ? WHERE start_date IS NULL`, [start, end]);
             }
         }
+    },
+    {
+        id: 4,
+        name: 'Linking Bills to Categories',
+        up: async () => {
+            const columns = await all("PRAGMA table_info(bill_types)");
+            const colNames = columns.map(c => c.name);
+
+            if (!colNames.includes('category_name')) {
+                console.log('Adding category_name to bill_types...');
+                await run("ALTER TABLE bill_types ADD COLUMN category_name TEXT");
+            }
+        }
+    },
+    {
+        id: 5,
+        name: 'Bill Auto-Transaction Fields',
+        up: async () => {
+            const columns = await all("PRAGMA table_info(bill_types)");
+            const colNames = columns.map(c => c.name);
+
+            if (!colNames.includes('account_id')) {
+                console.log('Adding account_id to bill_types...');
+                await run("ALTER TABLE bill_types ADD COLUMN account_id INTEGER");
+            }
+            if (!colNames.includes('auto_transaction')) {
+                console.log('Adding auto_transaction to bill_types...');
+                await run("ALTER TABLE bill_types ADD COLUMN auto_transaction INTEGER DEFAULT 0");
+            }
+        }
     }
 ];
 

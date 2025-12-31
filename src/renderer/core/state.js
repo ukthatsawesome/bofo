@@ -23,12 +23,20 @@ export class StateManager {
         this.budgets = [];
         this.budgetViewMonth = new Date().toISOString().slice(0, 7); // YYYY-MM
         this.budgetViewFilter = 'active'; // 'active' or 'past'
+        this.billTypes = [];
+        this.billReadings = [];
+        this.allBillReadings = [];
+        this.billHistoryFilter = {
+            year: new Date().getFullYear(),
+            month: 0 // All Months
+        };
     }
 
     async loadSettings() {
         this.settings = await window.api.getSettings();
         this.aiSettings = await window.api.getAISettings();
         this.applyTheme(this.settings.theme || 'dark');
+        await this.loadBillTypes();
     }
 
     async loadAccounts() {
@@ -74,6 +82,15 @@ export class StateManager {
 
     async loadBudgets() {
         this.budgets = await window.api.getBudgets();
+    }
+
+    async loadBillTypes() {
+        this.billTypes = await window.api.getBillTypes();
+    }
+
+    async loadBillReadings(filters = null) {
+        this.billReadings = await window.api.getBillReadings(filters || this.billHistoryFilter);
+        this.allBillReadings = await window.api.getBillReadings({}); // All time
     }
 }
 

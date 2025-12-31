@@ -325,6 +325,44 @@ function registerIpcHandlers() {
             return { timeline: [], summary: {}, insights: [] };
         }
     });
+
+    // ==================== BILLS HANDLERS ====================
+
+    ipcMain.handle('get-bill-types', async () => {
+        return await FinanceModel.getBillTypes();
+    });
+
+    ipcMain.handle('add-bill-type', async (event, data) => {
+        return await FinanceModel.addBillType(data);
+    });
+
+    ipcMain.handle('update-bill-type', async (event, { id, data }) => {
+        return await FinanceModel.updateBillType(id, data);
+    });
+
+    ipcMain.handle('delete-bill-type', async (event, id) => {
+        return await FinanceModel.deleteBillType(id);
+    });
+
+    ipcMain.handle('get-bill-readings', async (event, filters) => {
+        return await FinanceModel.getBillReadings(filters);
+    });
+
+    ipcMain.handle('add-bill-reading', async (event, data) => {
+        return await FinanceModel.addBillReading(data);
+    });
+
+    ipcMain.handle('update-bill-reading', async (event, { id, data }) => {
+        return await FinanceModel.updateBillReading(id, data);
+    });
+
+    ipcMain.handle('get-bill-projections', async (event, months) => {
+        return await FinanceModel.getBillProjections(months);
+    });
+
+    ipcMain.handle('delete-bill-reading', async (event, id) => {
+        return await FinanceModel.deleteBillReading(id);
+    });
 }
 
 module.exports = { registerIpcHandlers };

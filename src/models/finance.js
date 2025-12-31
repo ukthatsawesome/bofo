@@ -567,6 +567,186 @@ const FinanceModel = {
             goalContributions: goalsSummary.totalMonthlyContribution,
             available: avgMonthlyIncome - recurringTotal - goalsSummary.totalMonthlyContribution
         };
+    },
+
+    // ==================== BILLS ====================
+
+    getBillTypes: async () => {
+        return await all(`
+            SELECT b.*, a.name as account_name 
+            FROM bill_types b
+            LEFT JOIN accounts a ON b.account_id = a.id
+            ORDER BY b.name ASC
+        `);
+    },
+
+    addBillType: async (data) => {
+        const sql = `INSERT INTO bill_types (name, unit_name, cost_per_unit, category_name, account_id, auto_transaction, icon, color) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`;
+        return await run(sql, [
+            data.name,
+            data.unit_name || 'Units',
+            data.cost_per_unit || 0,
+            data.category_name || null,
+            data.account_id || null,
+            data.auto_transaction || 0,
+            data.icon || 'file-text',
+            data.color || '#7c3aed'
+        ]);
+    },
+
+    updateBillType: async (id, data) => {
+        const fields = [];
+        const params = [];
+        const allowed = ['name', 'unit_name', 'cost_per_unit', 'category_name', 'account_id', 'auto_transaction', 'icon', 'color'];
+        for (let key in data) {
+            if (allowed.includes(key)) {
+                fields.push(`${key} = ?`);
+                params.push(data[key]);
+            }
+        }
+        params.push(id);
+        const sql = `UPDATE bill_types SET ${fields.join(', ')} WHERE id = ?`;
+        return await run(sql, params);
+    },
+
+    deleteBillType: async (id) => {
+        return await run(`DELETE FROM bill_types WHERE id = ?`, [id]);
+    },
+
+    getBillReadings: async (filters = {}) => {
+        let sql = `
+            SELECT r.*, t.name as bill_name, t.unit_name, t.cost_per_unit as current_cost_per_unit, t.color, t.icon, t.category_name
+            FROM bill_readings r
+            JOIN bill_types t ON r.bill_type_id = t.id
+        `;
+        const params = [];
+        const where = [];
+
+        if (filters.bill_type_id) {
+            where.push(`r.bill_type_id = ?`);
+            params.push(filters.bill_type_id);
+        }
+        if (filters.year && filters.year != 0) {
+            where.push(`strftime('%Y', r.date) = ?`);
+            params.push(String(filters.year));
+        }
+        if (filters.month && filters.month != 0) {
+            where.push(`strftime('%m', r.date) = ?`);
+            params.push(String(filters.month).padStart(2, '0'));
+        }
+
+        if (where.length > 0) {
+            sql += ` WHERE ` + where.join(' AND ');
+        }
+
+        sql += ` ORDER BY r.date DESC`;
+        return await all(sql, params);
+    },
+
+    addBillReading: async (data) => {
+        const sql = `INSERT INTO bill_readings (bill_type_id, date, units_used, total_cost, notes) VALUES (?, ?, ?, ?, ?)`;
+        const result = await run(sql, [data.bill_type_id, data.date, data.units_used, data.total_cost, data.notes || null]);
+
+        // AUTO-TRANSACTION FEATURE
+        const billType = await get(`SELECT name, category_name, account_id, auto_transaction FROM bill_types WHERE id = ?`, [data.bill_type_id]);
+
+        // Only register if auto_transaction is ON and a category is linked
+        if (billType && billType.auto_transaction && billType.category_name) {
+            let targetAccountId = billType.account_id;
+
+            // If no specific account linked, find a default bank/wallet
+            if (!targetAccountId) {
+                const defaultAccount = await get(`SELECT id FROM accounts WHERE type IN ('bank', 'wallet') AND status = 'active' LIMIT 1`);
+                if (defaultAccount) targetAccountId = defaultAccount.id;
+            }
+
+            if (targetAccountId) {
+                await FinanceModel.createTransaction({
+                    account_id: targetAccountId,
+                    type: 'expense',
+                    category: billType.category_name,
+                    amount: data.total_cost,
+                    description: `Bill: ${billType.name} reading (${data.units_used} units)`,
+                    frequency: 'once',
+                    start_date: data.date,
+                    tags: 'bill-sync'
+                });
+            }
+        }
+
+        return result;
+    },
+
+    updateBillReading: async (id, data) => {
+        const allowed = ['date', 'units_used', 'total_cost', 'notes'];
+        const fields = [];
+        const params = [];
+        for (let key in data) {
+            if (allowed.includes(key)) {
+                fields.push(`${key} = ?`);
+                params.push(data[key]);
+            }
+        }
+        params.push(id);
+        return await run(`UPDATE bill_readings SET ${fields.join(', ')} WHERE id = ?`, params);
+    },
+
+    deleteBillReading: async (id) => {
+        return await run(`DELETE FROM bill_readings WHERE id = ?`, [id]);
+    },
+
+    getBillProjections: async () => {
+        const billTypes = await FinanceModel.getBillTypes();
+        const now = new Date();
+        const curYear = now.getFullYear();
+        const curMonth = now.getMonth() + 1;
+
+        const lastMonthDate = new Date();
+        lastMonthDate.setMonth(lastMonthDate.getMonth() - 1);
+        const lastYear = lastMonthDate.getFullYear();
+        const lastMonth = lastMonthDate.getMonth() + 1;
+
+        const projections = [];
+
+        for (const type of billTypes) {
+            // 1. Overall Average
+            const stats = await get(`
+                SELECT AVG(units_used) as avg_units, AVG(total_cost) as avg_cost
+                FROM bill_readings
+                WHERE bill_type_id = ?
+            `, [type.id]);
+
+            // 2. Last Month Actual
+            const lastActual = await get(`
+                SELECT SUM(total_cost) as total
+                FROM bill_readings
+                WHERE bill_type_id = ? 
+                AND strftime('%Y', date) = ? 
+                AND strftime('%m', date) = ?
+            `, [type.id, String(lastYear), String(lastMonth).padStart(2, '0')]);
+
+            // 3. This Month Actual
+            const currentActual = await get(`
+                SELECT SUM(total_cost) as total
+                FROM bill_readings
+                WHERE bill_type_id = ? 
+                AND strftime('%Y', date) = ? 
+                AND strftime('%m', date) = ?
+            `, [type.id, String(curYear), String(curMonth).padStart(2, '0')]);
+
+            const avgUnits = stats.avg_units || 0;
+            const projectedCost = avgUnits * type.cost_per_unit;
+
+            projections.push({
+                ...type,
+                avg_units: avgUnits,
+                projected_cost: projectedCost || stats.avg_cost || 0,
+                last_month_actual: lastActual.total || 0,
+                this_month_actual: currentActual.total || 0
+            });
+        }
+
+        return projections;
     }
 };
 
