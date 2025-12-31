@@ -12,8 +12,11 @@ export const UIUtils = {
     setHidden(selector, hidden) {
         const el = $(selector);
         if (el) {
-            if (hidden) el.classList.add('hidden');
-            else el.classList.remove('hidden');
+            if (hidden) {
+                el.classList.add('hidden', 'opacity-0', 'invisible', 'pointer-events-none');
+            } else {
+                el.classList.remove('hidden', 'opacity-0', 'invisible', 'pointer-events-none');
+            }
         }
     },
 

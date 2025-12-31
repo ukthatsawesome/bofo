@@ -158,12 +158,44 @@ const FinanceModel = {
         return settings;
     },
 
+    getAISettings: async () => {
+        const settings = await FinanceModel.getAllSettings();
+        return {
+            enabled: settings['ai_enabled'] === 'true',
+            url: settings['ai_url'] || 'http://127.0.0.1:11434',
+            model: settings['ai_model'] || 'gemma3:4b',
+            promptTx: settings['ai_prompt_tx'],
+            promptInsight: settings['ai_prompt_insight'],
+            promptChat: settings['ai_prompt_chat']
+        };
+    },
+
     updateSetting: async (key, value) => {
         return await run(
             `INSERT INTO settings (key, value, category) VALUES (?, ?, 'general') 
              ON CONFLICT(key) DO UPDATE SET value = ?, updated_at = CURRENT_TIMESTAMP`,
             [key, value, value]
         );
+    },
+
+    saveSettings: async (settings) => {
+        const results = [];
+        for (const [key, value] of Object.entries(settings)) {
+            results.push(await FinanceModel.updateSetting(key, String(value)));
+        }
+        return results;
+    },
+
+    saveAISettings: async (settings) => {
+        const dbSettings = {};
+        if (settings.url) dbSettings.ai_url = settings.url;
+        if (settings.model) dbSettings.ai_model = settings.model;
+        if (settings.enabled !== undefined) dbSettings.ai_enabled = String(settings.enabled);
+        if (settings.promptTx) dbSettings.ai_prompt_tx = settings.promptTx;
+        if (settings.promptInsight) dbSettings.ai_prompt_insight = settings.promptInsight;
+        if (settings.promptChat) dbSettings.ai_prompt_chat = settings.promptChat;
+
+        return await FinanceModel.saveSettings(dbSettings);
     },
 
     // Category Operations
@@ -212,6 +244,19 @@ const FinanceModel = {
 
     deleteAccount: async (id) => {
         return await run(`DELETE FROM accounts WHERE id = ?`, [id]);
+    },
+
+    archiveAccount: async (id) => {
+        return await run(`UPDATE accounts SET status = 'archived' WHERE id = ?`, [id]);
+    },
+
+    unarchiveAccount: async (id) => {
+        return await run(`UPDATE accounts SET status = 'active' WHERE id = ?`, [id]);
+    },
+
+    isAccountInUse: async (id) => {
+        const row = await get(`SELECT COUNT(*) as count FROM transactions WHERE account_id = ? OR to_account_id = ?`, [id, id]);
+        return row.count > 0;
     },
 
     archiveCategory: async (id) => {

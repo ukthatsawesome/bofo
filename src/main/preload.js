@@ -12,6 +12,7 @@ contextBridge.exposeInMainWorld('api', {
     getCategories: () => ipcRenderer.invoke('get-categories'),
     isCategoryInUse: (name) => ipcRenderer.invoke('is-category-in-use', name),
     addCategory: (data) => ipcRenderer.invoke('add-category', data),
+    updateCategory: (id, data) => ipcRenderer.invoke('update-category', { id, data }),
     deleteCategory: (id) => ipcRenderer.invoke('delete-category', id),
     archiveCategory: (id) => ipcRenderer.invoke('archive-category', id),
     unarchiveCategory: (id) => ipcRenderer.invoke('unarchive-category', id),
@@ -21,10 +22,14 @@ contextBridge.exposeInMainWorld('api', {
     addAccount: (data) => ipcRenderer.invoke('add-account', data),
     updateAccount: (data) => ipcRenderer.invoke('update-account', data),
     deleteAccount: (id) => ipcRenderer.invoke('delete-account', id),
+    archiveAccount: (id) => ipcRenderer.invoke('archive-account', id),
+    unarchiveAccount: (id) => ipcRenderer.invoke('unarchive-account', id),
+    isAccountInUse: (id) => ipcRenderer.invoke('is-account-in-use', id),
 
     // Settings
     getSettings: () => ipcRenderer.invoke('get-settings'),
     updateSetting: (data) => ipcRenderer.invoke('update-setting', data),
+    saveSettings: (settings) => ipcRenderer.invoke('save-settings', settings),
 
     // Budgets
     getBudgets: () => ipcRenderer.invoke('get-budgets'),

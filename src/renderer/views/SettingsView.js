@@ -150,12 +150,12 @@ export class SettingsView extends BaseView {
                                 <select id="set-ai-model" class="form-control"></select>
                             </div>
                             <div class="form-group full-width">
-                                <label class="toggle-container">
+                                <label class="toggle-row">
+                                    <span class="text-sm font-medium">Enable AI Insights & Categorization</span>
                                     <div class="toggle-switch">
                                         <input type="checkbox" id="set-ai-enabled">
                                         <span class="toggle-slider"></span>
                                     </div>
-                                    <span class="text-sm font-medium">Enable AI Insights & Categorization</span>
                                 </label>
                             </div>
                             
@@ -257,7 +257,6 @@ export class SettingsView extends BaseView {
                     </div>
                 </div>
             </div>
-
         `;
         this.refreshIcons();
     }
@@ -292,33 +291,9 @@ export class SettingsView extends BaseView {
                 theme: theme
             });
             await this.app.state.loadSettings();
-
-            // Apply theme properly
-            this.applyTheme(theme);
-
             this.app.notifications.toast('Settings Saved', 'App preferences updated', 'success');
         } catch (err) {
             this.app.notifications.alert('Error', err.message, 'error');
-        }
-    }
-
-    applyTheme(theme) {
-        // Store theme preference
-        localStorage.setItem('bofo-theme', theme);
-
-        // Resolve system theme
-        let resolvedTheme = theme;
-        if (theme === 'system') {
-            resolvedTheme = window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
-        }
-
-        // Apply to HTML element
-        document.documentElement.setAttribute('data-theme', resolvedTheme);
-
-        // Update meta theme-color for browser
-        const metaTheme = document.querySelector('meta[name="theme-color"]');
-        if (metaTheme) {
-            metaTheme.content = resolvedTheme === 'light' ? '#f8fafc' : '#09090b';
         }
     }
 
@@ -340,7 +315,7 @@ export class SettingsView extends BaseView {
 
     async renderAISettings() {
         try {
-            const settings = await window.api.getAISettings();
+            const settings = this.app.state.aiSettings;
             const defaults = await window.api.getAIDefaults();
 
             const urlInput = $('#set-ai-url');
@@ -379,7 +354,9 @@ export class SettingsView extends BaseView {
                 const url = $('#set-ai-url')?.value.trim();
                 if (!url || !modelSelect || !btnRefresh) return;
 
-                btnRefresh.classList.add('spinning');
+                const spinIcon = btnRefresh.querySelector('i, svg');
+                if (spinIcon) spinIcon.classList.add('spinning');
+
                 try {
                     const models = await window.api.getAIModels(url);
                     modelSelect.innerHTML = '';
@@ -404,10 +381,10 @@ export class SettingsView extends BaseView {
                         updateStatusBadge(true);
                     }
                 } catch (err) {
-                    notifications.toast('Error', 'Failed to fetch models', 'error');
+                    this.app.notifications.toast('Error', 'Failed to fetch models', 'error');
                     updateStatusBadge(false);
                 } finally {
-                    btnRefresh.classList.remove('spinning');
+                    if (spinIcon) spinIcon.classList.remove('spinning');
                     this.refreshIcons();
                 }
             };
@@ -433,28 +410,27 @@ export class SettingsView extends BaseView {
                     const pIn = $('#set-ai-prompt-insight')?.value;
                     const pChat = $('#set-ai-prompt-chat')?.value;
 
-                    if (!url || !model) return notifications.toast('Validation Error', 'URL and Model required', 'error');
+                    if (!url || !model) return this.app.notifications.toast('Validation Error', 'URL and Model required', 'error');
 
                     newBtn.disabled = true;
                     const originalText = newBtn.innerHTML;
                     newBtn.innerHTML = '<i data-lucide="loader-2" class="spinning"></i> Testing Connection...';
                     this.refreshIcons();
-                    this.app.setLoading(true);
-
                     try {
                         await window.api.saveAISettings({ url, model, enabled, promptTx: pTx, promptInsight: pIn, promptChat: pChat });
+                        await this.app.state.loadSettings();
+
                         if (enabled) {
                             const success = await window.api.checkAIConnection();
                             updateStatusBadge(success);
-                            notifications.toast(success ? 'Success' : 'Connection Failed', success ? 'AI Connected!' : 'Could not connect to Ollama', success ? 'success' : 'warning');
+                            this.app.notifications.toast(success ? 'Success' : 'Connection Failed', success ? 'AI Connected!' : 'Could not connect to Ollama', success ? 'success' : 'warning');
                         } else {
                             updateStatusBadge(false);
-                            notifications.toast('Saved', 'AI Settings Saved (Disabled)');
+                            this.app.notifications.toast('Saved', 'AI Settings Saved (Disabled)');
                         }
                     } catch (err) {
-                        notifications.toast('Error', 'Failed to save settings', 'error');
+                        this.app.notifications.toast('Error', 'Failed to save settings', 'error');
                     } finally {
-                        this.app.setLoading(false);
                         newBtn.disabled = false;
                         newBtn.innerHTML = originalText;
                         this.refreshIcons();
@@ -535,33 +511,45 @@ export class SettingsView extends BaseView {
                     ${SortableHeader('Type', 'type', field, direction, 'app.views.settings.sortAccounts')}
                     ${SortableHeader('Starting', 'initial_balance', field, direction, 'app.views.settings.sortAccounts')}
                     ${SortableHeader('Current Balance', 'balance', field, direction, 'app.views.settings.sortAccounts')}
-                    <th class="px-5 py-4 text-left text-xs font-bold uppercase tracking-wider text-text-muted">Status</th>
-                    <th class="px-5 py-4 text-left text-xs font-bold uppercase tracking-wider text-text-muted">Actions</th>
+                    ${SortableHeader('Status', 'status', field, direction, 'app.views.settings.sortAccounts')}
+                    <th class="px-5 py-4 text-right text-xs font-bold uppercase tracking-wider text-text-secondary">Actions</th>
                 </tr>
             `;
         }
 
-        UIUtils.renderList('accounts-table-body', sorted, acc => `
-            <tr>
-                <td><strong>${acc.name}</strong></td>
-                <td>${TypePill(acc.type.replace('_', ' '), acc.type)}</td>
-                <td class="text-secondary">${formatter.formatCurrency(acc.initial_balance || 0, acc.currency)}</td>
-                <td class="amount ${acc.type === 'credit_card' || acc.type === 'loan' ? 'expense' : 'income'} font-bold">
-                    ${formatter.formatCurrency(acc.balance, acc.currency)}
-                </td>
-                <td>${StatusBadge('Active', 'active')}</td>
-                <td>
-                    <div class="row-actions">
-                        <button class="action-btn" onclick="app.views.settings.handleEditAccount(${acc.id})" title="Edit">
-                            <i data-lucide="edit-3" class="w-4 h-4"></i>
-                        </button>
-                        <button class="action-btn danger" onclick="app.views.settings.handleDeleteAccount(${acc.id})" title="Delete">
-                            <i data-lucide="trash-2" class="w-4 h-4"></i>
-                        </button>
-                    </div>
-                </td>
-            </tr>
-        `, 'No accounts found.');
+        UIUtils.renderList('accounts-table-body', sorted, acc => {
+            const isArchived = acc.status === 'archived';
+
+            return `
+                <tr class="hover:bg-brand-primary/5 transition-colors border-b border-border last:border-0 ${isArchived ? 'opacity-60' : ''}">
+                    <td class="px-5 py-4 text-sm text-text-primary"><strong>${acc.name}</strong></td>
+                    <td class="px-5 py-4 text-sm text-text-secondary">${TypePill(acc.type.replace('_', ' '), acc.type)}</td>
+                    <td class="px-5 py-4 text-sm text-text-secondary">${formatter.formatCurrency(acc.initial_balance || 0, acc.currency)}</td>
+                    <td class="px-5 py-4 text-sm amount ${acc.type === 'credit_card' || acc.type === 'loan' ? 'expense' : 'income'} font-bold">
+                        ${formatter.formatCurrency(acc.balance, acc.currency)}
+                    </td>
+                    <td class="px-5 py-4 text-sm">${StatusBadge(acc.status || 'Active', acc.status || 'active')}</td>
+                    <td class="px-5 py-4 text-right">
+                        <div class="row-actions flex justify-end gap-2">
+                            <button class="action-btn p-2 hover:text-brand-primary transition-colors" onclick="app.views.settings.handleEditAccount('${acc.id}')" title="Edit">
+                                <i data-lucide="edit-3" class="w-4 h-4"></i>
+                            </button>
+                            ${isArchived
+                    ? `<button class="action-btn p-2 hover:text-success transition-colors" onclick="app.views.settings.handleUnarchiveAccount('${acc.id}')" title="Unarchive">
+                                        <i data-lucide="archive-restore" class="w-4 h-4"></i>
+                                   </button>`
+                    : `<button class="action-btn p-2 hover:text-warning transition-colors" onclick="app.views.settings.handleArchiveAccount('${acc.id}')" title="Archive">
+                                        <i data-lucide="archive" class="w-4 h-4"></i>
+                                   </button>`
+                }
+                            <button class="action-btn p-2 hover:text-danger transition-colors" onclick="app.views.settings.handleDeleteAccount('${acc.id}')" title="Delete">
+                                <i data-lucide="trash-2" class="w-4 h-4"></i>
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+            `;
+        }, 'No accounts found.');
 
         this.refreshIcons();
     }
@@ -621,14 +609,15 @@ export class SettingsView extends BaseView {
 
                 try {
                     if (this.editingAccountId) {
-                        await window.api.updateAccount(this.editingAccountId, name, type, balance, currency);
+                        await window.api.updateAccount({ id: this.editingAccountId, name, type, initial_balance: balance, currency });
                         this.app.notifications.toast('Account Updated', `${name} updated successfully`);
                     } else {
-                        await window.api.addAccount(name, type, balance, currency);
+                        await window.api.addAccount({ name, type, balance, initial_balance: balance, currency });
                         this.app.notifications.toast('Account Added', `${name} created`);
                     }
                     UIUtils.setHidden('#account-modal', true);
                     await this.app.state.loadAccounts();
+                    this.app.updateAccountDropdowns();
                     this.renderAccountsTable();
                 } catch (err) {
                     this.app.notifications.alert('Error', err.message);
@@ -639,15 +628,49 @@ export class SettingsView extends BaseView {
     }
 
     async handleDeleteAccount(id) {
-        if (await this.app.notifications.confirm('Delete Account', 'Are you sure? This will delete all transactions associated with this account.')) {
+        const acc = this.app.state.accounts.find(a => a.id == id);
+        if (!acc) return;
+
+        // Check for usage
+        const inUse = await window.api.isAccountInUse(id);
+        if (inUse) {
+            return this.app.notifications.toast('Cannot Delete', 'This account has transaction history. Please archive it instead.', 'warning');
+        }
+
+        if (await this.app.notifications.confirm('Delete Account', `Are you sure you want to delete "${acc.name}"? This action cannot be undone.`)) {
             try {
                 await window.api.deleteAccount(id);
                 await this.app.state.loadAccounts();
+                this.app.updateAccountDropdowns();
                 this.renderAccountsTable();
-                this.app.notifications.toast('Deleted', 'Account removed');
+                this.app.notifications.toast('Deleted', 'Account removed successfully');
             } catch (err) {
                 this.app.notifications.alert('Error', err.message);
             }
+        }
+    }
+
+    async handleArchiveAccount(id) {
+        try {
+            await window.api.archiveAccount(id);
+            await this.app.state.loadAccounts();
+            this.app.updateAccountDropdowns();
+            this.renderAccountsTable();
+            this.app.notifications.toast('Account Archived', 'Account will no longer appear in active lists.');
+        } catch (err) {
+            this.app.notifications.alert('Error', err.message);
+        }
+    }
+
+    async handleUnarchiveAccount(id) {
+        try {
+            await window.api.unarchiveAccount(id);
+            await this.app.state.loadAccounts();
+            this.app.updateAccountDropdowns();
+            this.renderAccountsTable();
+            this.app.notifications.toast('Account Restored', 'Account is now active.');
+        } catch (err) {
+            this.app.notifications.alert('Error', err.message);
         }
     }
 
@@ -691,14 +714,15 @@ export class SettingsView extends BaseView {
 
                 try {
                     if (this.editingCategoryId) {
-                        await window.api.updateCategory(this.editingCategoryId, name, type);
+                        await window.api.updateCategory(this.editingCategoryId, { name, type });
                         this.app.notifications.toast('Category Updated', `${name} updated successfully`, 'success');
                     } else {
-                        await window.api.addCategory(name, type);
+                        await window.api.addCategory({ name, type });
                         this.app.notifications.toast('Category Created', `${name} added to your workspace`, 'success');
                     }
                     UIUtils.setHidden('#category-modal', true);
                     await this.app.state.loadCategories();
+                    this.app.updateCategoryDropdowns();
                     this.renderCategoryTable();
                 } catch (err) {
                     this.app.notifications.alert('Error', err.message, 'error');
@@ -709,10 +733,20 @@ export class SettingsView extends BaseView {
     }
 
     async handleDeleteCategory(id) {
-        if (await this.app.notifications.confirm('Delete Category', 'Are you sure? This will affect transactions using this category.')) {
+        const cat = this.app.state.categories.find(c => c.id == id);
+        if (!cat) return;
+
+        // Check if in use
+        const inUse = await window.api.isCategoryInUse(cat.name);
+        if (inUse) {
+            return this.app.notifications.toast('Cannot Delete', 'This category is used in existing transactions. Please archive it instead.', 'warning');
+        }
+
+        if (await this.app.notifications.confirm('Delete Category', `Are you sure you want to delete "${cat.name}"? This action cannot be undone.`)) {
             try {
                 await window.api.deleteCategory(id);
                 await this.app.state.loadCategories();
+                this.app.updateCategoryDropdowns();
                 this.renderCategoryTable();
                 this.app.notifications.toast('Deleted', 'Category removed successfully');
             } catch (err) {
@@ -722,14 +756,16 @@ export class SettingsView extends BaseView {
     }
 
     async handleArchiveCategory(id) {
-        await window.api.updateCategoryStatus(id, 'archived');
+        await window.api.archiveCategory(id);
         await this.app.state.loadCategories();
+        this.app.updateCategoryDropdowns();
         this.renderCategoryTable();
     }
 
     async handleUnarchiveCategory(id) {
-        await window.api.updateCategoryStatus(id, 'active');
+        await window.api.unarchiveCategory(id);
         await this.app.state.loadCategories();
+        this.app.updateCategoryDropdowns();
         this.renderCategoryTable();
     }
 
@@ -779,7 +815,7 @@ export class SettingsView extends BaseView {
                     ${SortableHeader('Name', 'name', field, direction, 'app.views.settings.sortCategories')}
                     ${SortableHeader('Type', 'type', field, direction, 'app.views.settings.sortCategories')}
                     ${SortableHeader('Status', 'status', field, direction, 'app.views.settings.sortCategories')}
-                    <th class="px-5 py-4 text-right text-xs font-bold uppercase tracking-wider text-text-muted">Action</th>
+                    <th class="px-5 py-4 text-right text-xs font-bold uppercase tracking-wider text-text-secondary">Actions</th>
                 </tr>
             `;
         }
@@ -792,31 +828,39 @@ export class SettingsView extends BaseView {
         const start = (state.categoryTablePage - 1) * state.categoryTablePageSize;
         const pageData = filtered.slice(start, start + state.categoryTablePageSize);
 
-        const tbody = $('#category-table-body');
-        if (!tbody) return;
-        tbody.innerHTML = '';
-
-        for (const c of pageData) {
-            const inUse = window.api.isCategoryInUse ? await window.api.isCategoryInUse(c.name) : false;
-            const tr = document.createElement('tr');
-            tr.innerHTML = `
-                <td style="font-weight: 600;">${c.name}</td>
-                <td>${TypePill(c.type, c.type)}</td>
-                <td>${StatusBadge(c.status || 'active', c.status || 'active')}</td>
-                <td style="text-align: right; padding-right: 25px;">
-                    <div class="row-actions" style="justify-content: flex-end;">
-                        <button class="action-btn" onclick="app.views.settings.handleEditCategory(${c.id})" title="Edit"><i data-lucide="edit-3"></i></button>
-                        ${c.status === 'archived'
-                    ? `<button class="action-btn" onclick="app.views.settings.handleUnarchiveCategory(${c.id})" title="Unarchive"><i data-lucide="archive-restore"></i></button>`
-                    : `<button class="action-btn" onclick="app.views.settings.handleArchiveCategory(${c.id})" title="Archive"><i data-lucide="archive"></i></button>`}
-                        ${!c.is_default && !inUse
-                    ? `<button class="action-btn danger" onclick="app.views.settings.handleDeleteCategory(${c.id})" title="Delete"><i data-lucide="trash-2"></i></button>`
-                    : ''}
-                    </div>
-                </td>
+        UIUtils.renderList('category-table-body', pageData, c => {
+            return `
+                <tr class="hover:bg-brand-primary/5 transition-colors border-b border-border last:border-0">
+                    <td class="px-5 py-4 text-sm font-bold text-text-primary">
+                        ${c.name}
+                        ${c.is_default ? '<span class="ml-2 text-xs text-text-muted font-normal">(Default)</span>' : ''}
+                    </td>
+                    <td class="px-5 py-4 text-sm">${TypePill(c.type, c.type)}</td>
+                    <td class="px-5 py-4 text-sm">${StatusBadge(c.status || 'active', c.status || 'active')}</td>
+                    <td class="px-5 py-4 text-right">
+                        <div class="row-actions flex justify-end gap-2">
+                            <button class="action-btn p-2 hover:text-brand-primary transition-colors" onclick="app.views.settings.handleEditCategory('${c.id}')" title="Edit">
+                                <i data-lucide="edit-3" class="w-4 h-4"></i>
+                            </button>
+                            ${c.status === 'archived'
+                    ? `<button class="action-btn p-2 hover:text-success transition-colors" onclick="app.views.settings.handleUnarchiveCategory('${c.id}')" title="Unarchive">
+                                    <i data-lucide="archive-restore" class="w-4 h-4"></i>
+                               </button>`
+                    : `<button class="action-btn p-2 hover:text-warning transition-colors" onclick="app.views.settings.handleArchiveCategory('${c.id}')" title="Archive">
+                                    <i data-lucide="archive" class="w-4 h-4"></i>
+                               </button>`
+                }
+                            ${!c.is_default
+                    ? `<button class="action-btn p-2 hover:text-danger transition-colors" onclick="app.views.settings.handleDeleteCategory('${c.id}')" title="Delete">
+                                    <i data-lucide="trash-2" class="w-4 h-4"></i>
+                               </button>`
+                    : ''
+                }
+                        </div>
+                    </td>
+                </tr>
             `;
-            tbody.appendChild(tr);
-        }
+        }, 'No categories found.');
 
         this.refreshIcons();
     }

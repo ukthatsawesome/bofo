@@ -1371,6 +1371,24 @@ input:checked+.toggle-slider:before {
           user-select: none;
 }
 
+.toggle-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  padding: 12px 16px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.toggle-row:hover {
+  border-color: var(--border-strong);
+  background: var(--bg-elevated);
+}
+
 .safety-rules-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -1871,7 +1889,16 @@ input[type="date"]::-webkit-datetime-edit-year-field:focus,
   animation: spin 1s linear infinite;
 }
 
+.spinning {
+  animation: spin 1s linear infinite;
+  display: inline-block;
+}
+
 @keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+
   to {
     transform: rotate(360deg);
   }
@@ -2651,6 +2678,10 @@ input[type="date"]::-webkit-datetime-edit-year-field:focus,
   z-index: 2000;
 }
 
+.z-\[3000\] {
+  z-index: 3000;
+}
+
 .col-span-full {
   grid-column: 1 / -1;
 }
@@ -2700,8 +2731,16 @@ input[type="date"]::-webkit-datetime-edit-year-field:focus,
   margin-bottom: 1.5rem;
 }
 
+.mb-8 {
+  margin-bottom: 2rem;
+}
+
 .ml-1 {
   margin-left: 0.25rem;
+}
+
+.ml-2 {
+  margin-left: 0.5rem;
 }
 
 .mt-0\.5 {
@@ -2776,6 +2815,10 @@ input[type="date"]::-webkit-datetime-edit-year-field:focus,
   height: 3.5rem;
 }
 
+.h-16 {
+  height: 4rem;
+}
+
 .h-2 {
   height: 0.5rem;
 }
@@ -2846,6 +2889,10 @@ input[type="date"]::-webkit-datetime-edit-year-field:focus,
 
 .w-14 {
   width: 3.5rem;
+}
+
+.w-16 {
+  width: 4rem;
 }
 
 .w-20 {
@@ -2930,6 +2977,10 @@ input[type="date"]::-webkit-datetime-edit-year-field:focus,
 
 .transform {
   transform: translate(var(--tw-translate-x), var(--tw-translate-y)) rotate(var(--tw-rotate)) skewX(var(--tw-skew-x)) skewY(var(--tw-skew-y)) scaleX(var(--tw-scale-x)) scaleY(var(--tw-scale-y));
+}
+
+.animate-\[modalSlideUp_0\.4s_ease-out\] {
+  animation: modalSlideUp 0.4s ease-out;
 }
 
 .animate-\[modalSlideUp_0\.5s_cubic-bezier\(0\.16\2c 1\2c 0\.3\2c 1\)\] {
@@ -3192,6 +3243,10 @@ input[type="date"]::-webkit-datetime-edit-year-field:focus,
   padding: 2.5rem;
 }
 
+.p-2 {
+  padding: 0.5rem;
+}
+
 .p-3 {
   padding: 0.75rem;
 }
@@ -3206,6 +3261,10 @@ input[type="date"]::-webkit-datetime-edit-year-field:focus,
 
 .p-6 {
   padding: 1.5rem;
+}
+
+.p-8 {
+  padding: 2rem;
 }
 
 .px-11 {
@@ -3458,6 +3517,10 @@ input[type="date"]::-webkit-datetime-edit-year-field:focus,
   color: var(--text-muted);
 }
 
+.text-text-primary {
+  color: var(--text-primary);
+}
+
 .text-text-secondary {
   color: var(--text-secondary);
 }
@@ -3687,8 +3750,16 @@ input[type="date"]::-webkit-datetime-edit-year-field:focus,
 
 /* Extend Tailwind with custom utilities */
 
+.hover\:text-success:hover {
+  color: var(--success);
+}
+
 .hover\:text-danger:hover {
   color: var(--danger);
+}
+
+.hover\:text-warning:hover {
+  color: var(--warning);
 }
 
 .hover\:bg-success:hover {
@@ -3779,8 +3850,16 @@ input[type="date"]::-webkit-datetime-edit-year-field:focus,
   color: var(--danger);
 }
 
+.hover\:text-success:hover {
+  color: var(--success);
+}
+
 .hover\:text-text-main:hover {
   color: var(--text-primary);
+}
+
+.hover\:text-warning:hover {
+  color: var(--warning);
 }
 
 .group:hover .group-hover\:opacity-100 {

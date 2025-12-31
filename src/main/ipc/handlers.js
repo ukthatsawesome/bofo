@@ -11,6 +11,17 @@ function getAIService() {
     return aiService;
 }
 
+async function syncAIService() {
+    const ai = getAIService();
+    const settings = await FinanceModel.getAISettings();
+    ai.baseUrl = settings.url;
+    ai.model = settings.model;
+    ai.promptTx = settings.promptTx;
+    ai.promptInsight = settings.promptInsight;
+    ai.promptChat = settings.promptChat;
+    return settings;
+}
+
 function registerIpcHandlers() {
     // Transaction Handlers
     ipcMain.handle('get-transactions', async () => {
@@ -42,6 +53,10 @@ function registerIpcHandlers() {
         return await FinanceModel.deleteCategory(id);
     });
 
+    ipcMain.handle('update-category', async (event, { id, data }) => {
+        return await FinanceModel.updateCategory(id, data);
+    });
+
     ipcMain.handle('archive-category', async (event, id) => {
         return await FinanceModel.archiveCategory(id);
     });
@@ -71,6 +86,18 @@ function registerIpcHandlers() {
         return await FinanceModel.deleteAccount(id);
     });
 
+    ipcMain.handle('archive-account', async (event, id) => {
+        return await FinanceModel.archiveAccount(id);
+    });
+
+    ipcMain.handle('unarchive-account', async (event, id) => {
+        return await FinanceModel.unarchiveAccount(id);
+    });
+
+    ipcMain.handle('is-account-in-use', async (event, id) => {
+        return await FinanceModel.isAccountInUse(id);
+    });
+
     // Settings Handlers
     ipcMain.handle('get-settings', async () => {
         return await FinanceModel.getAllSettings();
@@ -78,6 +105,10 @@ function registerIpcHandlers() {
 
     ipcMain.handle('update-setting', async (event, { key, value }) => {
         return await FinanceModel.updateSetting(key, value);
+    });
+
+    ipcMain.handle('save-settings', async (event, settings) => {
+        return await FinanceModel.saveSettings(settings);
     });
 
     // Budget Handlers
@@ -205,12 +236,7 @@ function registerIpcHandlers() {
     // AI Handlers
     ipcMain.handle('get-ai-settings', async () => {
         try {
-            const ai = getAIService();
-            return {
-                enabled: true,
-                url: ai.baseUrl,
-                model: ai.model
-            };
+            return await syncAIService();
         } catch (e) {
             return { enabled: false, url: 'http://127.0.0.1:11434', model: 'gemma3:4b' };
         }
@@ -227,9 +253,8 @@ function registerIpcHandlers() {
 
     ipcMain.handle('save-ai-settings', async (event, settings) => {
         try {
-            const ai = getAIService();
-            if (settings.url) ai.baseUrl = settings.url;
-            if (settings.model) ai.model = settings.model;
+            await FinanceModel.saveAISettings(settings);
+            await syncAIService();
             return true;
         } catch (e) {
             return false;

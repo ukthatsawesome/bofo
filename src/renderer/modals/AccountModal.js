@@ -7,13 +7,13 @@ export const AccountModal = () => {
         title: 'Setup New Account',
         content: `
             ${FormGroup({
-                label: 'Account Name',
-                content: '<input type="text" id="acc-name" placeholder="e.g. Main Bank, My Wallet...">'
-            })}
+            label: 'Account Name',
+            content: '<input type="text" id="acc-name" class="form-control" placeholder="e.g. Main Bank, My Wallet...">'
+        })}
             ${FormGroup({
-                label: 'Account Type',
-                content: `
-                    <select id="acc-type">
+            label: 'Account Type',
+            content: `
+                    <select id="acc-type" class="form-control">
                         <option value="bank">Bank Account</option>
                         <option value="wallet">Wallet</option>
                         <option value="credit_card">Credit Card</option>
@@ -21,15 +21,15 @@ export const AccountModal = () => {
                         <option value="investment">Investment</option>
                     </select>
                 `
-            })}
+        })}
             ${FormGroup({
-                label: 'Initial Balance',
-                content: '<input type="number" id="acc-balance" step="0.01" value="0.00">'
-            })}
+            label: 'Initial Balance',
+            content: '<input type="number" id="acc-balance" class="form-control" step="0.01" value="0.00">'
+        })}
             ${FormGroup({
-                label: 'Currency',
-                content: '<select id="acc-currency"></select>'
-            })}
+            label: 'Currency',
+            content: '<select id="acc-currency" class="form-control currency-select"></select>'
+        })}
         `,
         actions: `
             <button class="btn" id="cancel-account">Cancel</button>

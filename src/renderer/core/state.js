@@ -27,6 +27,7 @@ export class StateManager {
 
     async loadSettings() {
         this.settings = await window.api.getSettings();
+        this.aiSettings = await window.api.getAISettings();
         this.applyTheme(this.settings.theme || 'dark');
     }
 
@@ -44,11 +45,22 @@ export class StateManager {
     }
 
     applyTheme(theme) {
+        // Store theme preference
+        localStorage.setItem('bofo-theme', theme);
+
+        // Resolve system theme
+        let resolvedTheme = theme;
         if (theme === 'system') {
-            const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-            document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light');
-        } else {
-            document.documentElement.setAttribute('data-theme', theme);
+            resolvedTheme = window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+        }
+
+        // Apply to HTML element
+        document.documentElement.setAttribute('data-theme', resolvedTheme);
+
+        // Update meta theme-color for browser
+        const metaTheme = document.querySelector('meta[name="theme-color"]');
+        if (metaTheme) {
+            metaTheme.content = resolvedTheme === 'light' ? '#f8fafc' : '#09090b';
         }
     }
 

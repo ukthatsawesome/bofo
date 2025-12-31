@@ -7,18 +7,18 @@ export const CategoryModal = () => {
         title: 'Create New Category',
         content: `
             ${FormGroup({
-                label: 'Category Name',
-                content: '<input type="text" id="new-cat-name" placeholder="e.g. Groceries, Freelance...">'
-            })}
+            label: 'Category Name',
+            content: '<input type="text" id="new-cat-name" class="form-control" placeholder="e.g. Groceries, Freelance...">'
+        })}
             ${FormGroup({
-                label: 'Category Type',
-                content: `
-                    <select id="new-cat-type">
+            label: 'Category Type',
+            content: `
+                    <select id="new-cat-type" class="form-control">
                         <option value="income">Income</option>
                         <option value="expense">Expense</option>
                     </select>
                 `
-            })}
+        })}
         `,
         actions: `
             <button class="btn" id="cancel-category">Cancel</button>

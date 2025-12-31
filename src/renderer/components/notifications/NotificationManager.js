@@ -102,8 +102,21 @@ export class NotificationManager {
 
             const iconEl = document.getElementById('notification-icon');
             if (iconEl) {
-                iconEl.className = `notification-icon ${type}`;
-                iconEl.innerHTML = `<i data-lucide="${icons[type] || 'info'}"></i>`;
+                // Remove existing type classes
+                iconEl.classList.remove('success', 'error', 'warning', 'info', 'bg-success/20', 'bg-danger/20', 'bg-warning/20', 'bg-info/20', 'text-success', 'text-danger', 'text-warning', 'text-info');
+
+                // Add new classes based on type
+                iconEl.classList.add(type);
+                const colorMap = {
+                    success: ['bg-success/20', 'text-success'],
+                    error: ['bg-danger/20', 'text-danger'],
+                    warning: ['bg-warning/20', 'text-warning'],
+                    info: ['bg-info/20', 'text-info']
+                };
+                if (colorMap[type]) {
+                    iconEl.classList.add(...colorMap[type]);
+                }
+                iconEl.innerHTML = `<i data-lucide="${icons[type] || 'info'}" class="w-10 h-10"></i>`;
             }
 
             const cancelBtn = document.getElementById('notification-cancel');
@@ -123,7 +136,7 @@ export class NotificationManager {
 
             const modal = document.getElementById('notification-modal');
             if (modal) {
-                modal.classList.remove('hidden');
+                modal.classList.remove('hidden', 'opacity-0', 'invisible', 'pointer-events-none');
             }
             if (typeof lucide !== 'undefined') {
                 lucide.createIcons();
@@ -142,7 +155,7 @@ export class NotificationManager {
     closeModal(result) {
         const modal = document.getElementById('notification-modal');
         if (modal) {
-            modal.classList.add('hidden');
+            modal.classList.add('hidden', 'opacity-0', 'invisible', 'pointer-events-none');
         }
 
         if (this.resolvePromise) {

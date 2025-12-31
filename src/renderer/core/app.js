@@ -5,6 +5,7 @@ import { eventBus } from './eventBus.js';
 import { UIUtils } from './utils.js';
 import { ChartManager } from '../components/charts/ChartManager.js';
 import { NotificationManager } from '../components/notifications/NotificationManager.js';
+import { NotificationModal } from '../components/notifications/NotificationModal.js';
 import { CURRENCIES } from '../../shared/currencies.js';
 
 // Views
@@ -77,8 +78,8 @@ export class App {
         const container = document.getElementById('dynamic-modals-container');
         if (!container) return;
 
-        const accounts = this.state.accounts || [];
-        const categories = this.state.categories || [];
+        const accounts = (this.state.accounts || []).filter(a => a.status !== 'archived');
+        const categories = (this.state.categories || []).filter(c => c.status !== 'archived');
 
         container.innerHTML = `
             ${TransactionModal({ accounts, categories })}
@@ -88,6 +89,12 @@ export class App {
             ${SandboxModal()}
         `;
 
+        const notificationContainer = document.getElementById('notification-modal-container');
+        if (notificationContainer) {
+            notificationContainer.innerHTML = NotificationModal();
+            this.notifications.setupEventListeners();
+        }
+
         this.setupModalListeners();
     }
 
@@ -95,17 +102,18 @@ export class App {
         // Modal close buttons
         document.querySelectorAll('.modal .close').forEach(btn => {
             btn.addEventListener('click', () => {
-                btn.closest('.modal').classList.add('hidden');
+                const modal = btn.closest('.modal');
+                if (modal) UIUtils.setHidden(`#${modal.id}`, true);
             });
         });
 
         // Specific modal buttons
         document.getElementById('cancel-category')?.addEventListener('click', () => {
-            document.getElementById('category-modal').classList.add('hidden');
+            UIUtils.setHidden('#category-modal', true);
         });
 
         document.getElementById('cancel-account')?.addEventListener('click', () => {
-            document.getElementById('account-modal').classList.add('hidden');
+            UIUtils.setHidden('#account-modal', true);
         });
     }
 
@@ -148,10 +156,47 @@ export class App {
     }
 
     updateAccountDropdowns() {
-        const accounts = this.state.accounts || [];
+        const accounts = (this.state.accounts || []).filter(a => a.status !== 'archived');
         const html = accounts.map(a => `<option value="${a.id}">${a.name} (${this.formatter.formatCurrency(a.balance, a.currency)})</option>`).join('');
-        document.querySelectorAll('.account-dropdown').forEach(el => {
-            el.innerHTML = html;
+
+        // Update both general dropdowns and modal specific ones
+        const selectors = ['.account-dropdown', '#modal-tx-account', '#modal-tx-to-account'];
+        selectors.forEach(sel => {
+            document.querySelectorAll(sel).forEach(el => {
+                const current = el.value;
+                el.innerHTML = html;
+                if (current) el.value = current;
+            });
         });
+    }
+
+    updateCategoryDropdowns() {
+        const categories = (this.state.categories || []).filter(c => c.status !== 'archived');
+        const html = categories.map(c => `<option value="${c.name}">${c.name}</option>`).join('');
+
+        const selectors = ['.category-dropdown', '#modal-tx-category', '#budget-category'];
+        selectors.forEach(sel => {
+            document.querySelectorAll(sel).forEach(el => {
+                const current = el.value;
+                el.innerHTML = html;
+                if (current) el.value = current;
+            });
+        });
+    }
+
+    async handleDeleteTransaction(id) {
+        if (await this.notifications.confirm('Delete Transaction', 'Are you sure you want to delete this transaction? This action cannot be undone.')) {
+            try {
+                await window.api.deleteTransaction(id);
+                await Promise.all([
+                    this.state.loadTransactions(),
+                    this.state.loadAccounts()
+                ]);
+                this.router.views[this.router.currentView]?.render();
+                this.notifications.toast('Deleted', 'Transaction removed successfully');
+            } catch (err) {
+                this.notifications.alert('Error', err.message);
+            }
+        }
     }
 }

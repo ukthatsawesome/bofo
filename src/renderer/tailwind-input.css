@@ -806,6 +806,24 @@
         user-select: none;
     }
 
+    .toggle-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        width: 100%;
+        padding: 12px 16px;
+        background: var(--bg-panel);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-md);
+        cursor: pointer;
+        transition: all var(--transition-fast);
+    }
+
+    .toggle-row:hover {
+        border-color: var(--border-strong);
+        background: var(--bg-elevated);
+    }
+
     .safety-rules-grid {
         display: grid;
         grid-template-columns: 1fr 1fr;
@@ -1299,7 +1317,16 @@
         animation: spin 1s linear infinite;
     }
 
+    .spinning {
+        animation: spin 1s linear infinite;
+        display: inline-block;
+    }
+
     @keyframes spin {
+        from {
+            transform: rotate(0deg);
+        }
+
         to {
             transform: rotate(360deg);
         }
