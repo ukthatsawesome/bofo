@@ -2172,6 +2172,94 @@
     }
 }
 
+/* ===========================
+   FINANCIAL PLANNER STYLES
+   =========================== */
+.planner-grid {
+    display: grid;
+    grid-template-columns: 1fr 360px;
+    gap: 24px;
+    align-items: flex-start;
+}
+
+.planner-main-col,
+.planner-side-col {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.planned-item {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 16px;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    transition: all var(--transition-fast);
+}
+
+.planned-item:hover {
+    border-color: var(--border-strong);
+    box-shadow: var(--shadow-sm);
+}
+
+.planned-item.expense {
+    border-left: 3px solid var(--danger);
+}
+
+.planned-item.income {
+    border-left: 3px solid var(--success);
+}
+
+.planned-item-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.planned-item-info h4 {
+    font-size: 0.95rem;
+    font-weight: 600;
+    margin-bottom: 4px;
+    color: var(--text-primary);
+}
+
+.planned-item-info p {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+}
+
+.planned-item-amount {
+    font-size: 1rem;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.planned-item-amount.expense {
+    color: var(--danger);
+}
+
+.planned-item-amount.income {
+    color: var(--success);
+}
+
+#planned-items-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+@media (max-width: 1200px) {
+    .planner-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .planner-side-col {
+        order: -1;
+    }
+}
+
 /* Extend Tailwind with custom utilities */
 @layer utilities {
     .text-gradient {

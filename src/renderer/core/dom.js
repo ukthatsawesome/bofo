@@ -20,8 +20,16 @@ export const UIUtils = {
         }
     },
 
-    refreshIcons() {
-        if (window.lucide) lucide.createIcons();
+    /**
+     * Refresh Lucide icons in a specific container or the whole document
+     * @param {HTMLElement} container - Optional container to restrict refresh
+     */
+    refreshIcons(container) {
+        if (window.lucide) {
+            window.lucide.createIcons({
+                root: container || document.body
+            });
+        }
     },
 
     // Higher order helper for list rendering
@@ -39,6 +47,6 @@ export const UIUtils = {
         }
 
         container.innerHTML = items.map(templateFn).join('');
-        this.refreshIcons();
+        this.refreshIcons(container);
     }
 };

@@ -86,9 +86,9 @@ export class BudgetView extends BaseView {
         await state.loadBudgets();
         await state.loadTransactions();
 
-        // Render Toggle Component
+        // Render Toggle Component once or when needed
         const filterContainer = $('#budget-filter-container');
-        if (filterContainer) {
+        if (filterContainer && !filterContainer.innerHTML.trim()) {
             filterContainer.innerHTML = SegmentedControl({
                 id: 'budget-view-filter',
                 onchange: 'app.views.budget.handleFilter',
@@ -96,6 +96,10 @@ export class BudgetView extends BaseView {
                     { label: 'Active', value: 'active', active: state.budgetViewFilter === 'active' },
                     { label: 'History', value: 'past', active: state.budgetViewFilter === 'past' }
                 ]
+            });
+        } else if (filterContainer) {
+            filterContainer.querySelectorAll('.segment').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.value === state.budgetViewFilter);
             });
         }
 
@@ -131,7 +135,7 @@ export class BudgetView extends BaseView {
         if (filteredBudgets.length === 0) {
             tbody.innerHTML = `<tr><td colspan="6" class="text-center py-12 text-text-muted opacity-50">No ${state.budgetViewFilter} budgets found.</td></tr>`;
             this.updateSummary(0, 0);
-            this.refreshIcons();
+            this.refreshIcons(tbody);
             return;
         }
 
@@ -225,7 +229,7 @@ export class BudgetView extends BaseView {
         }).join('');
 
         this.updateSummary(totalBudgeted, totalSpent);
-        this.refreshIcons();
+        this.refreshIcons(tbody);
     }
 
     updateSummary(budgeted, spent) {
@@ -256,7 +260,7 @@ export class BudgetView extends BaseView {
             trend: remaining < 0 ? 'Over budget' : 'Under budget'
         })}
         `;
-        this.refreshIcons();
+        this.refreshIcons(container);
     }
 
     getProgressColor(percent) {

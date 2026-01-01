@@ -75,7 +75,7 @@ export class ForecastView extends BaseView {
 
     async render() {
         const container = $('#forecast-range-container');
-        if (container) {
+        if (container && !container.innerHTML.trim()) {
             container.innerHTML = SegmentedControl({
                 id: 'forecast-range-toggle',
                 onchange: 'app.views.forecast.handleRangeChange',
@@ -86,6 +86,10 @@ export class ForecastView extends BaseView {
                     { label: '24M', value: '24', active: this.range === 24 },
                     { label: 'Custom', value: 'custom', active: this.range === 'custom' }
                 ]
+            });
+        } else if (container) {
+            container.querySelectorAll('.segment').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.value === (this.range || 6).toString());
             });
         }
 
@@ -138,7 +142,8 @@ export class ForecastView extends BaseView {
         this.renderInsights(forecast.insights || []);
         this.renderChart(timeline);
 
-        this.refreshIcons();
+        this.refreshIcons('#forecast-stats-container');
+        this.refreshIcons('#forecast-insights-container');
     }
 
     handleRangeChange(val) {

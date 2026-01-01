@@ -7,17 +7,24 @@ export class BillsView extends BaseView {
     constructor(app, elementId) {
         super(app, elementId);
         this.projections = [];
+        this.isInitialized = false;
     }
 
     async onShow() {
+        if (!this.isInitialized) {
+            this.renderBaseTemplate();
+            this.isInitialized = true;
+        }
+
         await Promise.all([
             this.app.state.loadBillTypes(),
             this.app.state.loadBillReadings()
         ]);
-        this.render();
+
+        await this.updateContent();
     }
 
-    async render() {
+    renderBaseTemplate() {
         this.element.innerHTML = `
             <div class="view-header">
                 <div class="header-main">
@@ -123,10 +130,7 @@ export class BillsView extends BaseView {
                 </div>
             </div>
         `;
-
         this.setupEventListeners();
-        await this.updateContent();
-        this.refreshIcons();
     }
 
     setupEventListeners() {

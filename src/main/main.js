@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain } = require('electron');
+const { app, BrowserWindow } = require('electron');
 const path = require('path');
 const { registerIpcHandlers } = require('./ipc/handlers');
 
@@ -16,8 +16,10 @@ function createWindow() {
 
     win.loadFile(path.join(__dirname, '../renderer/index.html'));
 
-    // Open DevTools for debugging
-    win.webContents.openDevTools();
+    // Open DevTools only in development
+    if (!app.isPackaged) {
+        win.webContents.openDevTools();
+    }
 }
 
 app.whenReady().then(() => {

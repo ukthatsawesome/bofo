@@ -190,7 +190,7 @@ export class GoalsView extends BaseView {
 
         // Filter Goals
         const filterContainer = $('#goals-filter-container');
-        if (filterContainer) {
+        if (filterContainer && !filterContainer.innerHTML.trim()) {
             filterContainer.innerHTML = SegmentedControl({
                 id: 'goals-filter',
                 onchange: 'app.views.goals.handleFilterChange',
@@ -199,6 +199,10 @@ export class GoalsView extends BaseView {
                     { label: 'Completed', value: 'completed', active: this.filter === 'completed' },
                     { label: 'All', value: 'all', active: this.filter === 'all' }
                 ]
+            });
+        } else if (filterContainer) {
+            filterContainer.querySelectorAll('.segment').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.value === this.filter);
             });
         }
 
@@ -293,7 +297,9 @@ export class GoalsView extends BaseView {
             }
         }
 
-        this.refreshIcons();
+        this.refreshIcons('#goals-stats-container');
+        this.refreshIcons('#goals-available-card');
+        this.refreshIcons('#goals-grid');
     }
 
     handleFilterChange(val) {

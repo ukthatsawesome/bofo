@@ -62,11 +62,20 @@ export class BaseView {
     }
 
     /**
-     * Refresh Lucide icons in this view
+     * Refresh Lucide icons in this view or a specific container
+     * @param {string|HTMLElement} container - Optional container to restrict icon refresh
      */
-    refreshIcons() {
+    refreshIcons(container) {
         if (window.lucide) {
-            window.lucide.createIcons();
+            const target = container
+                ? (typeof container === 'string' ? document.querySelector(container) : container)
+                : this.element;
+
+            if (target) {
+                window.lucide.createIcons({
+                    root: target
+                });
+            }
         }
     }
 }

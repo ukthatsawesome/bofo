@@ -238,6 +238,7 @@ function registerIpcHandlers() {
         try {
             return await syncAIService();
         } catch (e) {
+            console.error('Failed to get AI settings:', e.message);
             return { enabled: false, url: 'http://127.0.0.1:11434', model: 'gemma3:4b' };
         }
     });
@@ -247,6 +248,7 @@ function registerIpcHandlers() {
             const ai = getAIService();
             return ai.DEFAULTS || {};
         } catch (e) {
+            console.error('Failed to get AI defaults:', e.message);
             return {};
         }
     });
@@ -257,6 +259,7 @@ function registerIpcHandlers() {
             await syncAIService();
             return true;
         } catch (e) {
+            console.error('Failed to save AI settings:', e.message);
             return false;
         }
     });
@@ -267,6 +270,7 @@ function registerIpcHandlers() {
             if (url) ai.baseUrl = url;
             return await ai.getInstalledModels();
         } catch (e) {
+            console.error('Failed to get AI models:', e.message);
             return [];
         }
     });
@@ -276,6 +280,7 @@ function registerIpcHandlers() {
             const ai = getAIService();
             return await ai.checkConnection();
         } catch (e) {
+            console.error('AI connection check failed:', e.message);
             return false;
         }
     });
@@ -285,6 +290,7 @@ function registerIpcHandlers() {
             const ai = getAIService();
             return await ai.parseTransactionFromText(text, categories || [], accounts || []);
         } catch (e) {
+            console.error('AI transaction parsing failed:', e.message);
             return null;
         }
     });
@@ -294,6 +300,7 @@ function registerIpcHandlers() {
             const ai = getAIService();
             return await ai.getFinancialInsight(summary);
         } catch (e) {
+            console.error('Failed to get AI insight:', e.message);
             return "Keep tracking your spending to stay on top of your goals!";
         }
     });
@@ -306,6 +313,7 @@ function registerIpcHandlers() {
                 event.sender.send('chat-sandbox-chunk', chunk);
             });
         } catch (e) {
+            console.error('Chat sandbox error:', e.message);
             return "I'm having trouble connecting to the AI engine.";
         }
     });

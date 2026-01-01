@@ -162,7 +162,7 @@ export class RecurringChargesView extends BaseView {
         });
 
         const thead = $('#recurring-table-head');
-        if (thead) {
+        if (thead && !thead.innerHTML.trim()) {
             thead.innerHTML = `
                 <tr>
                     ${SortableHeader({ label: 'Name', field: 'name', currentSort: field, direction, onclick: 'app.views.recurring.sort' })}
@@ -218,7 +218,8 @@ export class RecurringChargesView extends BaseView {
             };
         }
 
-        this.refreshIcons();
+        this.refreshIcons('#recurring-summary-card');
+        this.refreshIcons(tbody);
     }
 
     sort(field) {

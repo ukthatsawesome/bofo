@@ -157,9 +157,9 @@ export class TransactionsView extends BaseView {
 
         const { txHistoryFilter, txSortField, txSortOrder } = this.state;
 
-        // Render Toggle Component
+        // Render Toggle Component once or when needed
         const filterContainer = $('#tx-filter-container');
-        if (filterContainer) {
+        if (filterContainer && !filterContainer.innerHTML.trim()) {
             filterContainer.innerHTML = SegmentedControl({
                 id: 'tx-history-filter',
                 onchange: 'app.views.transactions.handleFilter',
@@ -170,11 +170,16 @@ export class TransactionsView extends BaseView {
                     { label: 'Transfer', value: 'transfer', active: txHistoryFilter === 'transfer' }
                 ]
             });
+        } else if (filterContainer) {
+            // Just update active classes if already rendered
+            filterContainer.querySelectorAll('.segment').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.value === txHistoryFilter);
+            });
         }
 
-        // Render Table Header Component
+        // Render Table Header once
         const thead = $('#tx-table-head');
-        if (thead) {
+        if (thead && !thead.innerHTML.trim()) {
             thead.innerHTML = `
                 <tr>
                     ${SortableHeader({ label: 'Date', field: 'start_date', currentSort: txSortField, direction: txSortOrder, onclick: 'app.views.transactions.handleSort' })}
@@ -185,6 +190,9 @@ export class TransactionsView extends BaseView {
                     <th>Action</th>
                 </tr>
             `;
+        } else if (thead) {
+            // If sort changed, we might need to update the indicators, but for now let's at least keep it stable
+            // Ideally we also update the SortableHeader indicators here if they changed
         }
 
         const filtered = this.getFilteredTransactions();
@@ -229,7 +237,8 @@ export class TransactionsView extends BaseView {
         if (prevBtn) prevBtn.disabled = page <= 1;
         if (nextBtn) nextBtn.disabled = page >= totalPages;
 
-        this.refreshIcons();
+        this.refreshIcons('#tx-table-body');
+        this.refreshIcons('.pagination');
     }
 
     /* -------------------- EDIT -------------------- */
@@ -277,11 +286,24 @@ export class TransactionsView extends BaseView {
         try {
             const id = this.editingTxId;
             const amount = parseFloat($('#modal-tx-amount').value);
-            const account_id = $('#modal-tx-account').value;
+            const account_id = parseInt($('#modal-tx-account').value);
             const type = $('.tx-type-toggle-modal .segment.active').dataset.type;
-            const to_account_id = type === 'transfer' ? $('#modal-tx-to-account').value : null;
+            const to_account_id = type === 'transfer' ? parseInt($('#modal-tx-to-account').value) : null;
 
             if (!amount || amount <= 0) throw new Error('Invalid amount');
+
+            // Validate sufficient balance for expenses and transfers
+            if (type === 'expense' || type === 'transfer') {
+                const account = this.state.accounts.find(a => a.id === account_id);
+                // Get the original transaction to account for its current amount
+                const originalTx = this.state.transactions.find(t => t.id === id);
+                const originalAmount = (originalTx && originalTx.account_id === account_id) ? originalTx.amount : 0;
+                const effectiveBalance = account ? account.balance + originalAmount : 0;
+
+                if (amount > effectiveBalance) {
+                    throw new Error(`Insufficient balance. Account "${account?.name}" only has ${this.formatter.formatCurrency(effectiveBalance)} available.`);
+                }
+            }
 
             const data = {
                 id,

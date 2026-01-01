@@ -1,6 +1,7 @@
 const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
 const fs = require('fs');
+const { createDbHelpers } = require('./helpers');
 
 let app;
 try {
@@ -23,33 +24,8 @@ const db = new sqlite3.Database(dbPath, async (err) => {
     }
 });
 
-// Promisified Helpers for Internal Use
-function run(sql, params = []) {
-    return new Promise((resolve, reject) => {
-        db.run(sql, params, function (err) {
-            if (err) reject(err);
-            else resolve(this);
-        });
-    });
-}
-
-function all(sql, params = []) {
-    return new Promise((resolve, reject) => {
-        db.all(sql, params, (err, rows) => {
-            if (err) reject(err);
-            else resolve(rows);
-        });
-    });
-}
-
-function get(sql, params = []) {
-    return new Promise((resolve, reject) => {
-        db.get(sql, params, (err, row) => {
-            if (err) reject(err);
-            else resolve(row);
-        });
-    });
-}
+// Use shared promisified helpers
+const { run, get, all } = createDbHelpers(db);
 
 // Migration Definitions
 const MIGRATIONS = [

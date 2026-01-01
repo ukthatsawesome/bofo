@@ -2,7 +2,7 @@ import { StateManager } from './state.js';
 import { Formatter } from './formatter.js';
 import { Router } from './router.js';
 import { eventBus } from './eventBus.js';
-import { UIUtils } from './utils.js';
+import { UIUtils } from './dom.js';
 import { ChartManager } from '../components/charts/ChartManager.js';
 import { NotificationManager } from '../components/notifications/NotificationManager.js';
 import { NotificationModal } from '../components/notifications/NotificationModal.js';

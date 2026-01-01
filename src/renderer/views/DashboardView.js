@@ -79,11 +79,7 @@ export class DashboardView extends BaseView {
         const cachedText = localStorage.getItem('bofo_insight_text');
 
         if (lastRun === today && cachedText) {
-            container.innerHTML = InsightCard({
-                title: "Bofo's Insight",
-                message: cachedText
-            });
-            this.refreshIcons();
+            this.refreshIcons(container);
             return;
         }
 
@@ -91,7 +87,7 @@ export class DashboardView extends BaseView {
             title: "Bofo's Insight",
             message: '<span class="loading-pulse">Analyzing your latest data...</span>'
         });
-        this.refreshIcons();
+        this.refreshIcons(container);
 
         const now = new Date();
         const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -131,7 +127,7 @@ export class DashboardView extends BaseView {
                 message: "I couldn't analyze your data right now. Let's try again later."
             });
         }
-        this.refreshIcons();
+        this.refreshIcons(container);
     }
 
     getTopCategory(sinceDate) {
@@ -227,8 +223,9 @@ export class DashboardView extends BaseView {
         this.renderQuickTransaction();
 
         this.chartManager.renderDashboardChart('mainChart', this.prepareChartData(6));
-        // Global refresh after all sub-renders
-        this.refreshIcons();
+        // Targeted refresh after sub-renders
+        this.refreshIcons('#dashboard-stats-container');
+        this.refreshIcons('#dashboard-insights-grid');
     }
 
     renderQuickTransaction() {
@@ -277,6 +274,15 @@ export class DashboardView extends BaseView {
                             <label class="text-[10px] font-bold uppercase text-text-muted mb-1">Date</label>
                             <input type="date" id="quick-tx-date" class="form-control sm" value="${new Date().toISOString().split('T')[0]}">
                         </div>
+                        <div class="form-group mb-0">
+                            <label class="text-[10px] font-bold uppercase text-text-muted mb-1">Frequency</label>
+                            <select id="quick-tx-frequency" class="form-control sm">
+                                <option value="once" selected>Once</option>
+                                <option value="weekly">Weekly</option>
+                                <option value="monthly">Monthly</option>
+                                <option value="yearly">Yearly</option>
+                            </select>
+                        </div>
                     </div>
 
                     <div class="form-group mb-0">
@@ -294,7 +300,7 @@ export class DashboardView extends BaseView {
         this.populateQuickTxDropdowns();
         this.setupQuickTxListeners();
         // Crucial: Refresh icons after dynamic widget update
-        this.refreshIcons();
+        this.refreshIcons(container);
     }
 
     populateQuickTxDropdowns() {
@@ -328,44 +334,91 @@ export class DashboardView extends BaseView {
         $('#btn-quick-save')?.addEventListener('click', () => this.handleQuickSave());
     }
 
-    async handleQuickSave() {
+    /**
+     * Validates the quick transaction amount input
+     * @returns {{ valid: boolean, amount: number }} Validation result
+     */
+    _validateQuickTxAmount() {
         const amount = parseFloat($('#quick-tx-amount').value);
         if (isNaN(amount) || amount <= 0) {
             this.app.notifications.toast('Error', 'Please enter a valid amount', 'error');
-            return;
+            return { valid: false, amount: 0 };
+        }
+        return { valid: true, amount };
+    }
+
+    /**
+     * Builds a transaction object from quick transaction form inputs
+     * @param {number} amount - Validated amount
+     * @param {string} type - Transaction type (income/expense/transfer)
+     * @returns {{ tx: Object, valid: boolean }} Transaction object and validation status
+     */
+    _buildQuickTransaction(amount, type) {
+        const accountId = parseInt($('#quick-tx-account').value);
+        const account = this.state.accounts.find(a => a.id === accountId);
+
+        // Validate sufficient balance for expenses and transfers
+        if ((type === 'expense' || type === 'transfer') && account) {
+            if (amount > account.balance) {
+                this.app.notifications.toast(
+                    'Insufficient Balance',
+                    `Account "${account.name}" only has ${this.formatter.formatCurrency(account.balance)} available`,
+                    'error'
+                );
+                return { tx: null, valid: false };
+            }
         }
 
-        const type = this.quickTxType || 'expense';
         const tx = {
             start_date: $('#quick-tx-date').value,
             category: type === 'transfer' ? 'Transfer' : $('#quick-tx-category').value,
-            account_id: parseInt($('#quick-tx-account').value),
+            account_id: accountId,
             description: $('#quick-tx-desc').value || (type === 'transfer' ? 'Internal Transfer' : 'Quick entry'),
-            amount: amount,
-            type: type
+            amount,
+            type,
+            frequency: $('#quick-tx-frequency')?.value || 'once'
         };
 
         if (type === 'transfer') {
             tx.to_account_id = parseInt($('#quick-tx-to-account').value);
             if (tx.account_id === tx.to_account_id) {
                 this.app.notifications.toast('Error', 'Source and destination accounts must be different', 'error');
-                return;
+                return { tx: null, valid: false };
             }
         }
 
+        return { tx, valid: true };
+    }
+
+    /**
+     * Clears quick transaction form inputs after successful save
+     */
+    _clearQuickTxForm() {
+        $('#quick-tx-amount').value = '';
+        $('#quick-tx-desc').value = '';
+    }
+
+    async handleQuickSave() {
+        // Validate amount
+        const { valid: amountValid, amount } = this._validateQuickTxAmount();
+        if (!amountValid) return;
+
+        // Build transaction
+        const type = this.quickTxType || 'expense';
+        const { tx, valid: txValid } = this._buildQuickTransaction(amount, type);
+        if (!txValid) return;
+
+        // Save and refresh
         try {
-            await window.api.saveTransaction(tx);
+            await window.api.addTransaction(tx);
             this.app.notifications.toast('Success', 'Transaction recorded', 'success');
+            this._clearQuickTxForm();
 
-            // Clear or Refresh
-            $('#quick-tx-amount').value = '';
-            $('#quick-tx-desc').value = '';
-
-            // Refresh dashboard data
             await this.app.state.loadTransactions();
             await this.app.state.loadAccounts();
             this.render();
         } catch (err) {
+            console.error('Quick save failed:', err.message);
             this.app.notifications.toast('Error', 'Failed to save transaction', 'error');
         }
     }
