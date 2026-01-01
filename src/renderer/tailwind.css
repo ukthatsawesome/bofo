@@ -2268,6 +2268,16 @@ input[type="date"]::-webkit-datetime-edit-year-field:focus,
   border-bottom-left-radius: 4px;
 }
 
+.typing-dots {
+  display: inline-flex;
+  gap: 4px;
+}
+
+.typing-dots::after {
+  content: '...';
+  animation: typing 1.5s infinite;
+}
+
 @keyframes typing {
   0%,
         20% {
@@ -3595,6 +3605,219 @@ input[type="date"]::-webkit-datetime-edit-year-field:focus,
 }
 
 /* Extend Tailwind with custom utilities */
+
+/* ============================================
+   AI STATUS INDICATOR - Sidebar Navigation
+   ============================================ */
+
+/* AI Nav Item in sidebar */
+
+.ai-nav-item {
+  position: relative;
+}
+
+.ai-nav-item .nav-icon {
+  transition: all var(--transition-fast);
+}
+
+/* Status dot overlay on AI nav icon */
+
+.ai-status-dot-nav {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  border: 2px solid var(--bg-panel);
+  background: var(--text-muted);
+  transition: all var(--transition-fast);
+}
+
+/* Online status - green */
+
+.ai-nav-item.ai-online .ai-status-dot-nav {
+  background: var(--success);
+  box-shadow: 0 0 6px rgba(var(--success-rgb), 0.8);
+}
+
+.ai-nav-item.ai-online .nav-icon {
+  color: var(--success);
+}
+
+/* Offline status - yellow/warning */
+
+.ai-nav-item.ai-offline .ai-status-dot-nav {
+  background: var(--warning);
+  box-shadow: 0 0 6px rgba(var(--warning-rgb), 0.8);
+}
+
+.ai-nav-item.ai-offline .nav-icon {
+  color: var(--warning);
+}
+
+/* Checking status - blue with pulse */
+
+.ai-nav-item.ai-checking .ai-status-dot-nav {
+  background: var(--info);
+  box-shadow: 0 0 6px rgba(var(--info-rgb), 0.8);
+  animation: nav-dot-pulse 1.5s ease-in-out infinite;
+}
+
+.ai-nav-item.ai-checking .nav-icon {
+  color: var(--info);
+}
+
+/* Disabled/hidden */
+
+.ai-nav-item.ai-disabled {
+  display: none;
+}
+
+@keyframes nav-dot-pulse {
+  0%,
+    100% {
+    opacity: 0.5;
+    transform: scale(0.8);
+  }
+
+  50% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Hover state for AI nav item */
+
+.ai-nav-item:hover .nav-icon {
+  color: var(--text-primary);
+}
+
+.ai-nav-item:hover {
+  background: var(--bg-elevated);
+}
+
+/* Active state when on AI settings */
+
+.ai-nav-item.active {
+  background: linear-gradient(135deg, var(--brand-primary), var(--brand-primary-light));
+  color: white;
+  box-shadow: 0 8px 20px rgba(var(--brand-primary-rgb), 0.35);
+}
+
+.ai-nav-item.active .nav-icon {
+  color: white;
+}
+
+.ai-nav-item.active .ai-status-dot-nav {
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+/* AI Badge for insight cards */
+
+.ai-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: var(--radius-xs);
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.ai-badge-active {
+  background: linear-gradient(135deg, rgba(var(--brand-primary-rgb), 0.15), rgba(var(--brand-secondary-rgb), 0.1));
+  color: var(--brand-primary-light);
+  border: 1px solid rgba(var(--brand-primary-rgb), 0.2);
+}
+
+.ai-badge-fallback {
+  background: rgba(var(--warning-rgb), 0.1);
+  color: var(--warning);
+  border: 1px solid rgba(var(--warning-rgb), 0.15);
+}
+
+/* Spinning animation for loading states */
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.spinning {
+  animation: spin 1s linear infinite;
+}
+
+/* Pulse animation for loading text */
+
+@keyframes pulse-loading {
+  0%,
+    100% {
+    opacity: 0.5;
+  }
+
+  50% {
+    opacity: 1;
+  }
+}
+
+.loading-pulse {
+  animation: pulse-loading 1.5s ease-in-out infinite;
+}
+
+/* Typing dots animation */
+
+@keyframes typing-dots {
+  0%,
+    20% {
+    content: '.';
+  }
+
+  40% {
+    content: '..';
+  }
+
+  60%,
+    100% {
+    content: '...';
+  }
+}
+
+.typing-dots::after {
+  content: '';
+  animation: typing-dots 1.5s infinite;
+}
+
+/* AI Status Container - positioned in content header */
+
+.header-ai-status {
+  position: fixed;
+  top: 16px;
+  left: 82px;
+  z-index: 1000;
+}
+
+/* Insight card with AI badge */
+
+.insight-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.insight-card-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
 
 .hover\:text-success:hover {
   color: var(--success);

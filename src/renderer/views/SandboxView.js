@@ -1,16 +1,18 @@
 import { BaseView } from './BaseView.js';
 import { $, UIUtils } from '../core/dom.js';
 import { StatCard } from '../components/common/StatCard.js';
-import { ProgressBar } from '../components/common/ProgressBar.js';
 import { SegmentedControl } from '../components/common/SegmentedControl.js';
 import { EmptyState } from '../components/common/EmptyState.js';
+import { InsightCard } from '../components/common/InsightCard.js';
 
 export class SandboxView extends BaseView {
     constructor(app) {
         super(app, 'whatif');
         this.plannedItems = [];
-        this.range = 12; // Default 12 months
+        this.range = 12;
         this.isInitialized = false;
+        this.aiInsight = null;
+        this.isLoadingInsight = false;
     }
 
     async onShow() {
@@ -36,6 +38,9 @@ export class SandboxView extends BaseView {
 
             <div id="planner-stats-container" class="stats-grid mb-6"></div>
 
+            <!-- AI Insight Card -->
+            <div id="planner-insight-container" class="mb-6"></div>
+
             <div class="planner-grid">
                 <div class="planner-main-col">
                     <div class="card">
@@ -49,14 +54,19 @@ export class SandboxView extends BaseView {
                         </div>
                     </div>
 
-                    <!-- Planned Items List -->
+                    <!-- Planned Items Table -->
                     <div class="card mt-6">
                         <div class="card-header flex-row justify-between align-center">
                             <h3><i data-lucide="list-checks"></i> Planned Items</h3>
-                            <span class="text-muted text-sm" id="planned-items-count">0 items</span>
+                            <div class="flex-row align-center gap-3">
+                                <span class="text-muted text-sm" id="planned-items-count">0 items</span>
+                                <button class="btn secondary sm" id="btn-clear-all" title="Clear All">
+                                    <i data-lucide="trash-2"></i> Clear All
+                                </button>
+                            </div>
                         </div>
-                        <div class="card-body">
-                            <div id="planned-items-list"></div>
+                        <div class="card-body no-padding">
+                            <div id="planned-items-table"></div>
                         </div>
                     </div>
                 </div>
@@ -118,18 +128,6 @@ export class SandboxView extends BaseView {
                             </form>
                         </div>
                     </div>
-
-                    <!-- Quick Actions -->
-                    <div class="card mt-6">
-                        <div class="card-header">
-                            <h3><i data-lucide="zap"></i> Actions</h3>
-                        </div>
-                        <div class="card-body flex flex-col gap-2">
-                            <button class="btn secondary w-full" id="btn-clear-all">
-                                <i data-lucide="trash-2"></i> Clear All Items
-                            </button>
-                        </div>
-                    </div>
                 </div>
             </div>
         `;
@@ -158,11 +156,8 @@ export class SandboxView extends BaseView {
 
     populateDropdowns() {
         const { state } = this.app;
-
-        // Populate categories (default to expense)
         this.updateCategoryDropdown('expense');
 
-        // Populate accounts
         const accountSelect = $('#plan-account');
         if (accountSelect) {
             const activeAccounts = state.accounts.filter(a => a.status !== 'archived');
@@ -197,7 +192,6 @@ export class SandboxView extends BaseView {
     }
 
     setupListeners() {
-        // Type toggle
         document.querySelectorAll('#plan-type-toggle .segment').forEach(btn => {
             btn.addEventListener('click', () => {
                 document.querySelectorAll('#plan-type-toggle .segment').forEach(b => b.classList.remove('active'));
@@ -206,7 +200,6 @@ export class SandboxView extends BaseView {
             });
         });
 
-        // Form submit
         const form = $('#planner-form');
         if (form) {
             form.addEventListener('submit', (e) => {
@@ -215,7 +208,6 @@ export class SandboxView extends BaseView {
             });
         }
 
-        // Clear all
         $('#btn-clear-all')?.addEventListener('click', () => this.clearAllItems());
     }
 
@@ -242,7 +234,6 @@ export class SandboxView extends BaseView {
 
         this.plannedItems.push(item);
 
-        // Reset form
         $('#plan-desc').value = '';
         $('#plan-amount').value = '';
         this.setDefaultDate();
@@ -270,14 +261,12 @@ export class SandboxView extends BaseView {
         const { state, chartManager, formatter } = this.app;
 
         try {
-            // Calculate baseline (without planned items)
             const baselineForecast = await window.api.calculateForecast({
                 transactions: state.transactions,
                 accounts: state.accounts,
                 months: this.range
             });
 
-            // Calculate with planned items
             const scenarioTransactions = [...state.transactions, ...this.plannedItems];
             const scenarioForecast = await window.api.calculateForecast({
                 transactions: scenarioTransactions,
@@ -285,7 +274,6 @@ export class SandboxView extends BaseView {
                 months: this.range
             });
 
-            // Extract data
             const baseSummary = baselineForecast?.summary || {};
             const scenSummary = scenarioForecast?.summary || {};
 
@@ -297,66 +285,11 @@ export class SandboxView extends BaseView {
             const scenarioEnd = scenSummary.endBalance || 0;
             const impact = scenarioEnd - baselineEnd;
 
-            const plannedExpenses = this.plannedItems
-                .filter(i => i.type === 'expense')
-                .reduce((sum, i) => {
-                    if (i.frequency === 'once') return sum + i.amount;
-                    if (i.frequency === 'monthly') return sum + (i.amount * this.range);
-                    if (i.frequency === 'weekly') return sum + (i.amount * this.range * 4);
-                    if (i.frequency === 'yearly') return sum + (i.amount * (this.range / 12));
-                    return sum;
-                }, 0);
-
-            const plannedIncome = this.plannedItems
-                .filter(i => i.type === 'income')
-                .reduce((sum, i) => {
-                    if (i.frequency === 'once') return sum + i.amount;
-                    if (i.frequency === 'monthly') return sum + (i.amount * this.range);
-                    if (i.frequency === 'weekly') return sum + (i.amount * this.range * 4);
-                    if (i.frequency === 'yearly') return sum + (i.amount * (this.range / 12));
-                    return sum;
-                }, 0);
+            const plannedExpenses = this._calculateTotalPlanned('expense');
+            const plannedIncome = this._calculateTotalPlanned('income');
 
             // Render stats
-            const statsContainer = $('#planner-stats-container');
-            if (statsContainer) {
-                statsContainer.innerHTML = `
-                    ${StatCard({
-                    label: 'Current Balance',
-                    value: formatter.formatCurrency(currentBalance),
-                    icon: 'wallet'
-                })}
-                    ${StatCard({
-                    label: 'Without Plan',
-                    value: formatter.formatCurrency(baselineEnd),
-                    icon: 'trending-up'
-                })}
-                    ${StatCard({
-                    label: 'With Plan',
-                    value: formatter.formatCurrency(scenarioEnd),
-                    icon: 'target',
-                    trend: impact !== 0 ? {
-                        type: impact >= 0 ? 'up' : 'down',
-                        value: (impact >= 0 ? '+' : '') + formatter.formatCurrency(impact)
-                    } : null
-                })}
-                    ${StatCard({
-                    label: 'Planned Expenses',
-                    value: formatter.formatCurrency(plannedExpenses),
-                    icon: 'credit-card'
-                })}
-                    ${StatCard({
-                    label: 'Planned Income',
-                    value: formatter.formatCurrency(plannedIncome),
-                    icon: 'banknote'
-                })}
-                    ${StatCard({
-                    label: 'Net Impact',
-                    value: (impact >= 0 ? '+' : '') + formatter.formatCurrency(impact),
-                    icon: impact >= 0 ? 'arrow-up-circle' : 'arrow-down-circle'
-                })}
-                `;
-            }
+            this._renderStats(currentBalance, baselineEnd, scenarioEnd, impact, plannedExpenses, plannedIncome);
 
             // Render chart
             const timeline = scenarioForecast?.timeline || [];
@@ -366,21 +299,199 @@ export class SandboxView extends BaseView {
                 this.renderComparisonChart(baselineTimeline, timeline);
             }
 
-            // Render planned items list
-            this.renderPlannedItems();
+            // Render planned items table
+            this.renderPlannedItemsTable();
 
-            this.refreshIcons('#planner-stats-container');
+            // Load AI insight
+            await this._loadInsight(currentBalance, baselineEnd, scenarioEnd, impact, plannedExpenses, plannedIncome);
 
         } catch (error) {
             console.error('Projection update failed:', error);
         }
     }
 
+    _calculateTotalPlanned(type) {
+        return this.plannedItems
+            .filter(i => i.type === type)
+            .reduce((sum, i) => {
+                if (i.frequency === 'once') return sum + i.amount;
+                if (i.frequency === 'monthly') return sum + (i.amount * this.range);
+                if (i.frequency === 'weekly') return sum + (i.amount * this.range * 4);
+                if (i.frequency === 'yearly') return sum + (i.amount * (this.range / 12));
+                return sum;
+            }, 0);
+    }
+
+    _renderStats(currentBalance, baselineEnd, scenarioEnd, impact, plannedExpenses, plannedIncome) {
+        const { formatter } = this.app;
+        const statsContainer = $('#planner-stats-container');
+        if (!statsContainer) return;
+
+        statsContainer.innerHTML = `
+            ${StatCard({ label: 'Current Balance', value: formatter.formatCurrency(currentBalance), icon: 'wallet' })}
+            ${StatCard({ label: 'Without Plan', value: formatter.formatCurrency(baselineEnd), icon: 'trending-up' })}
+            ${StatCard({
+            label: 'With Plan',
+            value: formatter.formatCurrency(scenarioEnd),
+            icon: 'target',
+            trend: impact !== 0 ? { type: impact >= 0 ? 'up' : 'down', value: (impact >= 0 ? '+' : '') + formatter.formatCurrency(impact) } : null
+        })}
+            ${StatCard({ label: 'Planned Expenses', value: formatter.formatCurrency(plannedExpenses), icon: 'credit-card' })}
+            ${StatCard({ label: 'Planned Income', value: formatter.formatCurrency(plannedIncome), icon: 'banknote' })}
+            ${StatCard({
+            label: 'Net Impact',
+            value: (impact >= 0 ? '+' : '') + formatter.formatCurrency(impact),
+            icon: impact >= 0 ? 'arrow-up-circle' : 'arrow-down-circle'
+        })}
+        `;
+        this.refreshIcons('#planner-stats-container');
+    }
+
+    async _loadInsight(currentBalance, baselineEnd, scenarioEnd, impact, plannedExpenses, plannedIncome) {
+        const container = $('#planner-insight-container');
+        if (!container) return;
+
+        if (this.plannedItems.length === 0) {
+            container.innerHTML = '';
+            return;
+        }
+
+        // Build context for caching
+        const { formatter } = this.app;
+        const summaryData = {
+            currentBalance: formatter.formatCurrency(currentBalance),
+            baselineEnd: formatter.formatCurrency(baselineEnd),
+            scenarioEnd: formatter.formatCurrency(scenarioEnd),
+            impact: formatter.formatCurrency(impact),
+            impactPercent: currentBalance > 0 ? ((impact / currentBalance) * 100).toFixed(1) : 0,
+            plannedExpenses: formatter.formatCurrency(plannedExpenses),
+            plannedIncome: formatter.formatCurrency(plannedIncome),
+            plannedExpensesRaw: plannedExpenses,
+            plannedIncomeRaw: plannedIncome,
+            range: this.range,
+            items: this.plannedItems.map(i => ({
+                description: i.description,
+                type: i.type,
+                amount: i.amount,
+                frequency: i.frequency,
+                category: i.category
+            })),
+            isDeficit: scenarioEnd < 0,
+            willGoNegative: scenarioEnd < 0 && baselineEnd >= 0
+        };
+
+        // Check cache first (for same scenario configuration)
+        const cacheContext = `planner_${this.range}_${this.plannedItems.length}`;
+        const cachedInsight = this.app.aiCache.getCached(cacheContext, summaryData);
+        if (cachedInsight) {
+            container.innerHTML = InsightCard({
+                title: cachedInsight.isAI ? 'AI Financial Analysis' : 'Financial Analysis',
+                message: cachedInsight.text,
+                icon: cachedInsight.icon
+            });
+            this.refreshIcons(container);
+            this.isLoadingInsight = false;
+            return;
+        }
+
+        // Show loading state
+        if (!this.isLoadingInsight) {
+            this.isLoadingInsight = true;
+            container.innerHTML = InsightCard({
+                title: 'Financial Analysis',
+                message: '<span class="typing-dots">Analyzing your plan</span>',
+                icon: 'brain'
+            });
+            this.refreshIcons(container);
+        }
+
+        try {
+            const insight = await this.app.aiCache.fetchInsight(
+                cacheContext,
+                summaryData,
+                async (data) => {
+                    const prompt = this._buildInsightPrompt(data);
+                    return await window.api.getAIInsight(prompt);
+                },
+                (data) => this.app.fallbackGenerator.generatePlannerInsight(data),
+                {
+                    aiTitle: 'AI Financial Analysis',
+                    fallbackTitle: 'Financial Analysis',
+                    ttl: 5 * 60 * 1000 // 5 minutes for planner (changes frequently)
+                }
+            );
+
+            this.aiInsight = insight.text;
+            container.innerHTML = InsightCard({
+                title: insight.isAI ? 'AI Financial Analysis' : 'Financial Analysis',
+                message: insight.isAI ? `<p>${insight.text}</p>` : insight.text,
+                icon: insight.icon
+            });
+            this.refreshIcons(container);
+        } catch (error) {
+            console.error('Failed to load planner insight:', error);
+            const fallbackInsight = this.app.fallbackGenerator.generatePlannerInsight(summaryData);
+            container.innerHTML = InsightCard({
+                title: 'Financial Analysis',
+                message: fallbackInsight,
+                icon: 'lightbulb'
+            });
+            this.refreshIcons(container);
+        }
+
+        this.isLoadingInsight = false;
+    }
+
+    _buildInsightPrompt(data) {
+        return `Analyze this financial plan and give practical advice in 2-3 sentences:
+Current balance: ${data.currentBalance}
+Projected without plan: ${data.baselineEnd} in ${data.range} months
+Projected with plan: ${data.scenarioEnd}
+Net impact: ${data.impact} (${data.impactPercent}% of current balance)
+Planned expenses: ${data.plannedExpenses}
+Planned income: ${data.plannedIncome}
+Items: ${data.items.map(i => `${i.description} (${i.type}, ${i.amount}, ${i.frequency})`).join(', ')}
+${data.willGoNegative ? 'WARNING: This plan will cause negative balance!' : ''}
+Be direct, practical, and give specific advice on how to balance this plan if needed.`;
+    }
+
+    _generateFallbackInsight(data) {
+        const items = [];
+
+        // Critical: Will go negative
+        if (data.willGoNegative) {
+            items.push(`<p class="text-danger font-semibold">⚠️ Warning: This plan will cause your balance to go negative. Consider reducing expenses by ${data.plannedExpenses} or spreading them over a longer period.</p>`);
+        }
+
+        // Significant expense impact
+        const impactPercent = parseFloat(data.impactPercent);
+        if (impactPercent < -30) {
+            items.push(`<p>This plan reduces your balance by ${Math.abs(impactPercent).toFixed(0)}% over ${data.range} months. Consider building an emergency fund first or finding additional income sources.</p>`);
+        } else if (impactPercent < -15) {
+            items.push(`<p>Moderate impact on your finances. The ${data.plannedExpenses} in planned expenses is manageable but monitor your spending closely.</p>`);
+        } else if (impactPercent > 10) {
+            items.push(`<p class="text-success">Positive outlook! Your planned income exceeds expenses, adding ${data.impact} to your balance.</p>`);
+        }
+
+        // Expense vs Income balance
+        const plannedExpenseNum = this._calculateTotalPlanned('expense');
+        const plannedIncomeNum = this._calculateTotalPlanned('income');
+        if (plannedExpenseNum > 0 && plannedIncomeNum === 0) {
+            items.push(`<p>Consider offsetting your ${data.plannedExpenses} in expenses with additional income or savings.</p>`);
+        }
+
+        // Default message
+        if (items.length === 0) {
+            items.push(`<p>Your plan appears balanced. Continue monitoring your actual spending against this projection.</p>`);
+        }
+
+        return items.join('');
+    }
+
     renderComparisonChart(baseline, scenario) {
         const ctx = document.getElementById('plannerChart')?.getContext('2d');
         if (!ctx) return;
 
-        // Destroy existing chart
         if (this.chart) {
             this.chart.destroy();
         }
@@ -420,18 +531,12 @@ export class SandboxView extends BaseView {
                 interaction: { mode: 'index', intersect: false },
                 plugins: {
                     legend: {
-                        labels: {
-                            color: isLight ? '#64748b' : '#94a3b8',
-                            usePointStyle: true
-                        }
+                        labels: { color: isLight ? '#64748b' : '#94a3b8', usePointStyle: true }
                     },
                     tooltip: {
                         callbacks: {
                             label: (ctx) => {
-                                const value = new Intl.NumberFormat('en-US', {
-                                    style: 'currency',
-                                    currency: 'USD'
-                                }).format(ctx.parsed.y);
+                                const value = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(ctx.parsed.y);
                                 return `${ctx.dataset.label}: ${value}`;
                             }
                         }
@@ -440,71 +545,87 @@ export class SandboxView extends BaseView {
                 scales: {
                     y: {
                         grid: { color: isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.05)' },
-                        ticks: {
-                            color: isLight ? '#64748b' : '#94a3b8',
-                            callback: v => '$' + v.toLocaleString()
-                        }
+                        ticks: { color: isLight ? '#64748b' : '#94a3b8', callback: v => '$' + v.toLocaleString() }
                     },
                     x: {
                         grid: { display: false },
-                        ticks: {
-                            color: isLight ? '#64748b' : '#94a3b8',
-                            maxRotation: 0,
-                            autoSkip: true,
-                            maxTicksLimit: 12
-                        }
+                        ticks: { color: isLight ? '#64748b' : '#94a3b8', maxRotation: 0, autoSkip: true, maxTicksLimit: 12 }
                     }
                 }
             }
         });
     }
 
-    renderPlannedItems() {
-        const container = $('#planned-items-list');
+    renderPlannedItemsTable() {
+        const container = $('#planned-items-table');
         const countEl = $('#planned-items-count');
+        const clearBtn = $('#btn-clear-all');
 
         if (countEl) {
             countEl.textContent = `${this.plannedItems.length} item${this.plannedItems.length !== 1 ? 's' : ''}`;
         }
 
+        if (clearBtn) {
+            clearBtn.style.display = this.plannedItems.length > 0 ? 'inline-flex' : 'none';
+        }
+
         if (!container) return;
 
         if (this.plannedItems.length === 0) {
-            container.innerHTML = EmptyState({
+            container.innerHTML = `
+                <div class="p-8 text-center">
+                    ${EmptyState({
                 icon: 'clipboard-list',
                 title: 'No planned items',
                 message: 'Add expenses or income to see how they affect your finances'
-            });
+            })}
+                </div>
+            `;
             this.refreshIcons(container);
             return;
         }
 
-        container.innerHTML = this.plannedItems.map(item => {
+        container.innerHTML = `
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Description</th>
+                        <th>Category</th>
+                        <th>Account</th>
+                        <th>Frequency</th>
+                        <th>Date</th>
+                        <th class="text-right">Amount</th>
+                        <th class="text-right">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${this.plannedItems.map(item => {
             const account = this.state.accounts.find(a => a.id === item.account_id);
-            const freqLabel = {
-                'once': 'One-time',
-                'weekly': 'Weekly',
-                'monthly': 'Monthly',
-                'yearly': 'Yearly'
-            }[item.frequency] || item.frequency;
+            const freqLabel = { 'once': 'One-time', 'weekly': 'Weekly', 'monthly': 'Monthly', 'yearly': 'Yearly' }[item.frequency] || item.frequency;
+            const amountClass = item.type === 'income' ? 'text-success' : 'text-danger';
+            const amountPrefix = item.type === 'income' ? '+' : '-';
 
             return `
-                <div class="planned-item ${item.type}">
-                    <div class="planned-item-info">
-                        <h4>${item.description}</h4>
-                        <p class="text-muted text-sm">
-                            ${item.category} • ${account?.name || 'Unknown'} • ${freqLabel} • ${item.start_date}
-                        </p>
-                    </div>
-                    <div class="planned-item-amount ${item.type}">
-                        ${item.type === 'income' ? '+' : '-'}${this.formatter.formatCurrency(item.amount)}
-                    </div>
-                    <button class="btn-icon" onclick="app.views.whatif.removeItem('${item.id}')" title="Remove">
-                        <i data-lucide="x"></i>
-                    </button>
-                </div>
-            `;
-        }).join('');
+                            <tr>
+                                <td><strong>${item.description}</strong></td>
+                                <td>${item.category}</td>
+                                <td>${account?.name || 'Unknown'}</td>
+                                <td>${freqLabel}</td>
+                                <td>${item.start_date}</td>
+                                <td class="text-right font-bold ${amountClass}">${amountPrefix}${this.formatter.formatCurrency(item.amount)}</td>
+                                <td class="text-right">
+                                    <div class="row-actions justify-end">
+                                        <button class="action-btn danger" onclick="app.views.whatif.removeItem('${item.id}')" title="Remove">
+                                            <i data-lucide="trash-2"></i>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                        `;
+        }).join('')}
+                </tbody>
+            </table>
+        `;
 
         this.refreshIcons(container);
     }

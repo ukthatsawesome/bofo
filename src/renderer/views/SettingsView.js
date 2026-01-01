@@ -1,5 +1,6 @@
 import { BaseView } from './BaseView.js';
-import { $, UIUtils } from '../core/dom.js';
+import { $, $$, UIUtils } from '../core/dom.js';
+import { eventBus } from '../core/eventBus.js';
 import { Card } from '../components/common/Card.js';
 import { FormGroup } from '../components/common/FormGroup.js';
 import { StatusBadge } from '../components/common/StatusBadge.js';
@@ -47,15 +48,6 @@ export class SettingsView extends BaseView {
                             <div>
                                 <h3>Categories</h3>
                                 <p class="text-muted">Organize your transaction labels</p>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="card clickable-card" onclick="app.views.settings.showSubView('ai-settings')">
-                        <div class="card-body flex-row align-center gap-4">
-                            <div class="icon-box warning"><i data-lucide="sparkles"></i></div>
-                            <div>
-                                <h3>AI Configuration</h3>
-                                <p class="text-muted">Set up Ollama and intelligence prompts</p>
                             </div>
                         </div>
                     </div>
@@ -453,6 +445,9 @@ export class SettingsView extends BaseView {
                     try {
                         await window.api.saveAISettings({ url, model, enabled, promptTx: pTx, promptInsight: pIn, promptChat: pChat });
                         await this.app.state.loadSettings();
+
+                        // Emit event to update AI status indicator and invalidate cache
+                        eventBus.emit('ai:settings-changed');
 
                         if (enabled) {
                             const success = await window.api.checkAIConnection();

@@ -15,7 +15,7 @@ export class Router {
             link.addEventListener('click', () => {
                 const viewName = link.getAttribute('data-view');
                 if (viewName) {
-                    this.navigate(viewName);
+                    this.navigate(viewName, { force: true });
                 }
             });
         });
@@ -24,9 +24,25 @@ export class Router {
     /**
      * Navigate to a specific view
      * @param {string} viewName 
+     * @param {object} options - { force: boolean } to force navigation even if same view
      */
-    navigate(viewName) {
-        if (this.currentView === viewName) return;
+    navigate(viewName, options = {}) {
+        const { force = false } = options;
+
+        // Clear AI nav active state when navigating to any view
+        const aiNavItem = document.getElementById('ai-status-nav');
+        if (aiNavItem) {
+            aiNavItem.classList.remove('active');
+        }
+
+        // If navigating to same view and force is true, reset the view (go to home)
+        if (this.currentView === viewName) {
+            if (force && this.views[viewName] && this.views[viewName].showHome) {
+                this.views[viewName].showHome();
+                this.updateSidebar(viewName);
+            }
+            return;
+        }
 
         // Hide current view
         if (this.currentView && this.views[this.currentView]) {

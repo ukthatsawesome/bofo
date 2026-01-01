@@ -7,6 +7,8 @@ import { ChartManager } from '../components/charts/ChartManager.js';
 import { NotificationManager } from '../components/notifications/NotificationManager.js';
 import { NotificationModal } from '../components/notifications/NotificationModal.js';
 import { CURRENCIES } from '../../shared/currencies.js';
+import { aiInsightCache } from './aiInsightCache.js';
+import { createFallbackGenerator } from './fallbackInsightGenerator.js';
 
 // Views
 import { DashboardView } from '../views/DashboardView.js';
@@ -34,6 +36,8 @@ export class App {
         this.formatter = new Formatter(this.state);
         this.chartManager = new ChartManager(this.state);
         this.notifications = new NotificationManager();
+        this.aiCache = aiInsightCache;
+        this.fallbackGenerator = null; // Initialized after formatter is ready
 
         this.views = {
             dashboard: new DashboardView(this, 'dashboard'),
@@ -63,18 +67,129 @@ export class App {
                 this.state.loadBudgets()
             ]);
 
+            // Initialize fallback generator with formatter
+            this.fallbackGenerator = createFallbackGenerator(this.formatter);
+
             this.renderDynamicModals();
             this.populateCurrencyDropdowns();
             this.setupGlobalEvents();
+            this.initAIStatusIndicator();
 
             // Initial view
             this.router.navigate('dashboard');
 
             this.setLoading(false);
             UIUtils.refreshIcons();
+
+            // Background: Check AI connection and prefetch insights
+            this.prefetchInsightsInBackground();
         } catch (error) {
             console.error('App initialization failed:', error);
             this.setLoading(false);
+        }
+    }
+
+    /**
+     * Initialize global AI status indicator in sidebar
+     */
+    initAIStatusIndicator() {
+        const navItem = document.getElementById('ai-status-nav');
+        if (!navItem) return;
+
+        // Initially show checking state
+        navItem.classList.add('ai-checking');
+
+        // Check AI connection and update
+        this.updateAIStatusIndicator();
+
+        // Listen for connection status changes
+        window.addEventListener('ai-connection-status', (e) => {
+            this.updateAIStatusIndicator(e.detail.connected);
+        });
+
+        // Click handler - navigate directly to AI settings
+        navItem.addEventListener('click', () => {
+            // Remove active from other nav items
+            document.querySelectorAll('.nav-links li').forEach(li => li.classList.remove('active'));
+            navItem.classList.add('active');
+
+            this.router.navigate('settings');
+            setTimeout(() => {
+                this.views.settings.showSubView('ai-settings');
+            }, 100);
+        });
+    }
+
+    /**
+     * Update AI status indicator in sidebar
+     */
+    async updateAIStatusIndicator(status = null) {
+        const navItem = document.getElementById('ai-status-nav');
+        if (!navItem) return;
+
+        // Remove all status classes
+        navItem.classList.remove('ai-checking', 'ai-online', 'ai-offline', 'ai-disabled');
+
+        // If status not provided, check it
+        if (status === null) {
+            const aiSettings = await window.api.getAISettings();
+            if (!aiSettings.enabled) {
+                navItem.classList.add('ai-disabled');
+                return;
+            }
+            status = await this.aiCache.isAIAvailable();
+        }
+
+        // Apply the appropriate status class
+        navItem.classList.add(status ? 'ai-online' : 'ai-offline');
+        navItem.title = status ? 'AI Online - Click to configure' : 'AI Offline - Click to configure';
+    }
+
+    /**
+     * Prefetch insights in background for faster view loads
+     */
+    async prefetchInsightsInBackground() {
+        // Wait a bit after initial load
+        await new Promise(resolve => setTimeout(resolve, 2000));
+
+        const aiSettings = await window.api.getAISettings();
+        if (!aiSettings.enabled) return;
+
+        try {
+            // Prepare dashboard summary for prefetch
+            const now = new Date();
+            const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+
+            const mStats = this.state.transactions.reduce((acc, t) => {
+                if (new Date(t.start_date) >= monthStart) {
+                    if (t.type === 'income') acc.income += t.amount;
+                    if (t.type === 'expense') acc.expense += t.amount;
+                }
+                return acc;
+            }, { income: 0, expense: 0 });
+
+            const totalBalance = this.state.accounts.reduce((sum, a) => {
+                const isAsset = ['bank', 'wallet', 'investment'].includes(a.type);
+                return sum + (isAsset ? a.balance : -a.balance);
+            }, 0);
+
+            const summaryData = {
+                balance: totalBalance,
+                monthIncome: mStats.income,
+                monthExpense: mStats.expense,
+                savingsRate: mStats.income > 0 ? ((mStats.income - mStats.expense) / mStats.income * 100).toFixed(1) : 0
+            };
+
+            // Prefetch dashboard insight
+            await this.aiCache.fetchInsight(
+                'dashboard',
+                summaryData,
+                async (data) => await window.api.getAIInsight(data),
+                (data) => this.fallbackGenerator.generateDashboardInsight(data),
+                { aiTitle: 'AI Financial Insight', fallbackTitle: 'Financial Insight' }
+            );
+        } catch (err) {
+            console.warn('Background prefetch failed:', err);
         }
     }
 
@@ -136,7 +251,16 @@ export class App {
         eventBus.on('transaction:saved', () => {
             this.state.loadTransactions();
             this.state.loadAccounts();
+            // Invalidate AI insights cache when data changes
+            this.aiCache.invalidate('dashboard');
+            this.aiCache.invalidate('transactions');
             this.router.views[this.router.currentView]?.render();
+        });
+
+        // Listen for AI settings changes
+        eventBus.on('ai:settings-changed', async () => {
+            await this.updateAIStatusIndicator();
+            this.aiCache.invalidate(); // Clear all cached insights
         });
     }
 

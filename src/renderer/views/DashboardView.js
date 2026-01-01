@@ -64,31 +64,13 @@ export class DashboardView extends BaseView {
     }
 
     async loadAIInsight() {
-        const settings = await window.api.getAISettings();
         const container = $('#dashboard-insight-container');
         if (!container) return;
 
-        if (!settings.enabled) {
-            UIUtils.setHidden('#dashboard-insight-container', true);
-            return;
-        }
-
+        // Always show insight container
         UIUtils.setHidden('#dashboard-insight-container', false);
-        const today = new Date().toISOString().split('T')[0];
-        const lastRun = localStorage.getItem('bofo_insight_date');
-        const cachedText = localStorage.getItem('bofo_insight_text');
 
-        if (lastRun === today && cachedText) {
-            this.refreshIcons(container);
-            return;
-        }
-
-        container.innerHTML = InsightCard({
-            title: "Bofo's Insight",
-            message: '<span class="loading-pulse">Analyzing your latest data...</span>'
-        });
-        this.refreshIcons(container);
-
+        // Prepare summary data
         const now = new Date();
         const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
 
@@ -105,29 +87,83 @@ export class DashboardView extends BaseView {
             return sum + (isAsset ? a.balance : -a.balance);
         }, 0);
 
+        const topCategory = this.getTopCategory(monthStart);
+        const topCategoryAmount = this._getTopCategoryAmount();
+
         const summary = {
             balance: totalBalance,
             monthIncome: mStats.income,
             monthExpense: mStats.expense,
             savingsRate: mStats.income > 0 ? ((mStats.income - mStats.expense) / mStats.income * 100).toFixed(1) : 0,
-            topCategory: this.getTopCategory(monthStart)
+            topCategory,
+            topCategoryAmount
         };
 
-        try {
-            const text = await window.api.getAIInsight(mStats);
-            localStorage.setItem('bofo_insight_date', today);
-            localStorage.setItem('bofo_insight_text', text);
+        // Try to get cached insight first (show immediately if available)
+        const cachedInsight = this.app.aiCache.getCached('dashboard', summary);
+        if (cachedInsight) {
             container.innerHTML = InsightCard({
-                title: "Bofo's Insight",
-                message: text
+                title: cachedInsight.title,
+                message: cachedInsight.text,
+                icon: cachedInsight.icon
             });
-        } catch (err) {
-            container.innerHTML = InsightCard({
-                title: "Bofo's Insight",
-                message: "I couldn't analyze your data right now. Let's try again later."
-            });
+            this.refreshIcons(container);
+            return;
         }
+
+        // Show loading state
+        const settings = await window.api.getAISettings();
+        container.innerHTML = InsightCard({
+            title: settings.enabled ? 'AI Financial Insight' : 'Financial Insight',
+            message: '<span class="loading-pulse">Analyzing your latest data...</span>',
+            icon: settings.enabled ? 'sparkles' : 'lightbulb'
+        });
         this.refreshIcons(container);
+
+        // Fetch insight using cache system
+        try {
+            const insight = await this.app.aiCache.fetchInsight(
+                'dashboard',
+                summary,
+                async (data) => await window.api.getAIInsight(data),
+                (data) => this.app.fallbackGenerator.generateDashboardInsight(data),
+                {
+                    aiTitle: 'AI Financial Insight',
+                    fallbackTitle: 'Financial Insight',
+                    ttl: 24 * 60 * 60 * 1000 // 24 hours
+                }
+            );
+
+            container.innerHTML = InsightCard({
+                title: insight.title,
+                message: insight.text,
+                icon: insight.icon
+            });
+            this.refreshIcons(container);
+        } catch (err) {
+            console.error('Failed to load insight:', err);
+            // Show fallback on error
+            const fallbackText = this.app.fallbackGenerator.generateDashboardInsight(summary);
+            container.innerHTML = InsightCard({
+                title: 'Financial Insight',
+                message: fallbackText,
+                icon: 'lightbulb'
+            });
+            this.refreshIcons(container);
+        }
+    }
+
+    _getTopCategoryAmount() {
+        const now = new Date();
+        const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+        const counts = {};
+        this.state.transactions.forEach(t => {
+            if (t.type === 'expense' && new Date(t.start_date) >= monthStart) {
+                counts[t.category] = (counts[t.category] || 0) + t.amount;
+            }
+        });
+        const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+        return sorted.length > 0 ? sorted[0][1] : 0;
     }
 
     getTopCategory(sinceDate) {
