@@ -2526,6 +2526,10 @@ input[type="date"]::-webkit-datetime-edit-year-field:focus,
   margin-top: 1.5rem;
 }
 
+.mt-8 {
+  margin-top: 2rem;
+}
+
 .block {
   display: block;
 }
@@ -2982,6 +2986,10 @@ input[type="date"]::-webkit-datetime-edit-year-field:focus,
   background-color: var(--bg-card);
 }
 
+.bg-surface-elevated {
+  background-color: var(--bg-elevated);
+}
+
 .bg-surface-input {
   background-color: var(--bg-input);
 }
@@ -3130,6 +3138,10 @@ input[type="date"]::-webkit-datetime-edit-year-field:focus,
 
 .pt-4 {
   padding-top: 1rem;
+}
+
+.pt-6 {
+  padding-top: 1.5rem;
 }
 
 .text-left {

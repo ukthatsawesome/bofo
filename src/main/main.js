@@ -1,6 +1,6 @@
 const { app, BrowserWindow, Menu } = require('electron');
 const path = require('path');
-const { registerIpcHandlers } = require('./ipc/handlers');
+const { registerIpcHandlers, performAutoBackup } = require('./ipc/handlers');
 
 function createWindow() {
     const win = new BrowserWindow({
@@ -90,7 +90,10 @@ app.whenReady().then(() => {
     });
 });
 
-app.on('window-all-closed', () => {
+app.on('window-all-closed', async () => {
+    // Perform auto-backup before quitting
+    await performAutoBackup();
+
     if (process.platform !== 'darwin') {
         app.quit();
     }

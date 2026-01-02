@@ -291,11 +291,18 @@ const FinanceModel = {
     // Data Transfer Operations
     exportData: async () => {
         return {
+            version: 2, // Schema version for backward compatibility
+            exportedAt: new Date().toISOString(),
             transactions: await FinanceModel.getAllTransactions(),
             accounts: await FinanceModel.getAllAccounts(),
             categories: await FinanceModel.getAllCategories(),
             settings: await FinanceModel.getAllSettings(),
-            budgets: await FinanceModel.getAllBudgets()
+            budgets: await FinanceModel.getAllBudgets(),
+            goals: await FinanceModel.getAllGoals(),
+            goalContributions: await all(`SELECT * FROM goal_contributions`),
+            recurringCharges: await FinanceModel.getAllRecurringCharges(),
+            billTypes: await FinanceModel.getBillTypes(),
+            billReadings: await all(`SELECT * FROM bill_readings`)
         };
     },
 
@@ -303,7 +310,12 @@ const FinanceModel = {
         try {
             await run('BEGIN TRANSACTION');
 
-            // Clear existing data
+            // Clear existing data (in proper order for foreign key constraints)
+            await run('DELETE FROM goal_contributions');
+            await run('DELETE FROM bill_readings');
+            await run('DELETE FROM goals');
+            await run('DELETE FROM recurring_charges');
+            await run('DELETE FROM bill_types');
             await run('DELETE FROM transactions');
             await run('DELETE FROM accounts');
             await run('DELETE FROM categories');
@@ -311,34 +323,67 @@ const FinanceModel = {
             await run('DELETE FROM budgets');
 
             // Restore Accounts
-            for (const acc of data.accounts) {
-                await run(`INSERT INTO accounts (id, name, type, balance, initial_balance, currency) VALUES (?, ?, ?, ?, ?, ?)`,
-                    [acc.id, acc.name, acc.type, acc.balance, acc.initial_balance, acc.currency]);
+            for (const acc of data.accounts || []) {
+                await run(`INSERT INTO accounts (id, name, type, balance, initial_balance, currency, status) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+                    [acc.id, acc.name, acc.type, acc.balance, acc.initial_balance || acc.balance, acc.currency || 'USD', acc.status || 'active']);
             }
 
             // Restore Categories
-            for (const cat of data.categories) {
-                await run(`INSERT INTO categories (id, type, name, status, is_default) VALUES (?, ?, ?, ?, ?)`,
-                    [cat.id, cat.type, cat.name, cat.status, cat.is_default]);
+            for (const cat of data.categories || []) {
+                await run(`INSERT INTO categories (id, type, name, status, is_default, color, icon) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+                    [cat.id, cat.type, cat.name, cat.status || 'active', cat.is_default || 0, cat.color || '#7b68ee', cat.icon || '📂']);
             }
 
             // Restore Transactions
-            for (const t of data.transactions) {
+            for (const t of data.transactions || []) {
                 await run(`INSERT INTO transactions 
                     (id, account_id, to_account_id, type, category, amount, description, attachment, frequency, start_date, end_date, currency, tags, is_active)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-                    [t.id, t.account_id, t.to_account_id, t.type, t.category, t.amount, t.description, t.attachment, t.frequency, t.start_date, t.end_date, t.currency, t.tags, t.is_active]);
+                    [t.id, t.account_id, t.to_account_id, t.type, t.category, t.amount, t.description, t.attachment, t.frequency, t.start_date, t.end_date, t.currency, t.tags, t.is_active ?? 1]);
             }
 
             // Restore Settings
-            for (const key in data.settings) {
-                await run(`INSERT INTO settings (key, value) VALUES (?, ?)`, [key, data.settings[key]]);
+            for (const key in (data.settings || {})) {
+                await run(`INSERT INTO settings (key, value, category) VALUES (?, ?, 'general')`, [key, data.settings[key]]);
             }
 
             // Restore Budgets
-            for (const b of data.budgets) {
+            for (const b of data.budgets || []) {
                 await run(`INSERT INTO budgets (id, category, amount, period, start_date, end_date, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
                     [b.id, b.category, b.amount, b.period, b.start_date, b.end_date, b.created_at]);
+            }
+
+            // Restore Goals (v2+)
+            for (const g of data.goals || []) {
+                await run(`INSERT INTO goals (id, name, description, target_amount, current_amount, monthly_contribution, icon, color, priority, target_date, status, auto_contribute, created_at, completed_at) 
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                    [g.id, g.name, g.description, g.target_amount, g.current_amount, g.monthly_contribution, g.icon, g.color, g.priority, g.target_date, g.status, g.auto_contribute, g.created_at, g.completed_at]);
+            }
+
+            // Restore Goal Contributions (v2+)
+            for (const gc of data.goalContributions || []) {
+                await run(`INSERT INTO goal_contributions (id, goal_id, amount, source, notes, contributed_at) VALUES (?, ?, ?, ?, ?, ?)`,
+                    [gc.id, gc.goal_id, gc.amount, gc.source, gc.notes, gc.contributed_at]);
+            }
+
+            // Restore Recurring Charges (v2+)
+            for (const rc of data.recurringCharges || []) {
+                await run(`INSERT INTO recurring_charges (id, category, name, amount, frequency, due_day, next_due_date, is_active, notes, created_at) 
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                    [rc.id, rc.category, rc.name, rc.amount, rc.frequency, rc.due_day, rc.next_due_date, rc.is_active ?? 1, rc.notes, rc.created_at]);
+            }
+
+            // Restore Bill Types (v2+)
+            for (const bt of data.billTypes || []) {
+                await run(`INSERT INTO bill_types (id, name, unit_name, cost_per_unit, category_name, account_id, auto_transaction, icon, color, created_at) 
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                    [bt.id, bt.name, bt.unit_name, bt.cost_per_unit, bt.category_name, bt.account_id, bt.auto_transaction, bt.icon, bt.color, bt.created_at]);
+            }
+
+            // Restore Bill Readings (v2+)
+            for (const br of data.billReadings || []) {
+                await run(`INSERT INTO bill_readings (id, bill_type_id, date, units_used, total_cost, notes, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+                    [br.id, br.bill_type_id, br.date, br.units_used, br.total_cost, br.notes, br.created_at]);
             }
 
             await run('COMMIT');
@@ -349,22 +394,71 @@ const FinanceModel = {
         }
     },
 
-    exportTransactionsToCSV: async () => {
-        const txs = await FinanceModel.getAllTransactions();
-        if (txs.length === 0) return '';
+    exportAllToCSV: async () => {
+        const escapeCSV = (val) => {
+            if (val === null || val === undefined) return '';
+            const str = String(val);
+            if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+                return `"${str.replace(/"/g, '""')}"`;
+            }
+            return str;
+        };
 
-        const headers = ['Date', 'Type', 'Category', 'Amount', 'Currency', 'Account', 'Description'];
-        const rows = txs.map(t => [
-            t.start_date,
-            t.type,
-            t.category,
-            t.amount,
-            t.currency,
-            t.account_id, // Ideally this would be joined with account name, but ID is safe for raw export
-            (t.description || '').replace(/,/g, ' ') // Simple escape for CSV
-        ]);
+        const tableToCSV = (data, headers) => {
+            if (!data || data.length === 0) return '';
+            const headerRow = headers.join(',');
+            const dataRows = data.map(row => headers.map(h => escapeCSV(row[h])).join(','));
+            return [headerRow, ...dataRows].join('\n');
+        };
 
-        return [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+        const sections = [];
+
+        // Accounts
+        const accounts = await FinanceModel.getAllAccounts();
+        sections.push('## ACCOUNTS');
+        sections.push(tableToCSV(accounts, ['id', 'name', 'type', 'balance', 'initial_balance', 'currency', 'status']));
+
+        // Transactions
+        const transactions = await FinanceModel.getAllTransactions();
+        sections.push('\n## TRANSACTIONS');
+        sections.push(tableToCSV(transactions, ['id', 'start_date', 'type', 'category', 'amount', 'currency', 'account_id', 'to_account_id', 'description', 'frequency', 'is_active']));
+
+        // Categories
+        const categories = await FinanceModel.getAllCategories();
+        sections.push('\n## CATEGORIES');
+        sections.push(tableToCSV(categories, ['id', 'type', 'name', 'status', 'is_default', 'color', 'icon']));
+
+        // Budgets
+        const budgets = await FinanceModel.getAllBudgets();
+        sections.push('\n## BUDGETS');
+        sections.push(tableToCSV(budgets, ['id', 'category', 'amount', 'period', 'start_date', 'end_date', 'created_at']));
+
+        // Goals
+        const goals = await FinanceModel.getAllGoals();
+        sections.push('\n## GOALS');
+        sections.push(tableToCSV(goals, ['id', 'name', 'description', 'target_amount', 'current_amount', 'monthly_contribution', 'target_date', 'status', 'priority']));
+
+        // Goal Contributions
+        const contributions = await all(`SELECT * FROM goal_contributions ORDER BY contributed_at DESC`);
+        sections.push('\n## GOAL_CONTRIBUTIONS');
+        sections.push(tableToCSV(contributions, ['id', 'goal_id', 'amount', 'source', 'notes', 'contributed_at']));
+
+        // Recurring Charges
+        const recurring = await FinanceModel.getAllRecurringCharges();
+        sections.push('\n## RECURRING_CHARGES');
+        sections.push(tableToCSV(recurring, ['id', 'category', 'name', 'amount', 'frequency', 'due_day', 'next_due_date', 'is_active', 'notes']));
+
+        // Bill Types
+        const billTypes = await FinanceModel.getBillTypes();
+        sections.push('\n## BILL_TYPES');
+        sections.push(tableToCSV(billTypes, ['id', 'name', 'unit_name', 'cost_per_unit', 'category_name', 'account_id', 'auto_transaction']));
+
+        // Bill Readings
+        const billReadings = await all(`SELECT * FROM bill_readings ORDER BY date DESC`);
+        sections.push('\n## BILL_READINGS');
+        sections.push(tableToCSV(billReadings, ['id', 'bill_type_id', 'date', 'units_used', 'total_cost', 'notes']));
+
+        return sections.join('\n');
     },
 
     // ==================== GOALS ====================

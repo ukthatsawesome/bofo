@@ -78,6 +78,15 @@ export class SettingsView extends BaseView {
                             </div>
                         </div>
                     </div>
+                    <div class="card clickable-card" onclick="app.views.settings.showSubView('backup-restore')">
+                        <div class="card-body flex-row align-center gap-4">
+                            <div class="icon-box warning"><i data-lucide="hard-drive-download"></i></div>
+                            <div>
+                                <h3>Backup & Restore</h3>
+                                <p class="text-muted">Export and import your data</p>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -282,6 +291,115 @@ export class SettingsView extends BaseView {
                     </div>
                 </div>
             </div>
+
+            <div id="backup-restore" class="settings-sub-view hidden">
+                <div class="card">
+                    <div class="card-header flex-row align-center gap-2">
+                        <button class="btn icon" onclick="app.views.settings.showHome()"><i data-lucide="arrow-left"></i></button>
+                        <h3>Backup & Restore</h3>
+                    </div>
+                    <div class="card-body">
+                        <p class="text-muted mb-6">Manage your data by exporting backups or importing from a previous backup file.</p>
+                        
+                        <div class="settings-grid" style="gap: 1.5rem;">
+                            <div class="card card-glass">
+                                <div class="card-body">
+                                    <div class="flex-row align-center gap-3 mb-4">
+                                        <div class="icon-box success"><i data-lucide="download"></i></div>
+                                        <div>
+                                            <h4>Export Full Backup</h4>
+                                            <p class="text-muted text-sm">Download all your data as a JSON file</p>
+                                        </div>
+                                    </div>
+                                    <p class="text-sm text-muted mb-4">Includes: Accounts, Transactions, Categories, Budgets, Goals, Recurring Charges, Bills, and Settings</p>
+                                    <button class="btn primary w-full" onclick="app.views.settings.handleExportData()">
+                                        <i data-lucide="hard-drive-download"></i> Export Backup
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <div class="card card-glass">
+                                <div class="card-body">
+                                    <div class="flex-row align-center gap-3 mb-4">
+                                        <div class="icon-box info"><i data-lucide="file-spreadsheet"></i></div>
+                                        <div>
+                                            <h4>Export to Excel</h4>
+                                            <p class="text-muted text-sm">Multi-sheet Excel workbook</p>
+                                        </div>
+                                    </div>
+                                    <p class="text-sm text-muted mb-4">Each data type in a separate sheet. Perfect for Excel, LibreOffice, or Google Sheets.</p>
+                                    <button class="btn secondary w-full" onclick="app.views.settings.handleExportExcel()">
+                                        <i data-lucide="table"></i> Export Excel (.xlsx)
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <div class="card card-glass" style="grid-column: 1 / -1;">
+                                <div class="card-body">
+                                    <div class="flex-row align-center gap-3 mb-4">
+                                        <div class="icon-box warning"><i data-lucide="upload"></i></div>
+                                        <div>
+                                            <h4>Import Backup</h4>
+                                            <p class="text-muted text-sm">Restore data from a previous backup file</p>
+                                        </div>
+                                    </div>
+                                    <div class="p-4 rounded-lg bg-warning/10 border border-warning/20 mb-4">
+                                        <p class="text-sm text-warning"><strong>⚠️ Warning:</strong> Importing will replace ALL existing data. This action cannot be undone. Make sure to export a backup first!</p>
+                                    </div>
+                                    <button class="btn danger w-full" onclick="app.views.settings.handleImportData()">
+                                        <i data-lucide="hard-drive-upload"></i> Import Backup File
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Auto-Backup Section -->
+                        <div class="mt-8 pt-6 border-t border-border">
+                            <div class="flex-row align-center gap-3 mb-6">
+                                <div class="icon-box primary"><i data-lucide="clock"></i></div>
+                                <div>
+                                    <h4>Automatic Daily Backup</h4>
+                                    <p class="text-muted text-sm">Automatically save a backup when you close the app</p>
+                                </div>
+                            </div>
+                            
+                            <div class="form-grid">
+                                <div class="form-group full-width">
+                                    <label class="toggle-row">
+                                        <span class="text-sm font-medium">Enable Daily Auto-Backup</span>
+                                        <div class="toggle-switch">
+                                            <input type="checkbox" id="auto-backup-enabled" onchange="app.views.settings.handleAutoBackupToggle()">
+                                            <span class="toggle-slider"></span>
+                                        </div>
+                                    </label>
+                                </div>
+                                
+                                <div class="form-group full-width" id="auto-backup-dir-group">
+                                    <label>Backup Directory</label>
+                                    <div class="flex-row gap-2">
+                                        <input type="text" id="auto-backup-directory" class="form-control" readonly placeholder="Select a folder...">
+                                        <button class="btn" onclick="app.views.settings.handlePickBackupDirectory()">
+                                            <i data-lucide="folder-open"></i> Browse
+                                        </button>
+                                    </div>
+                                </div>
+                                
+                                <div class="form-group full-width" id="auto-backup-status">
+                                    <div class="flex-row justify-between align-center p-4 rounded-lg bg-surface-elevated">
+                                        <div>
+                                            <p class="text-sm font-medium">Last Backup</p>
+                                            <p class="text-muted text-sm" id="last-backup-time">Never</p>
+                                        </div>
+                                        <button class="btn primary" onclick="app.views.settings.handleRunBackupNow()">
+                                            <i data-lucide="save"></i> Backup Now
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
         `;
         this.refreshIcons();
     }
@@ -336,7 +454,10 @@ export class SettingsView extends BaseView {
         else if (subViewId === 'ai-settings') await this.renderAISettings();
         else if (subViewId === 'recurring-charges') await this.renderRecurringCharges();
         else if (subViewId === 'bills-mgmt') await this.renderBillsTable();
+        else if (subViewId === 'backup-restore') await this.populateAutoBackupSettings();
         else this.populateInputs(subViewId);
+
+        this.refreshIcons();
     }
 
     async renderAISettings() {
@@ -1051,6 +1172,160 @@ export class SettingsView extends BaseView {
                 }
             });
             saveBtn.dataset.bound = 'true';
+        }
+    }
+
+    // ==================== BACKUP & RESTORE ====================
+
+    async handleExportData() {
+        try {
+            const result = await window.api.exportData();
+            if (result) {
+                this.app.notifications.toast('Export Complete', 'Your backup file has been saved', 'success');
+            }
+        } catch (err) {
+            this.app.notifications.alert('Export Failed', err.message, 'error');
+        }
+    }
+
+    async handleExportCSV() {
+        try {
+            const result = await window.api.exportCSV();
+            if (result) {
+                this.app.notifications.toast('Export Complete', 'Transactions exported as CSV', 'success');
+            }
+        } catch (err) {
+            this.app.notifications.alert('Export Failed', err.message, 'error');
+        }
+    }
+
+    async handleImportData() {
+        const confirmed = await this.app.notifications.confirm(
+            'Import Backup',
+            'This will REPLACE all your existing data with the backup file. Are you sure you want to continue?'
+        );
+
+        if (!confirmed) return;
+
+        try {
+            const result = await window.api.importData();
+
+            if (result.success) {
+                this.app.notifications.toast('Import Complete', result.message, 'success');
+
+                // Reload all application state
+                await Promise.all([
+                    this.app.state.loadSettings(),
+                    this.app.state.loadAccounts(),
+                    this.app.state.loadCategories(),
+                    this.app.state.loadTransactions(),
+                    this.app.state.loadBudgets()
+                ]);
+
+                // Refresh UI
+                this.app.renderDynamicModals();
+                this.app.updateAccountDropdowns();
+                this.app.updateCategoryDropdowns();
+                this.showHome();
+            } else {
+                this.app.notifications.alert('Import Failed', result.message, 'error');
+            }
+        } catch (err) {
+            this.app.notifications.alert('Import Failed', err.message, 'error');
+        }
+    }
+
+    async handleExportExcel() {
+        try {
+            const result = await window.api.exportExcel();
+            if (result) {
+                this.app.notifications.toast('Export Complete', 'Excel file saved with all data sheets', 'success');
+            }
+        } catch (err) {
+            this.app.notifications.alert('Export Failed', err.message, 'error');
+        }
+    }
+
+    // ==================== AUTO-BACKUP HANDLERS ====================
+
+    async populateAutoBackupSettings() {
+        const { settings } = this.app.state;
+
+        const enabledCheckbox = $('#auto-backup-enabled');
+        const directoryInput = $('#auto-backup-directory');
+        const lastBackupEl = $('#last-backup-time');
+
+        if (enabledCheckbox) {
+            enabledCheckbox.checked = settings.auto_backup_enabled === 'true';
+        }
+
+        if (directoryInput) {
+            directoryInput.value = settings.auto_backup_directory || '';
+        }
+
+        if (lastBackupEl) {
+            if (settings.auto_backup_last) {
+                const date = new Date(settings.auto_backup_last);
+                lastBackupEl.textContent = date.toLocaleString();
+            } else {
+                lastBackupEl.textContent = 'Never';
+            }
+        }
+    }
+
+    async handleAutoBackupToggle() {
+        const enabled = $('#auto-backup-enabled')?.checked;
+
+        try {
+            await window.api.saveSettings({
+                auto_backup_enabled: enabled.toString()
+            });
+            await this.app.state.loadSettings();
+
+            this.app.notifications.toast(
+                'Auto-Backup ' + (enabled ? 'Enabled' : 'Disabled'),
+                enabled ? 'Backups will be saved when you close the app' : 'Auto-backup has been turned off'
+            );
+        } catch (err) {
+            this.app.notifications.alert('Error', err.message, 'error');
+        }
+    }
+
+    async handlePickBackupDirectory() {
+        try {
+            const directory = await window.api.pickBackupDirectory();
+
+            if (directory) {
+                await window.api.saveSettings({
+                    auto_backup_directory: directory
+                });
+                await this.app.state.loadSettings();
+
+                const directoryInput = $('#auto-backup-directory');
+                if (directoryInput) {
+                    directoryInput.value = directory;
+                }
+
+                this.app.notifications.toast('Directory Set', 'Backup folder configured successfully');
+            }
+        } catch (err) {
+            this.app.notifications.alert('Error', err.message, 'error');
+        }
+    }
+
+    async handleRunBackupNow() {
+        try {
+            const result = await window.api.runBackupNow();
+
+            if (result.success) {
+                this.app.notifications.toast('Backup Complete', result.message, 'success');
+                await this.app.state.loadSettings();
+                this.populateAutoBackupSettings();
+            } else {
+                this.app.notifications.alert('Backup Failed', result.message, 'error');
+            }
+        } catch (err) {
+            this.app.notifications.alert('Backup Failed', err.message, 'error');
         }
     }
 }

@@ -180,10 +180,18 @@ Apply with: `document.documentElement.setAttribute('data-theme', 'light')`
 ## NPM Scripts
 
 ```bash
+# Development
 npm start       # Build CSS + start Electron
 npm run dev     # Watch CSS + start Electron (development)
 npm run build:css   # Build Tailwind CSS once
 npm run watch:css   # Watch and rebuild CSS on changes
+
+# Distribution (Production Builds)
+npm run pack        # Create unpacked build (for testing)
+npm run dist        # Create distributable for current platform
+npm run dist:win    # Create Windows installer (.exe)
+npm run dist:mac    # Create macOS installer (.dmg)
+npm run dist:linux  # Create Linux installer (.AppImage, .deb)
 ```
 
 ## File Sizes

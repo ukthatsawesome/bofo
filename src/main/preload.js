@@ -64,8 +64,12 @@ contextBridge.exposeInMainWorld('api', {
 
     // Data Export/Import
     exportData: () => ipcRenderer.invoke('export-data'),
-    importData: (data) => ipcRenderer.invoke('import-data', data),
-    exportCSV: () => ipcRenderer.invoke('export-csv'),
+    importData: () => ipcRenderer.invoke('import-data'),
+    exportExcel: () => ipcRenderer.invoke('export-excel'),
+
+    // Auto-Backup
+    pickBackupDirectory: () => ipcRenderer.invoke('pick-backup-directory'),
+    runBackupNow: () => ipcRenderer.invoke('run-backup-now'),
 
     // AI
     getAISettings: () => ipcRenderer.invoke('get-ai-settings'),

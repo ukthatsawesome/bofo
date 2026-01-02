@@ -1,5 +1,7 @@
-const { ipcMain, dialog } = require('electron');
+const { ipcMain, dialog, app } = require('electron');
 const fs = require('fs');
+const path = require('path');
+const XLSX = require('xlsx');
 const FinanceModel = require('../../models/finance');
 
 // AI Service (lazy loaded)
@@ -214,23 +216,98 @@ function registerIpcHandlers() {
         return false;
     });
 
-    ipcMain.handle('import-data', async (event, data) => {
-        return await FinanceModel.importData(data);
-    });
-
-    ipcMain.handle('export-csv', async () => {
-        const csv = await FinanceModel.exportTransactionsToCSV();
-        const { filePath } = await dialog.showSaveDialog({
-            buttonLabel: 'Export CSV',
-            defaultPath: `bofo-transactions-${new Date().toISOString().split('T')[0]}.csv`,
-            filters: [{ name: 'CSV', extensions: ['csv'] }]
+    ipcMain.handle('import-data', async () => {
+        const { filePaths, canceled } = await dialog.showOpenDialog({
+            title: 'Import Backup',
+            buttonLabel: 'Import',
+            filters: [{ name: 'JSON Backup', extensions: ['json'] }],
+            properties: ['openFile']
         });
 
-        if (filePath) {
-            fs.writeFileSync(filePath, csv);
-            return true;
+        if (canceled || !filePaths || filePaths.length === 0) {
+            return { success: false, message: 'Import cancelled' };
         }
-        return false;
+
+        try {
+            const fileContent = fs.readFileSync(filePaths[0], 'utf8');
+            const data = JSON.parse(fileContent);
+
+            // Validate it looks like a Bofo backup
+            if (!data.accounts && !data.transactions) {
+                return { success: false, message: 'Invalid backup file format' };
+            }
+
+            await FinanceModel.importData(data);
+            return { success: true, message: 'Data imported successfully!' };
+        } catch (err) {
+            console.error('Import error:', err);
+            return { success: false, message: `Import failed: ${err.message}` };
+        }
+    });
+
+    ipcMain.handle('export-excel', async () => {
+        try {
+            const workbook = XLSX.utils.book_new();
+
+            // Helper to add sheet
+            const addSheet = (data, name, headers) => {
+                if (!data || data.length === 0) {
+                    // Add empty sheet with headers only
+                    const ws = XLSX.utils.aoa_to_sheet([headers]);
+                    XLSX.utils.book_append_sheet(workbook, ws, name);
+                    return;
+                }
+                const sheetData = data.map(row => headers.map(h => row[h] ?? ''));
+                const ws = XLSX.utils.aoa_to_sheet([headers, ...sheetData]);
+                XLSX.utils.book_append_sheet(workbook, ws, name);
+            };
+
+            // Accounts
+            const accounts = await FinanceModel.getAllAccounts();
+            addSheet(accounts, 'Accounts', ['id', 'name', 'type', 'balance', 'initial_balance', 'currency', 'status']);
+
+            // Transactions
+            const transactions = await FinanceModel.getAllTransactions();
+            addSheet(transactions, 'Transactions', ['id', 'start_date', 'type', 'category', 'amount', 'currency', 'account_id', 'to_account_id', 'description', 'frequency', 'is_active']);
+
+            // Categories
+            const categories = await FinanceModel.getAllCategories();
+            addSheet(categories, 'Categories', ['id', 'type', 'name', 'status', 'is_default', 'color', 'icon']);
+
+            // Budgets
+            const budgets = await FinanceModel.getAllBudgets();
+            addSheet(budgets, 'Budgets', ['id', 'category', 'amount', 'period', 'start_date', 'end_date', 'created_at']);
+
+            // Goals
+            const goals = await FinanceModel.getAllGoals();
+            addSheet(goals, 'Goals', ['id', 'name', 'description', 'target_amount', 'current_amount', 'monthly_contribution', 'target_date', 'status', 'priority']);
+
+            // Recurring Charges
+            const recurring = await FinanceModel.getAllRecurringCharges();
+            addSheet(recurring, 'Recurring Charges', ['id', 'category', 'name', 'amount', 'frequency', 'due_day', 'next_due_date', 'is_active', 'notes']);
+
+            // Bill Types
+            const billTypes = await FinanceModel.getBillTypes();
+            addSheet(billTypes, 'Bill Types', ['id', 'name', 'unit_name', 'cost_per_unit', 'category_name', 'account_id', 'auto_transaction']);
+
+            // Bill Readings
+            const billReadings = await FinanceModel.getBillReadings({});
+            addSheet(billReadings, 'Bill Readings', ['id', 'bill_type_id', 'date', 'units_used', 'total_cost', 'notes']);
+
+            const { filePath, canceled } = await dialog.showSaveDialog({
+                buttonLabel: 'Export Excel',
+                defaultPath: `bofo-export-${new Date().toISOString().split('T')[0]}.xlsx`,
+                filters: [{ name: 'Excel Workbook', extensions: ['xlsx'] }]
+            });
+
+            if (canceled || !filePath) return false;
+
+            XLSX.writeFile(workbook, filePath);
+            return true;
+        } catch (err) {
+            console.error('Excel export error:', err);
+            return false;
+        }
     });
 
     // AI Handlers
@@ -371,6 +448,91 @@ function registerIpcHandlers() {
     ipcMain.handle('delete-bill-reading', async (event, id) => {
         return await FinanceModel.deleteBillReading(id);
     });
+
+    // ==================== AUTO-BACKUP HANDLERS ====================
+
+    ipcMain.handle('pick-backup-directory', async () => {
+        const { filePaths, canceled } = await dialog.showOpenDialog({
+            title: 'Select Backup Directory',
+            properties: ['openDirectory', 'createDirectory']
+        });
+
+        if (canceled || !filePaths || filePaths.length === 0) {
+            return null;
+        }
+        return filePaths[0];
+    });
+
+    ipcMain.handle('run-backup-now', async () => {
+        try {
+            const settings = await FinanceModel.getAllSettings();
+            const backupDir = settings.auto_backup_directory;
+
+            if (!backupDir) {
+                return { success: false, message: 'No backup directory configured' };
+            }
+
+            // Check if directory exists
+            if (!fs.existsSync(backupDir)) {
+                return { success: false, message: 'Backup directory does not exist' };
+            }
+
+            const data = await FinanceModel.exportData();
+            const timestamp = new Date().toISOString().replace(/[:.]/g, '-').split('T')[0];
+            const filename = `bofo-backup-${timestamp}.json`;
+            const filepath = path.join(backupDir, filename);
+
+            fs.writeFileSync(filepath, JSON.stringify(data, null, 2));
+
+            // Update last backup time
+            await FinanceModel.updateSetting('auto_backup_last', new Date().toISOString());
+
+            return { success: true, message: `Backup saved to ${filename}` };
+        } catch (err) {
+            console.error('Backup error:', err);
+            return { success: false, message: err.message };
+        }
+    });
 }
 
-module.exports = { registerIpcHandlers };
+// Auto-backup on app close (called from main.js)
+async function performAutoBackup() {
+    try {
+        const settings = await FinanceModel.getAllSettings();
+
+        if (settings.auto_backup_enabled !== 'true' || !settings.auto_backup_directory) {
+            return;
+        }
+
+        const backupDir = settings.auto_backup_directory;
+        if (!fs.existsSync(backupDir)) {
+            console.warn('Auto-backup directory does not exist:', backupDir);
+            return;
+        }
+
+        // Check if we already backed up today
+        const lastBackup = settings.auto_backup_last;
+        if (lastBackup) {
+            const lastDate = new Date(lastBackup).toDateString();
+            const today = new Date().toDateString();
+            if (lastDate === today) {
+                console.log('Already backed up today, skipping...');
+                return;
+            }
+        }
+
+        const data = await FinanceModel.exportData();
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-').split('T')[0];
+        const filename = `bofo-backup-${timestamp}.json`;
+        const filepath = path.join(backupDir, filename);
+
+        fs.writeFileSync(filepath, JSON.stringify(data, null, 2));
+        await FinanceModel.updateSetting('auto_backup_last', new Date().toISOString());
+
+        console.log('Auto-backup completed:', filepath);
+    } catch (err) {
+        console.error('Auto-backup failed:', err);
+    }
+}
+
+module.exports = { registerIpcHandlers, performAutoBackup };
