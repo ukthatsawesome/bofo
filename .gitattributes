@@ -1,8 +1,15 @@
 # Set default behavior to automatically normalize line endings
 * text=auto
 
-# Force LF for shell scripts
+# Force LF for shell and config files
 *.sh text eol=lf
+*.js text eol=lf
+*.json text eol=lf
+*.css text eol=lf
+*.html text eol=lf
+*.md text eol=lf
+.gitignore text eol=lf
+.gitattributes text eol=lf
 
 # Binary files
 *.png binary
@@ -10,4 +17,14 @@
 *.jpeg binary
 *.gif binary
 *.ico binary
+*.webp binary
+*.svg text
 *.db binary
+*.sqlite binary
+*.xlsx binary
+*.pdf binary
+*.exe binary
+*.dmg binary
+*.pak binary
+*.dat binary
+*.bin binary

@@ -70,6 +70,10 @@ OR
 \`\`\`
 4. Keep the text part short. If adding an item, say "Adding [item] to your scenario...". If reverting, say "Reverting your last change...".`
         };
+
+        this.promptTx = null;
+        this.promptInsight = null;
+        this.promptChat = null;
     }
 
     async setConfig(url, model) {
@@ -137,7 +141,8 @@ OR
     }
 
     async parseTransactionFromText(text, categories, accountNames = [], promptTemplate = null) {
-        const prompt = this._replaceTemplate(promptTemplate || this.DEFAULTS.promptTx, {
+        const template = promptTemplate || this.promptTx || this.DEFAULTS.promptTx;
+        const prompt = this._replaceTemplate(template, {
             input: text,
             date: new Date().toISOString().split('T')[0],
             categories: categories.join(', '),
@@ -155,7 +160,8 @@ OR
     }
 
     async getFinancialInsight(summaryData, promptTemplate = null) {
-        const prompt = this._replaceTemplate(promptTemplate || this.DEFAULTS.promptInsight, {
+        const template = promptTemplate || this.promptInsight || this.DEFAULTS.promptInsight;
+        const prompt = this._replaceTemplate(template, {
             data: JSON.stringify(summaryData)
         });
 
@@ -169,7 +175,8 @@ OR
     }
 
     async chatSandbox(userText, context, promptTemplate = null, onChunk = null) {
-        const prompt = this._replaceTemplate(promptTemplate || this.DEFAULTS.promptChat, {
+        const template = promptTemplate || this.promptChat || this.DEFAULTS.promptChat;
+        const prompt = this._replaceTemplate(template, {
             stats: JSON.stringify(context.stats),
             hypotheticals: JSON.stringify(context.simulation),
             rules: JSON.stringify(context.rules),

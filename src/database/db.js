@@ -1,6 +1,7 @@
 const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
 const fs = require('fs');
+const { createDbHelpers } = require('./helpers');
 
 let app;
 try {
@@ -23,33 +24,8 @@ const db = new sqlite3.Database(dbPath, async (err) => {
     }
 });
 
-// Promisified Helpers for Internal Use
-function run(sql, params = []) {
-    return new Promise((resolve, reject) => {
-        db.run(sql, params, function (err) {
-            if (err) reject(err);
-            else resolve(this);
-        });
-    });
-}
-
-function all(sql, params = []) {
-    return new Promise((resolve, reject) => {
-        db.all(sql, params, (err, rows) => {
-            if (err) reject(err);
-            else resolve(rows);
-        });
-    });
-}
-
-function get(sql, params = []) {
-    return new Promise((resolve, reject) => {
-        db.get(sql, params, (err, row) => {
-            if (err) reject(err);
-            else resolve(row);
-        });
-    });
-}
+// Use shared promisified helpers
+const { run, get, all } = createDbHelpers(db);
 
 // Migration Definitions
 const MIGRATIONS = [
@@ -110,6 +86,36 @@ const MIGRATIONS = [
                 const start = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
                 const end = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
                 await run(`UPDATE budgets SET start_date = ?, end_date = ? WHERE start_date IS NULL`, [start, end]);
+            }
+        }
+    },
+    {
+        id: 4,
+        name: 'Linking Bills to Categories',
+        up: async () => {
+            const columns = await all("PRAGMA table_info(bill_types)");
+            const colNames = columns.map(c => c.name);
+
+            if (!colNames.includes('category_name')) {
+                console.log('Adding category_name to bill_types...');
+                await run("ALTER TABLE bill_types ADD COLUMN category_name TEXT");
+            }
+        }
+    },
+    {
+        id: 5,
+        name: 'Bill Auto-Transaction Fields',
+        up: async () => {
+            const columns = await all("PRAGMA table_info(bill_types)");
+            const colNames = columns.map(c => c.name);
+
+            if (!colNames.includes('account_id')) {
+                console.log('Adding account_id to bill_types...');
+                await run("ALTER TABLE bill_types ADD COLUMN account_id INTEGER");
+            }
+            if (!colNames.includes('auto_transaction')) {
+                console.log('Adding auto_transaction to bill_types...');
+                await run("ALTER TABLE bill_types ADD COLUMN auto_transaction INTEGER DEFAULT 0");
             }
         }
     }

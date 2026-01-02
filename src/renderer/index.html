@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Bofo - Your Personal AI Financial Manager">
+    <meta name="theme-color" content="#09090b">
+    <title>Bofo - AI Finance</title>
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap"
+        rel="stylesheet">
+
+    <!-- Styles -->
+    <link rel="stylesheet" href="tailwind.css">
+
+    <!-- Theme Detection (runs before body renders to prevent flash) -->
+    <script>
+        (function () {
+            const stored = localStorage.getItem('bofo-theme');
+            let theme = stored || 'dark';
+
+            if (theme === 'system') {
+                theme = window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+            }
+
+            document.documentElement.setAttribute('data-theme', theme);
+
+            // Update meta theme color
+            const metaTheme = document.querySelector('meta[name="theme-color"]');
+            if (metaTheme) {
+                metaTheme.content = theme === 'light' ? '#f8fafc' : '#09090b';
+            }
+        })();
+    </script>
+
+    <!-- External Libs -->
+    <script src="lib/chart.umd.js"></script>
+    <script src="lib/lucide.min.js"></script>
+
+    <!-- Application Entry -->
+    <script src="renderer.js" type="module"></script>
+</head>
+
+<body>
+    <div class="app-container">
+        <!-- Sidebar Navigation -->
+        <nav class="sidebar">
+            <ul class="nav-links top-nav">
+                <li class="active logo-nav" data-view="dashboard" title="Dashboard">
+                    <i data-lucide="piggy-bank"></i>
+                </li>
+                <li data-view="transactions" title="Transactions">
+                    <i data-lucide="arrow-left-right" class="nav-icon"></i>
+                </li>
+                <li data-view="forecast" title="Forecast">
+                    <i data-lucide="trending-up" class="nav-icon"></i>
+                </li>
+                <li data-view="budget" title="Budget">
+                    <i data-lucide="pie-chart" class="nav-icon"></i>
+                </li>
+                <li data-view="recurring" title="Recurring Charges">
+                    <i data-lucide="repeat" class="nav-icon"></i>
+                </li>
+                <li data-view="bills" title="Bills Tracking">
+                    <i data-lucide="receipt" class="nav-icon"></i>
+                </li>
+                <li data-view="goals" title="Goals">
+                    <i data-lucide="target" class="nav-icon"></i>
+                </li>
+                <li data-view="whatif" title="Sandbox">
+                    <i data-lucide="sparkles" class="nav-icon"></i>
+                </li>
+            </ul>
+            <ul class="nav-links bottom-nav">
+                <li id="ai-status-nav" class="ai-nav-item" title="AI Settings">
+                    <i data-lucide="bot" class="nav-icon"></i>
+                    <span class="ai-status-dot-nav"></span>
+                </li>
+                <li data-view="settings" title="Settings">
+                    <i data-lucide="settings" class="nav-icon"></i>
+                </li>
+            </ul>
+        </nav>
+
+        <!-- Main Content Area -->
+        <main class="content" id="main-content">
+            <section id="dashboard" class="view active"></section>
+            <section id="transactions" class="view"></section>
+            <section id="forecast" class="view"></section>
+            <section id="budget" class="view"></section>
+            <section id="recurring" class="view"></section>
+            <section id="bills" class="view"></section>
+            <section id="goals" class="view"></section>
+            <section id="whatif" class="view"></section>
+            <section id="settings" class="view"></section>
+        </main>
+    </div>
+
+    <!-- Dynamic Containers -->
+    <div id="dynamic-modals-container"></div>
+    <div id="tx-modal-container"></div>
+    <div id="sandbox-modal-container"></div>
+    <div id="notification-modal-container"></div>
+    <div id="toast-container" class="toast-container"></div>
+
+    <div id="global-loader" class="loader-overlay hidden">
+        <div class="spinner"></div>
+        <p class="text-secondary" style="margin-top: 16px; font-weight: 500;">Loading...</p>
+    </div>
+</body>
+
+</html>
