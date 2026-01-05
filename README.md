@@ -93,6 +93,7 @@ npm run dist:linux
 Bofo is designed with privacy in mind. **All your data stays on your machine.**
 - Local SQLite database.
 - Local AI processing via Ollama.
+- Self-hosted fonts for 100% offline usage.
 - No cloud storage or third-party tracking.
 
 ---

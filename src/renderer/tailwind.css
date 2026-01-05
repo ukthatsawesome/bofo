@@ -3308,11 +3308,6 @@ input[type="date"]::-webkit-datetime-edit-year-field:focus,
   color: var(--warning);
 }
 
-.text-white {
-  --tw-text-opacity: 1;
-  color: rgb(255 255 255 / var(--tw-text-opacity, 1));
-}
-
 .underline {
   text-decoration-line: underline;
 }
@@ -3348,12 +3343,6 @@ input[type="date"]::-webkit-datetime-edit-year-field:focus,
 .shadow-lg {
   --tw-shadow: var(--shadow-lg);
   --tw-shadow-colored: var(--shadow-lg);
-  box-shadow: var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tw-shadow);
-}
-
-.shadow-md {
-  --tw-shadow: var(--shadow-md);
-  --tw-shadow-colored: var(--shadow-md);
   box-shadow: var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tw-shadow);
 }
 
@@ -3415,6 +3404,82 @@ input[type="date"]::-webkit-datetime-edit-year-field:focus,
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
+}
+
+/* ============================================
+   LOCAL FONTS
+   ============================================ */
+
+@font-face {
+  font-family: 'Outfit';
+
+  src: url('fonts/outfit-300.woff2') format('woff2');
+
+  font-weight: 300;
+
+  font-style: normal;
+
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Outfit';
+
+  src: url('fonts/outfit-400.woff2') format('woff2');
+
+  font-weight: 400;
+
+  font-style: normal;
+
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Outfit';
+
+  src: url('fonts/outfit-500.woff2') format('woff2');
+
+  font-weight: 500;
+
+  font-style: normal;
+
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Outfit';
+
+  src: url('fonts/outfit-600.woff2') format('woff2');
+
+  font-weight: 600;
+
+  font-style: normal;
+
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Outfit';
+
+  src: url('fonts/outfit-700.woff2') format('woff2');
+
+  font-weight: 700;
+
+  font-style: normal;
+
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Outfit';
+
+  src: url('fonts/outfit-800.woff2') format('woff2');
+
+  font-weight: 800;
+
+  font-style: normal;
+
+  font-display: swap;
 }
 
 /* ============================================
@@ -3680,10 +3745,14 @@ input[type="date"]::-webkit-datetime-edit-year-field:focus,
   color: var(--info);
 }
 
-/* Disabled/hidden */
+/* Disabled state - show nav item but hide the status dot */
 
-.ai-nav-item.ai-disabled {
+.ai-nav-item.ai-disabled .ai-status-dot-nav {
   display: none;
+}
+
+.ai-nav-item.ai-disabled .nav-icon {
+  color: var(--text-muted);
 }
 
 @keyframes nav-dot-pulse {
@@ -3831,6 +3900,25 @@ input[type="date"]::-webkit-datetime-edit-year-field:focus,
   gap: 8px;
 }
 
+/* ============================================
+   SEGMENTED CONTROL / TOGGLE BUTTONS
+   ============================================ */
+
+.segment {
+  color: var(--text-muted);
+}
+
+.segment:hover:not(.active) {
+  color: var(--text-primary);
+  background: var(--bg-card);
+}
+
+.segment.active {
+  background: var(--brand-primary);
+  color: white;
+  box-shadow: var(--shadow-md);
+}
+
 .hover\:text-success:hover {
   color: var(--success);
 }
@@ -3907,10 +3995,6 @@ input[type="date"]::-webkit-datetime-edit-year-field:focus,
   background-color: var(--success);
 }
 
-.hover\:bg-surface-card:hover {
-  background-color: var(--bg-card);
-}
-
 .hover\:bg-warning:hover {
   background-color: var(--warning);
 }
@@ -3933,10 +4017,6 @@ input[type="date"]::-webkit-datetime-edit-year-field:focus,
 
 .hover\:text-success:hover {
   color: var(--success);
-}
-
-.hover\:text-text-main:hover {
-  color: var(--text-primary);
 }
 
 .hover\:text-warning:hover {

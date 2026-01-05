@@ -21,10 +21,7 @@ export const SegmentedControl = ({
         ${options.map(item => `
             <button 
                 class="segment ${sizeClass} rounded-lg font-semibold transition-all duration-200
-                       ${item.active
-            ? 'bg-brand-primary text-white shadow-md'
-            : 'text-text-muted hover:text-text-main hover:bg-surface-card'
-        }" 
+                       ${item.active ? 'active' : ''}" 
                 onclick="${onchange}('${item.value}')" 
                 data-value="${item.value}"
             >

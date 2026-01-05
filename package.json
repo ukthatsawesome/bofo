@@ -1,6 +1,6 @@
 {
   "name": "bofo",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Bofo - Personal AI-Powered Finance Manager",
   "main": "src/main/main.js",
   "author": {
@@ -59,12 +59,9 @@
       }
     ],
     "win": {
-      "target": [
-        "nsis",
-        "portable"
-      ],
+      "target": "nsis",
       "icon": "assets/icons/icon.png",
-      "sign": null
+      "signAndEditExecutable": false
     },
     "mac": {
       "target": [

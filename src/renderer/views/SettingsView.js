@@ -1156,6 +1156,11 @@ export class SettingsView extends BaseView {
 
                 if (!name || !unit_name) return this.app.notifications.toast('Validation Error', 'Name and Unit are required', 'error');
 
+                // Validate that auto-transaction requires a linked category
+                if (auto_transaction && !category_name) {
+                    return this.app.notifications.toast('Validation Error', 'A linked category is required for auto-registering transactions', 'warning');
+                }
+
                 try {
                     const data = { name, unit_name, cost_per_unit, icon, color, category_name, account_id, auto_transaction };
                     if (this.editingBillTypeId) {
