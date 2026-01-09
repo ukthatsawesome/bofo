@@ -1,3 +1,5 @@
+import { UIUtils } from '../../core/dom.js';
+
 /**
  * TypePill Component - Tailwind version
  * Used to display transaction types (income, expense, transfer)
@@ -13,7 +15,7 @@ export const TypePill = (text, type) => {
 
     return `
     <span class="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-semibold border ${typeClass}">
-        ${text}
+        ${UIUtils.escapeHTML(text)}
     </span>
 `;
 };

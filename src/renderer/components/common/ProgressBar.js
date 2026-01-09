@@ -1,3 +1,5 @@
+import { UIUtils } from '../../core/dom.js';
+
 /**
  * ProgressBar Component - Tailwind version
  * Usage: ProgressBar({ label: 'Food', value: '$500', percent: 75 })
@@ -32,9 +34,9 @@ export const ProgressBar = ({
     return `
     <div class="mb-3">
         <div class="flex justify-between items-center mb-2">
-            <span class="text-sm font-medium text-text-main">${label}</span>
+            <span class="text-sm font-medium text-text-main">${UIUtils.escapeHTML(label)}</span>
             <span class="text-sm text-text-muted">
-                ${value}
+                ${UIUtils.escapeHTML(value)}
                 ${showPercent ? `<span class="opacity-60 font-normal ml-1">(${percent.toFixed(0)}%)</span>` : ''}
             </span>
         </div>

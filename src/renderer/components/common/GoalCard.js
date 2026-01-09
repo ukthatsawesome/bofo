@@ -1,3 +1,5 @@
+import { UIUtils } from '../../core/dom.js';
+
 /**
  * GoalCard Component - Displays a savings goal with progress
  */
@@ -61,10 +63,10 @@ export const GoalCard = ({
                     </div>
                     <div>
                         <h4 class="text-base font-bold text-text-main flex items-center gap-2">
-                            ${name}
+                            ${UIUtils.escapeHTML(name)}
                             ${isCompleted ? '<i data-lucide="check-circle-2" class="w-4 h-4 text-success"></i>' : ''}
                         </h4>
-                        ${description ? `<p class="text-xs text-text-muted mt-0.5">${description}</p>` : ''}
+                        ${description ? `<p class="text-xs text-text-muted mt-0.5">${UIUtils.escapeHTML(description)}</p>` : ''}
                     </div>
                 </div>
                 <span class="px-2 py-1 rounded-full text-xs font-semibold ${statusBadge[status] || statusBadge.active}">

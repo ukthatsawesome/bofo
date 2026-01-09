@@ -672,7 +672,7 @@ export class SettingsView extends BaseView {
 
             return `
                 <tr class="hover:bg-brand-primary/5 transition-colors border-b border-border last:border-0 ${isArchived ? 'opacity-60' : ''}">
-                    <td class="px-5 py-4 text-sm text-text-primary"><strong>${acc.name}</strong></td>
+                    <td class="px-5 py-4 text-sm text-text-primary"><strong>${UIUtils.escapeHTML(acc.name)}</strong></td>
                     <td class="px-5 py-4 text-sm text-text-secondary">${TypePill(acc.type.replace('_', ' '), acc.type)}</td>
                     <td class="px-5 py-4 text-sm text-text-secondary">${formatter.formatCurrency(acc.initial_balance || 0, acc.currency)}</td>
                     <td class="px-5 py-4 text-sm amount ${acc.type === 'credit_card' || acc.type === 'loan' ? 'expense' : 'income'} font-bold">
@@ -982,7 +982,7 @@ export class SettingsView extends BaseView {
             return `
                 <tr class="hover:bg-brand-primary/5 transition-colors border-b border-border last:border-0">
                     <td class="px-5 py-4 text-sm font-bold text-text-primary">
-                        ${c.name}
+                        ${UIUtils.escapeHTML(c.name)}
                         ${c.is_default ? '<span class="ml-2 text-xs text-text-muted font-normal">(Default)</span>' : ''}
                     </td>
                     <td class="px-5 py-4 text-sm">${TypePill(c.type, c.type)}</td>
@@ -1040,15 +1040,15 @@ export class SettingsView extends BaseView {
                             <div class="icon-box sm flex-shrink-0" style="background: ${bt.color}20; color: ${bt.color}">
                                 <i data-lucide="${bt.icon || 'file-text'}" class="w-4 h-4"></i>
                             </div>
-                            <span>${bt.name}</span>
+                            <span>${UIUtils.escapeHTML(bt.name)}</span>
                         </div>
                     </td>
-                    <td class="px-5 py-4 text-sm text-text-secondary">${bt.unit_name}</td>
+                    <td class="px-5 py-4 text-sm text-text-secondary">${UIUtils.escapeHTML(bt.unit_name)}</td>
                     <td class="px-5 py-4 text-sm font-medium">${this.formatter.formatCurrency(bt.cost_per_unit)}/${bt.unit_name}</td>
                     <td class="px-5 py-4">
                         <div class="flex-col gap-1">
-                            <span class="text-xs font-bold text-text-primary">Cat: <span class="text-brand-primary">${bt.category_name || 'None'}</span></span>
-                            <span class="text-xs text-text-muted">Acc: ${bt.account_name || 'System Default'}</span>
+                            <span class="text-xs font-bold text-text-primary">Cat: <span class="text-brand-primary">${UIUtils.escapeHTML(bt.category_name) || 'None'}</span></span>
+                            <span class="text-xs text-text-muted">Acc: ${UIUtils.escapeHTML(bt.account_name) || 'System Default'}</span>
                         </div>
                     </td>
                     <td class="px-5 py-4">

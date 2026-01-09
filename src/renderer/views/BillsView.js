@@ -257,7 +257,7 @@ export class BillsView extends BaseView {
                     <td class="px-2 py-3">
                         <div class="flex-row align-center gap-2">
                             <div class="w-2 h-2 rounded-full" style="background: ${p.color}"></div>
-                            <span class="text-xs font-bold">${p.name}</span>
+                            <span class="text-xs font-bold">${UIUtils.escapeHTML(p.name)}</span>
                         </div>
                     </td>
                     <td class="px-2 py-3 text-right text-xs text-text-muted">
@@ -284,11 +284,11 @@ export class BillsView extends BaseView {
                              <div class="icon-box xs" style="background: ${r.color}20; color: ${r.color}">
                                  <i data-lucide="${r.icon || 'file-text'}" class="w-3 h-3"></i>
                              </div>
-                             <span>${r.bill_name}</span>
-                             ${r.category_name ? `<span class="badge xs" style="background: var(--brand-primary)15; color: var(--brand-primary); border: 1px solid var(--brand-primary)30; font-size: 10px;">${r.category_name}</span>` : ''}
+                             <span>${UIUtils.escapeHTML(r.bill_name)}</span>
+                             ${r.category_name ? `<span class="badge xs" style="background: var(--brand-primary)15; color: var(--brand-primary); border: 1px solid var(--brand-primary)30; font-size: 10px;">${UIUtils.escapeHTML(r.category_name)}</span>` : ''}
                          </div>
                     </td>
-                    <td class="px-5 py-4 text-sm font-medium">${r.units_used} ${r.unit_name}</td>
+                    <td class="px-5 py-4 text-sm font-medium">${r.units_used} ${UIUtils.escapeHTML(r.unit_name)}</td>
                     <td class="px-5 py-4 text-sm font-bold text-text-primary">${this.formatter.formatCurrency(r.total_cost)}</td>
                     <td class="px-5 py-4 text-right">
                         <div class="flex-row gap-1 justify-end">
@@ -321,7 +321,7 @@ export class BillsView extends BaseView {
             <div class="mb-4">
                 <p class="text-sm font-bold text-text-primary mb-1">Most Expensive</p>
                 <div class="flex-row justify-between align-end">
-                    <span class="text-xs text-text-muted">${topBill.name}</span>
+                    <span class="text-xs text-text-muted">${UIUtils.escapeHTML(topBill.name)}</span>
                     <span class="text-sm font-bold text-danger">${this.formatter.formatCurrency(topBill.projected_cost)}</span>
                 </div>
                 <div class="progress-bar mt-1">
@@ -332,7 +332,7 @@ export class BillsView extends BaseView {
             <div class="alert alert-info p-3 rounded-lg flex-row gap-2 mt-4 text-xs">
                 <i data-lucide="lightbulb" class="w-4 h-4 flex-shrink-0 text-amber-400"></i>
                 <div class="text-text-secondary">
-                    <strong>Optimization Tip:</strong> Your average ${topBill.name} cost is ${this.formatter.formatCurrency(topBill.projected_cost)}. Reducing consumption by 10% would save you ${this.formatter.formatCurrency(topBill.projected_cost * 0.1)} per month.
+                    <strong>Optimization Tip:</strong> Your average ${UIUtils.escapeHTML(topBill.name)} cost is ${this.formatter.formatCurrency(topBill.projected_cost)}. Reducing consumption by 10% would save you ${this.formatter.formatCurrency(topBill.projected_cost * 0.1)} per month.
                 </div>
             </div>
         `;

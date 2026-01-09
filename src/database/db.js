@@ -10,10 +10,12 @@ try {
     app = null;
 }
 
-const isDev = process.env.NODE_ENV === 'development' || !app;
-const dbPath = (app && !isDev)
-    ? path.join(app.getPath('userData'), 'finance.db')
-    : path.join(__dirname, '../../finance.db');
+const isDev = !app || !app.isPackaged || process.env.NODE_ENV === 'development';
+const dbPath = isDev
+    ? path.join(__dirname, '../../finance.dev.db')
+    : path.join(app.getPath('userData'), 'finance.db');
+
+console.log(`[DB] Environment: ${isDev ? 'DEVELOPMENT' : 'PRODUCTION'}`);
 
 const db = new sqlite3.Database(dbPath, async (err) => {
     if (err) {

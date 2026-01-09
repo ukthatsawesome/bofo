@@ -1,4 +1,5 @@
 import { TypePill } from '../common/TypePill.js';
+import { UIUtils } from '../../core/dom.js';
 
 /**
  * TransactionRow Component - Tailwind version
@@ -33,10 +34,10 @@ export const TransactionRow = ({
             ${TypePill(category, type)}
         </td>
         <td class="px-5 py-4 bg-surface-panel/30 text-sm text-text-muted">
-            ${accountText}
+            ${UIUtils.escapeHTML(accountText)}
         </td>
         <td class="px-5 py-4 bg-surface-panel/30 text-sm text-text-muted">
-            ${description || '-'}
+            ${UIUtils.escapeHTML(description || '-')}
         </td>
         <td class="px-5 py-4 bg-surface-panel/30 text-sm font-semibold ${amountColor}">
             ${type === 'expense' ? '-' : ''}${formatter.formatCurrency(amount)}
