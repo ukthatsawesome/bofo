@@ -576,7 +576,9 @@ Be specific, actionable, and focus on what matters financially.`;
         } else if (rate >= 15) {
             insights.push(`Solid ${summary.savingsRate}% savings rate with ${summary.netFlow} net flow.`);
         } else if (rate > 0) {
-            insights.push(`${summary.savingsRate}% savings rate. Consider reducing ${summary.topCategories[0]?.category || 'discretionary'} spending.`);
+            const topCat = summary.topCategories[0]?.category;
+            const safeTopCat = topCat ? UIUtils.escapeHTML(topCat) : 'discretionary';
+            insights.push(`${summary.savingsRate}% savings rate. Consider reducing ${safeTopCat} spending.`);
         } else if (summary.incomeRaw > 0) {
             insights.push(`<strong class="text-danger">Watch out:</strong> Spending exceeded income by ${summary.netFlow}.`);
         }
@@ -585,7 +587,7 @@ Be specific, actionable, and focus on what matters financially.`;
         if (summary.topCategories.length > 0) {
             const top = summary.topCategories[0];
             if (parseInt(top.percent) > 40) {
-                insights.push(`${top.category} dominated at ${top.percent}% of spending.`);
+                insights.push(`${UIUtils.escapeHTML(top.category)} dominated at ${top.percent}% of spending.`);
             }
         }
 

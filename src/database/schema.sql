@@ -57,9 +57,26 @@ INSERT OR IGNORE INTO settings (key, value, category) VALUES
 ('currency_base', 'USD', 'currency'),
 ('currency_precision', '2', 'currency'),
 ('currency_symbol_placement', 'before', 'currency'),
+('currency_api_provider', 'frankfurter', 'currency'),
+('currency_api_url', '', 'currency'),
+('currency_auto_sync', 'false', 'currency'),
+('currency_last_sync', '', 'currency'),
 ('theme', 'dark', 'appearance'),
 ('landing_view', 'dashboard', 'appearance'),
 ('backup_on_close', 'true', 'safety');
+
+-- Exchange rates table for multi-currency conversion
+CREATE TABLE IF NOT EXISTS exchange_rates (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    from_currency TEXT NOT NULL,
+    to_currency TEXT NOT NULL,
+    rate REAL NOT NULL,
+    source TEXT DEFAULT 'manual',
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(from_currency, to_currency)
+);
+
+CREATE INDEX IF NOT EXISTS idx_exchange_rates_pair ON exchange_rates(from_currency, to_currency);
 
 -- Insert default categories if they don't exist
 INSERT OR IGNORE INTO categories (type, name, is_default) VALUES 

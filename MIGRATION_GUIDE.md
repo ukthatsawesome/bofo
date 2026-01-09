@@ -65,7 +65,11 @@ Keep these two files in sync!
 ---
 
 ## 📁 Key Files Summary
-*   `src/database/db.js`: Where the migration logic and history live.
+*   `src/database/db.js`: Where the migration logic and encryption setup live.
+*   `src/database/encryption.js`: Key management and cryptographic operations.
 *   `src/database/schema.sql`: The master template for new installations.
 *   `package.json`: Versioning and build configurations.
-*   `%APPDATA%/bofo/finance.db`: Where the user's actual data lives (on Windows).
+*   `%APPDATA%/bofo/finance.db`: Where the user's encrypted data lives (on Windows).
+*   `%APPDATA%/bofo/.bofo-key`: The encrypted database key (machine-bound).
+
+For detailed security information, see [SECURITY.md](SECURITY.md).

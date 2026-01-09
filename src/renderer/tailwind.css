@@ -2261,6 +2261,13 @@ input[type="date"]::-webkit-datetime-edit-year-field:focus,
   }
 }
 
+.chat-msg.user {
+  align-self: flex-end;
+  background: var(--brand-primary);
+  color: white;
+  border-bottom-right-radius: 4px;
+}
+
 .chat-msg.ai {
   align-self: flex-start;
   background: var(--bg-elevated);
@@ -2868,6 +2875,10 @@ input[type="date"]::-webkit-datetime-edit-year-field:focus,
   margin-bottom: calc(0.5rem * var(--tw-space-y-reverse));
 }
 
+.overflow-auto {
+  overflow: auto;
+}
+
 .overflow-hidden {
   overflow: hidden;
 }
@@ -3154,6 +3165,10 @@ input[type="date"]::-webkit-datetime-edit-year-field:focus,
 
 .text-right {
   text-align: right;
+}
+
+.font-mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
 }
 
 .text-2xl {

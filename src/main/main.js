@@ -22,7 +22,7 @@ function createWindow() {
 
     // Open DevTools only in development
     if (!app.isPackaged) {
-        win.webContents.openDevTools();
+        setTimeout(() => win.webContents.openDevTools(), 500);
     }
 }
 

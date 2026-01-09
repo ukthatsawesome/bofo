@@ -9,12 +9,26 @@ export class FallbackInsightGenerator {
     }
 
     /**
+     * Helper to escape HTML characters in user content
+     */
+    _escapeHTML(str) {
+        if (!str && str !== 0) return '';
+        return String(str)
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#039;");
+    }
+
+    /**
      * Generate dashboard insight from financial summary
      */
     generateDashboardInsight(summary) {
         const { balance, monthIncome, monthExpense, savingsRate, topCategory } = summary;
         const insights = [];
         const rate = parseFloat(savingsRate);
+        const safeCategory = this._escapeHTML(topCategory);
 
         // Savings rate analysis with context
         if (rate >= 50) {
@@ -43,13 +57,13 @@ export class FallbackInsightGenerator {
             });
         } else if (rate > 0) {
             insights.push({
-                text: `Low ${rate}% savings rate. Review your ${topCategory || 'top spending'} category for quick wins.`,
+                text: `Low ${rate}% savings rate. Review your ${safeCategory || 'top spending'} category for quick wins.`,
                 priority: 5,
                 type: 'warning'
             });
         } else if (monthIncome > 0 && rate <= 0) {
             insights.push({
-                text: `Spending exceeds income this month. Time to review your ${topCategory || 'largest expenses'} first.`,
+                text: `Spending exceeds income this month. Time to review your ${safeCategory || 'largest expenses'} first.`,
                 priority: 6,
                 type: 'danger'
             });
@@ -85,13 +99,13 @@ export class FallbackInsightGenerator {
             const pct = (topAmount / monthExpense) * 100;
             if (pct > 50) {
                 insights.push({
-                    text: `${topCategory} dominates at ${pct.toFixed(0)}% of spending. Is this intentional?`,
+                    text: `${safeCategory} dominates at ${pct.toFixed(0)}% of spending. Is this intentional?`,
                     priority: 3,
                     type: 'info'
                 });
             } else if (pct > 35) {
                 insights.push({
-                    text: `${topCategory} is ${pct.toFixed(0)}% of spending. Review if this aligns with your priorities.`,
+                    text: `${safeCategory} is ${pct.toFixed(0)}% of spending. Review if this aligns with your priorities.`,
                     priority: 5,
                     type: 'info'
                 });
@@ -128,7 +142,9 @@ export class FallbackInsightGenerator {
         } else if (rate >= 15) {
             insights.push(`Solid ${summary.savingsRate}% savings rate with ${summary.netFlow} net flow.`);
         } else if (rate > 0) {
-            insights.push(`${summary.savingsRate}% savings rate. Consider reducing ${summary.topCategories[0]?.category || 'discretionary'} spending.`);
+            const topCat = summary.topCategories[0]?.category;
+            const safeTopCat = topCat ? this._escapeHTML(topCat) : 'discretionary';
+            insights.push(`${summary.savingsRate}% savings rate. Consider reducing ${safeTopCat} spending.`);
         } else if (summary.incomeRaw > 0) {
             insights.push(`<strong class="text-danger">Watch out:</strong> Spending exceeded income by ${summary.netFlow}.`);
         }
@@ -137,7 +153,7 @@ export class FallbackInsightGenerator {
         if (summary.topCategories.length > 0) {
             const top = summary.topCategories[0];
             if (parseInt(top.percent) > 40) {
-                insights.push(`${top.category} dominated at ${top.percent}% of spending.`);
+                insights.push(`${this._escapeHTML(top.category)} dominated at ${top.percent}% of spending.`);
             }
         }
 
@@ -227,9 +243,9 @@ export class FallbackInsightGenerator {
 
         // Category-specific insights
         if (overBudgetCategories && overBudgetCategories.length > 0) {
-            insights.push(`${overBudgetCategories[0]} is over budget – address this first.`);
+            insights.push(`${this._escapeHTML(overBudgetCategories[0])} is over budget – address this first.`);
         } else if (nearBudgetCategories && nearBudgetCategories.length > 0) {
-            insights.push(`Watch ${nearBudgetCategories[0]} – approaching limit.`);
+            insights.push(`Watch ${this._escapeHTML(nearBudgetCategories[0])} – approaching limit.`);
         }
 
         return insights.length > 0 ? insights.join(' ') : 'Your budgets are on track.';
@@ -243,11 +259,11 @@ export class FallbackInsightGenerator {
         const insights = [];
 
         if (nearCompletion && nearCompletion.length > 0) {
-            insights.push(`Almost there! "${nearCompletion[0].name}" is ${nearCompletion[0].progress}% complete.`);
+            insights.push(`Almost there! "${this._escapeHTML(nearCompletion[0].name)}" is ${nearCompletion[0].progress}% complete.`);
         }
 
         if (stalled && stalled.length > 0) {
-            insights.push(`"${stalled[0].name}" needs attention – no contributions recently.`);
+            insights.push(`"${this._escapeHTML(stalled[0].name)}" needs attention – no contributions recently.`);
         }
 
         if (availableForGoals > 0) {

@@ -80,7 +80,7 @@ contextBridge.exposeInMainWorld('api', {
     parseTransactionAI: (text) => ipcRenderer.invoke('parse-transaction-ai', text),
     getAIInsight: (summary) => ipcRenderer.invoke('get-ai-insight', summary),
     chatSandbox: (text, context) => ipcRenderer.invoke('chat-sandbox', { text, context }),
-    onChatSandboxChunk: (callback) => ipcRenderer.on('chat-sandbox-chunk', (event, chunk) => callback(chunk)),
+    onChatSandboxChunk: (callback) => { ipcRenderer.on('chat-sandbox-chunk', (event, chunk) => callback(chunk)); },
 
     // Bills
     getBillTypes: () => ipcRenderer.invoke('get-bill-types'),
@@ -92,4 +92,18 @@ contextBridge.exposeInMainWorld('api', {
     updateBillReading: (id, data) => ipcRenderer.invoke('update-bill-reading', { id, data }),
     deleteBillReading: (id) => ipcRenderer.invoke('delete-bill-reading', id),
     getBillProjections: (months) => ipcRenderer.invoke('get-bill-projections', months),
+
+    // Exchange Rates
+    getExchangeRates: () => ipcRenderer.invoke('get-exchange-rates'),
+    getExchangeRate: (from, to) => ipcRenderer.invoke('get-exchange-rate', { from, to }),
+    setExchangeRate: (from, to, rate, source) => ipcRenderer.invoke('set-exchange-rate', { from, to, rate, source }),
+    deleteExchangeRate: (id) => ipcRenderer.invoke('delete-exchange-rate', id),
+    convertCurrency: (amount, from, to) => ipcRenderer.invoke('convert-currency', { amount, from, to }),
+    getUsedCurrencies: () => ipcRenderer.invoke('get-used-currencies'),
+    getAccountsConverted: (baseCurrency) => ipcRenderer.invoke('get-accounts-converted', baseCurrency),
+    syncExchangeRates: (provider, baseCurrency, customUrl) =>
+        ipcRenderer.invoke('sync-exchange-rates', { provider, baseCurrency, customUrl }),
+    testCurrencyAPI: (provider, baseCurrency, customUrl) =>
+        ipcRenderer.invoke('test-currency-api', { provider, baseCurrency, customUrl }),
+    getCurrencyProviders: () => ipcRenderer.invoke('get-currency-providers'),
 });

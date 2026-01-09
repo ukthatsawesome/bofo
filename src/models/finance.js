@@ -817,6 +817,95 @@ const FinanceModel = {
         }
 
         return projections;
+    },
+
+    // ==================== EXCHANGE RATES ====================
+
+    getExchangeRates: async () => {
+        return await all(`SELECT * FROM exchange_rates ORDER BY from_currency, to_currency`);
+    },
+
+    getExchangeRate: async (fromCurrency, toCurrency) => {
+        if (fromCurrency === toCurrency) return 1;
+
+        // Try direct rate
+        const direct = await get(
+            `SELECT rate FROM exchange_rates WHERE from_currency = ? AND to_currency = ?`,
+            [fromCurrency, toCurrency]
+        );
+        if (direct) return direct.rate;
+
+        // Try inverse rate
+        const inverse = await get(
+            `SELECT rate FROM exchange_rates WHERE from_currency = ? AND to_currency = ?`,
+            [toCurrency, fromCurrency]
+        );
+        if (inverse) return 1 / inverse.rate;
+
+        return null; // No rate found
+    },
+
+    setExchangeRate: async (fromCurrency, toCurrency, rate, source = 'manual') => {
+        return await run(`
+            INSERT INTO exchange_rates (from_currency, to_currency, rate, source, updated_at)
+            VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+            ON CONFLICT(from_currency, to_currency) DO UPDATE SET 
+                rate = ?, source = ?, updated_at = CURRENT_TIMESTAMP
+        `, [fromCurrency, toCurrency, rate, source, rate, source]);
+    },
+
+    setExchangeRatesBulk: async (rates, source = 'api') => {
+        await run('BEGIN TRANSACTION');
+        try {
+            for (const { from, to, rate } of rates) {
+                await run(`
+                    INSERT INTO exchange_rates (from_currency, to_currency, rate, source, updated_at)
+                    VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+                    ON CONFLICT(from_currency, to_currency) DO UPDATE SET 
+                        rate = ?, source = ?, updated_at = CURRENT_TIMESTAMP
+                `, [from, to, rate, source, rate, source]);
+            }
+            await run('COMMIT');
+            return true;
+        } catch (err) {
+            await run('ROLLBACK');
+            throw err;
+        }
+    },
+
+    deleteExchangeRate: async (id) => {
+        return await run(`DELETE FROM exchange_rates WHERE id = ?`, [id]);
+    },
+
+    convertCurrency: async (amount, fromCurrency, toCurrency) => {
+        if (fromCurrency === toCurrency) return amount;
+        const rate = await FinanceModel.getExchangeRate(fromCurrency, toCurrency);
+        if (rate === null) return null; // No conversion available
+        return amount * rate;
+    },
+
+    // Get all currencies currently in use by accounts
+    getUsedCurrencies: async () => {
+        const rows = await all(`SELECT DISTINCT currency FROM accounts WHERE status = 'active'`);
+        return rows.map(r => r.currency);
+    },
+
+    // Get accounts with converted balances to base currency
+    getAccountsWithConvertedBalances: async (baseCurrency) => {
+        const accounts = await FinanceModel.getAllAccounts();
+        const result = [];
+
+        for (const acc of accounts) {
+            const convertedBalance = await FinanceModel.convertCurrency(acc.balance, acc.currency, baseCurrency);
+            result.push({
+                ...acc,
+                converted_balance: convertedBalance,
+                base_currency: baseCurrency,
+                conversion_available: convertedBalance !== null
+            });
+        }
+
+        return result;
     }
 };
 
