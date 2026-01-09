@@ -4,6 +4,7 @@
 export class NotificationManager {
     constructor() {
         this.resolvePromise = null;
+        this.options = null;
         // Bind event listeners only once the DOM is ready
         if (document.readyState === 'loading') {
             document.addEventListener('DOMContentLoaded', () => this.setupEventListeners());
@@ -17,14 +18,24 @@ export class NotificationManager {
         const cancelBtn = document.getElementById('notification-cancel');
 
         if (confirmBtn) {
-            confirmBtn.onclick = (e) => {
+            confirmBtn.onclick = async (e) => {
                 e.preventDefault();
-                this.closeModal(true);
+                if (this.options && this.options.onConfirm) {
+                    const result = await this.options.onConfirm();
+                    if (result !== false) {
+                        this.closeModal(true);
+                    }
+                } else {
+                    this.closeModal(true);
+                }
             };
         }
         if (cancelBtn) {
-            cancelBtn.onclick = (e) => {
+            cancelBtn.onclick = async (e) => {
                 e.preventDefault();
+                if (this.options && this.options.onCancel) {
+                    await this.options.onCancel();
+                }
                 this.closeModal(false);
             };
         }
@@ -83,6 +94,7 @@ export class NotificationManager {
     async _showModal(title, message, type, isConfirm) {
         // Ensure any previously open modal is closed
         this.closeModal(false);
+        this.options = null; // Reset options for simple modals
 
         return new Promise((resolve) => {
             this.resolvePromise = resolve;
@@ -91,7 +103,10 @@ export class NotificationManager {
             if (titleEl) titleEl.innerText = title;
 
             const msgEl = document.getElementById('notification-message');
-            if (msgEl) msgEl.innerText = message;
+            if (msgEl) {
+                msgEl.innerText = message;
+                msgEl.style.display = message ? 'block' : 'none';
+            }
 
             const icons = {
                 success: 'check-circle',
@@ -128,9 +143,9 @@ export class NotificationManager {
             const confirmBtn = document.getElementById('notification-confirm');
             if (confirmBtn) {
                 confirmBtn.innerText = isConfirm ? 'Confirm' : 'Got it';
-                confirmBtn.className = isConfirm ? 'btn-primary' : 'btn-secondary';
+                confirmBtn.className = isConfirm ? 'btn primary px-8 py-3 text-lg' : 'btn secondary px-8 py-3 text-lg';
                 if (type === 'error' || type === 'warning') {
-                    confirmBtn.className = 'btn-danger';
+                    confirmBtn.className = 'btn danger px-8 py-3 text-lg';
                 }
             }
 
@@ -142,6 +157,87 @@ export class NotificationManager {
                 lucide.createIcons();
             }
         });
+    }
+
+    /**
+     * Show a custom modal with HTML content
+     */
+    modal(options) {
+        // Ensure any previously open modal is closed
+        this.closeModal(false);
+        this.options = options;
+
+        const {
+            title = 'Notification',
+            message = '',
+            content = '',
+            confirmText = 'Confirm',
+            cancelText = 'Cancel',
+            type = 'info'
+        } = options;
+
+        const titleEl = document.getElementById('notification-title');
+        if (titleEl) titleEl.innerText = title;
+
+        const msgEl = document.getElementById('notification-message');
+        if (msgEl) {
+            msgEl.innerText = message;
+            msgEl.style.display = message ? 'block' : 'none';
+        }
+
+        const contentEl = document.getElementById('notification-custom-content');
+        if (contentEl) {
+            contentEl.innerHTML = content;
+            contentEl.style.display = content ? 'block' : 'none';
+        }
+
+        const icons = {
+            success: 'check-circle',
+            error: 'x-circle',
+            warning: 'alert-triangle',
+            info: 'info'
+        };
+
+        const iconEl = document.getElementById('notification-icon');
+        if (iconEl) {
+            // Remove existing type classes
+            iconEl.className = 'w-16 h-16 rounded-full flex items-center justify-center mb-6';
+
+            const colorMap = {
+                success: ['bg-success/20', 'text-success'],
+                error: ['bg-danger/20', 'text-danger'],
+                warning: ['bg-warning/20', 'text-warning'],
+                info: ['bg-info/20', 'text-info']
+            };
+
+            if (colorMap[type]) {
+                iconEl.classList.add(...colorMap[type]);
+            }
+            iconEl.innerHTML = `<i data-lucide="${icons[type] || 'info'}" class="w-10 h-10"></i>`;
+        }
+
+        const cancelBtn = document.getElementById('notification-cancel');
+        if (cancelBtn) {
+            cancelBtn.innerText = cancelText;
+            cancelBtn.classList.remove('hidden');
+        }
+
+        const confirmBtn = document.getElementById('notification-confirm');
+        if (confirmBtn) {
+            confirmBtn.innerText = confirmText;
+            confirmBtn.className = (type === 'error' || type === 'warning')
+                ? 'btn danger px-8 py-3 text-lg'
+                : 'btn primary px-8 py-3 text-lg';
+        }
+
+        const modal = document.getElementById('notification-modal');
+        if (modal) {
+            modal.classList.remove('hidden', 'opacity-0', 'invisible', 'pointer-events-none');
+        }
+
+        if (typeof lucide !== 'undefined') {
+            lucide.createIcons();
+        }
     }
 
     confirm(title, message, type = 'warning') {
@@ -156,6 +252,12 @@ export class NotificationManager {
         const modal = document.getElementById('notification-modal');
         if (modal) {
             modal.classList.add('hidden', 'opacity-0', 'invisible', 'pointer-events-none');
+        }
+
+        const contentEl = document.getElementById('notification-custom-content');
+        if (contentEl) {
+            contentEl.innerHTML = '';
+            contentEl.style.display = 'none';
         }
 
         if (this.resolvePromise) {
