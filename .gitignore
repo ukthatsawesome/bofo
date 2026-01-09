@@ -40,6 +40,9 @@ yarn-debug.log*
 yarn-error.log*
 BUILD_STATUS.txt
 build_full.log
+build_log*.txt
+build_output.txt
+*.bak
 
 # OS Files
 .DS_Store
