@@ -13,7 +13,8 @@ Bofo/
 │
 ├── src/
 │   ├── database/                    # Database layer
-│   │   ├── db.js                    # SQLite connection & helpers
+│   │   ├── db.js                    # SQLCipher connection & encryption
+│   │   ├── encryption.js            # Key management & cryptography
 │   │   └── schema.sql               # Database schema
 │   │
 │   ├── main/                        # Electron Main Process
@@ -27,6 +28,7 @@ Bofo/
 │   │
 │   ├── services/                    # Backend Services
 │   │   ├── aiService.js             # Ollama AI integration
+│   │   ├── currencyService.js       # Exchange rate API integration
 │   │   └── financeService.js        # Finance calculations
 │   │
 │   ├── shared/                      # Shared between main/renderer

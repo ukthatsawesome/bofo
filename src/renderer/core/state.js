@@ -30,6 +30,7 @@ export class StateManager {
             year: new Date().getFullYear(),
             month: 0 // All Months
         };
+        this.exchangeRates = [];
     }
 
     async loadSettings() {
@@ -37,6 +38,17 @@ export class StateManager {
         this.aiSettings = await window.api.getAISettings();
         this.applyTheme(this.settings.theme || 'dark');
         await this.loadBillTypes();
+        await this.loadExchangeRates();
+    }
+
+    async loadExchangeRates() {
+        try {
+            const rates = await window.api.getExchangeRates();
+            this.exchangeRates = Array.isArray(rates) ? rates : [];
+        } catch (e) {
+            console.warn('Failed to load exchange rates:', e);
+            this.exchangeRates = [];
+        }
     }
 
     async loadAccounts() {

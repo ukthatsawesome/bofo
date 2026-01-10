@@ -69,6 +69,15 @@ export class SettingsView extends BaseView {
                             </div>
                         </div>
                     </div>
+                    <div class="card clickable-card" onclick="app.views.settings.showSubView('exchange-rates')">
+                        <div class="card-body flex-row align-center gap-4">
+                            <div class="icon-box success"><i data-lucide="refresh-cw"></i></div>
+                            <div>
+                                <h3>Exchange Rates</h3>
+                                <p class="text-muted">Multi-currency conversion rates</p>
+                            </div>
+                        </div>
+                    </div>
                     <div class="card clickable-card" onclick="app.views.settings.showSubView('bills-mgmt')">
                         <div class="card-body flex-row align-center gap-4">
                             <div class="icon-box primary"><i data-lucide="receipt"></i></div>
@@ -265,6 +274,81 @@ export class SettingsView extends BaseView {
                 </div>
             </div>
 
+            <div id="exchange-rates" class="settings-sub-view hidden">
+                <div class="card">
+                    <div class="card-header flex-row justify-between align-center">
+                        <div class="flex-row align-center gap-2">
+                            <button class="btn icon" onclick="app.views.settings.showHome()"><i data-lucide="arrow-left"></i></button>
+                            <h3>Exchange Rates</h3>
+                        </div>
+                        <button class="btn primary" onclick="app.views.settings.handleNewExchangeRate()"><i data-lucide="plus"></i> Add Rate</button>
+                    </div>
+                    <div class="card-body">
+                        <p class="text-muted mb-6">Configure exchange rates for multi-currency support. Amounts will be converted to your base currency in dashboards and reports.</p>
+                        
+                        <!-- API Sync Section -->
+                        <div class="card card-glass mb-6">
+                            <div class="card-body">
+                                <div class="flex-row align-center gap-3 mb-4">
+                                    <div class="icon-box primary"><i data-lucide="cloud-download"></i></div>
+                                    <div>
+                                        <h4>Automatic Rate Sync</h4>
+                                        <p class="text-muted text-sm">Fetch latest rates from open-source APIs</p>
+                                    </div>
+                                </div>
+                                
+                                <div class="form-grid">
+                                    <div class="form-group">
+                                        <label>API Provider</label>
+                                        <select id="currency-api-provider" class="form-control">
+                                            <option value="frankfurter">Frankfurter (ECB) - MIT License</option>
+                                            <option value="exchangerate-api">ExchangeRate-API (Free)</option>
+                                            <option value="custom">Custom API URL</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group" id="custom-api-url-group" style="display: none;">
+                                        <label>Custom API URL</label>
+                                        <input type="text" id="currency-custom-url" class="form-control" placeholder="https://api.example.com/rates?base={base}">
+                                        <small class="text-muted">Use {base} as placeholder for base currency</small>
+                                    </div>
+                                </div>
+                                
+                                <div class="flex-row gap-3 mt-4">
+                                    <button class="btn primary" onclick="app.views.settings.handleSyncExchangeRates()">
+                                        <i data-lucide="refresh-cw"></i> Sync Rates Now
+                                    </button>
+                                    <button class="btn" onclick="app.views.settings.handleTestCurrencyAPI()">
+                                        <i data-lucide="check-circle"></i> Test Connection
+                                    </button>
+                                </div>
+                                
+                                <div id="exchange-rate-sync-status" class="mt-4"></div>
+                            </div>
+                        </div>
+                        
+                        <!-- Manual Rates Table -->
+                        <h4 class="mb-4">Current Exchange Rates</h4>
+                        <p class="text-muted text-sm mb-4">Rates are relative to your base currency: <strong id="base-currency-display">USD</strong></p>
+                        
+                        <div class="overflow-auto">
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>From</th>
+                                        <th>To</th>
+                                        <th>Rate</th>
+                                        <th>Source</th>
+                                        <th>Last Updated</th>
+                                        <th class="text-right">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="exchange-rates-table-body"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <div id="bills-mgmt" class="settings-sub-view hidden">
                 <div class="card">
                     <div class="card-header flex-row justify-between align-center">
@@ -455,6 +539,7 @@ export class SettingsView extends BaseView {
         else if (subViewId === 'recurring-charges') await this.renderRecurringCharges();
         else if (subViewId === 'bills-mgmt') await this.renderBillsTable();
         else if (subViewId === 'backup-restore') await this.populateAutoBackupSettings();
+        else if (subViewId === 'exchange-rates') await this.renderExchangeRates();
         else this.populateInputs(subViewId);
 
         this.refreshIcons();
@@ -672,7 +757,7 @@ export class SettingsView extends BaseView {
 
             return `
                 <tr class="hover:bg-brand-primary/5 transition-colors border-b border-border last:border-0 ${isArchived ? 'opacity-60' : ''}">
-                    <td class="px-5 py-4 text-sm text-text-primary"><strong>${acc.name}</strong></td>
+                    <td class="px-5 py-4 text-sm text-text-primary"><strong>${UIUtils.escapeHTML(acc.name)}</strong></td>
                     <td class="px-5 py-4 text-sm text-text-secondary">${TypePill(acc.type.replace('_', ' '), acc.type)}</td>
                     <td class="px-5 py-4 text-sm text-text-secondary">${formatter.formatCurrency(acc.initial_balance || 0, acc.currency)}</td>
                     <td class="px-5 py-4 text-sm amount ${acc.type === 'credit_card' || acc.type === 'loan' ? 'expense' : 'income'} font-bold">
@@ -982,7 +1067,7 @@ export class SettingsView extends BaseView {
             return `
                 <tr class="hover:bg-brand-primary/5 transition-colors border-b border-border last:border-0">
                     <td class="px-5 py-4 text-sm font-bold text-text-primary">
-                        ${c.name}
+                        ${UIUtils.escapeHTML(c.name)}
                         ${c.is_default ? '<span class="ml-2 text-xs text-text-muted font-normal">(Default)</span>' : ''}
                     </td>
                     <td class="px-5 py-4 text-sm">${TypePill(c.type, c.type)}</td>
@@ -1040,15 +1125,15 @@ export class SettingsView extends BaseView {
                             <div class="icon-box sm flex-shrink-0" style="background: ${bt.color}20; color: ${bt.color}">
                                 <i data-lucide="${bt.icon || 'file-text'}" class="w-4 h-4"></i>
                             </div>
-                            <span>${bt.name}</span>
+                            <span>${UIUtils.escapeHTML(bt.name)}</span>
                         </div>
                     </td>
-                    <td class="px-5 py-4 text-sm text-text-secondary">${bt.unit_name}</td>
+                    <td class="px-5 py-4 text-sm text-text-secondary">${UIUtils.escapeHTML(bt.unit_name)}</td>
                     <td class="px-5 py-4 text-sm font-medium">${this.formatter.formatCurrency(bt.cost_per_unit)}/${bt.unit_name}</td>
                     <td class="px-5 py-4">
                         <div class="flex-col gap-1">
-                            <span class="text-xs font-bold text-text-primary">Cat: <span class="text-brand-primary">${bt.category_name || 'None'}</span></span>
-                            <span class="text-xs text-text-muted">Acc: ${bt.account_name || 'System Default'}</span>
+                            <span class="text-xs font-bold text-text-primary">Cat: <span class="text-brand-primary">${UIUtils.escapeHTML(bt.category_name) || 'None'}</span></span>
+                            <span class="text-xs text-text-muted">Acc: ${UIUtils.escapeHTML(bt.account_name) || 'System Default'}</span>
                         </div>
                     </td>
                     <td class="px-5 py-4">
@@ -1155,6 +1240,11 @@ export class SettingsView extends BaseView {
                 const auto_transaction = $('#bill-auto-tx').checked ? 1 : 0;
 
                 if (!name || !unit_name) return this.app.notifications.toast('Validation Error', 'Name and Unit are required', 'error');
+
+                // Validate that auto-transaction requires a linked category
+                if (auto_transaction && !category_name) {
+                    return this.app.notifications.toast('Validation Error', 'A linked category is required for auto-registering transactions', 'warning');
+                }
 
                 try {
                     const data = { name, unit_name, cost_per_unit, icon, color, category_name, account_id, auto_transaction };
@@ -1326,6 +1416,255 @@ export class SettingsView extends BaseView {
             }
         } catch (err) {
             this.app.notifications.alert('Backup Failed', err.message, 'error');
+        }
+    }
+
+    // ==================== EXCHANGE RATES ====================
+
+    async renderExchangeRates() {
+        const { state } = this.app;
+        const baseCurrency = state.getBaseCurrency();
+
+        // Update base currency display
+        const baseDisplay = $('#base-currency-display');
+        if (baseDisplay) baseDisplay.textContent = baseCurrency;
+
+        // Setup provider dropdown listener
+        const providerSelect = $('#currency-api-provider');
+        const customUrlGroup = $('#custom-api-url-group');
+
+        if (providerSelect) {
+            providerSelect.value = state.settings.currency_api_provider || 'frankfurter';
+            providerSelect.onchange = () => {
+                const isCustom = providerSelect.value === 'custom';
+                if (customUrlGroup) customUrlGroup.style.display = isCustom ? 'block' : 'none';
+            };
+            // Trigger initial check
+            const isCustom = providerSelect.value === 'custom';
+            if (customUrlGroup) customUrlGroup.style.display = isCustom ? 'block' : 'none';
+        }
+
+        const customUrl = $('#currency-custom-url');
+        if (customUrl) customUrl.value = state.settings.currency_api_url || '';
+
+        // Render exchange rates table
+        await this.renderExchangeRatesTable();
+    }
+
+    async renderExchangeRatesTable() {
+        const rates = await window.api.getExchangeRates();
+
+        UIUtils.renderList('exchange-rates-table-body', rates, rate => {
+            const updatedDate = rate.updated_at ? new Date(rate.updated_at).toLocaleDateString() : '-';
+            const sourceLabel = rate.source === 'api' ? 'API' : 'Manual';
+            const sourceBadge = rate.source === 'api'
+                ? '<span class="badge badge-info">API</span>'
+                : '<span class="badge badge-secondary">Manual</span>';
+
+            return `
+                <tr class="hover:bg-brand-primary/5 transition-colors border-b border-border last:border-0">
+                    <td class="px-5 py-4 text-sm font-medium">${UIUtils.escapeHTML(rate.from_currency)}</td>
+                    <td class="px-5 py-4 text-sm font-medium">${UIUtils.escapeHTML(rate.to_currency)}</td>
+                    <td class="px-5 py-4 text-sm font-mono">${rate.rate.toFixed(6)}</td>
+                    <td class="px-5 py-4 text-sm">${sourceBadge}</td>
+                    <td class="px-5 py-4 text-sm text-text-secondary">${updatedDate}</td>
+                    <td class="px-5 py-4 text-right">
+                        <div class="row-actions flex justify-end gap-2">
+                            <button class="action-btn p-2 hover:text-brand-primary transition-colors" 
+                                    onclick="app.views.settings.handleEditExchangeRate(${rate.id})" title="Edit">
+                                <i data-lucide="edit-3" class="w-4 h-4"></i>
+                            </button>
+                            <button class="action-btn p-2 hover:text-danger transition-colors" 
+                                    onclick="app.views.settings.handleDeleteExchangeRate(${rate.id})" title="Delete">
+                                <i data-lucide="trash-2" class="w-4 h-4"></i>
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+            `;
+        }, 'No exchange rates configured. Add rates manually or sync from an API.');
+
+        this.refreshIcons();
+    }
+
+    async handleSyncExchangeRates() {
+        const { state } = this.app;
+        const provider = $('#currency-api-provider')?.value || 'frankfurter';
+        const customUrl = $('#currency-custom-url')?.value || '';
+        const baseCurrency = state.getBaseCurrency();
+
+        const statusEl = $('#exchange-rate-sync-status');
+        if (statusEl) {
+            statusEl.innerHTML = '<div class="flex-row align-center gap-2 text-info"><i data-lucide="loader-2" class="spinning"></i> Syncing rates...</div>';
+            this.refreshIcons();
+        }
+
+        try {
+            // Save provider setting
+            await window.api.saveSettings({
+                currency_api_provider: provider,
+                currency_api_url: customUrl
+            });
+
+            const result = await window.api.syncExchangeRates(provider, baseCurrency, customUrl);
+
+            if (result.success) {
+                if (statusEl) {
+                    statusEl.innerHTML = `<div class="flex-row align-center gap-2 text-success"><i data-lucide="check-circle"></i> ${result.message}</div>`;
+                    this.refreshIcons();
+                }
+                this.app.notifications.toast('Sync Complete', result.message, 'success');
+                await this.app.state.loadExchangeRates();
+                await this.renderExchangeRatesTable();
+            } else {
+                if (statusEl) {
+                    statusEl.innerHTML = `<div class="flex-row align-center gap-2 text-danger"><i data-lucide="alert-circle"></i> ${result.message}</div>`;
+                    this.refreshIcons();
+                }
+                this.app.notifications.toast('Sync Failed', result.message, 'error');
+            }
+        } catch (err) {
+            if (statusEl) {
+                statusEl.innerHTML = `<div class="flex-row align-center gap-2 text-danger"><i data-lucide="alert-circle"></i> ${err.message}</div>`;
+                this.refreshIcons();
+            }
+            this.app.notifications.toast('Sync Error', err.message, 'error');
+        }
+    }
+
+    async handleTestCurrencyAPI() {
+        const { state } = this.app;
+        const provider = $('#currency-api-provider')?.value || 'frankfurter';
+        const customUrl = $('#currency-custom-url')?.value || '';
+        const baseCurrency = state.getBaseCurrency();
+
+        const statusEl = $('#exchange-rate-sync-status');
+        if (statusEl) {
+            statusEl.innerHTML = '<div class="flex-row align-center gap-2 text-info"><i data-lucide="loader-2" class="spinning"></i> Testing connection...</div>';
+            this.refreshIcons();
+        }
+
+        try {
+            const result = await window.api.testCurrencyAPI(provider, baseCurrency, customUrl);
+
+            if (result.success) {
+                if (statusEl) {
+                    statusEl.innerHTML = `<div class="flex-row align-center gap-2 text-success"><i data-lucide="check-circle"></i> ${result.message}</div>`;
+                    this.refreshIcons();
+                }
+                this.app.notifications.toast('Connection OK', result.message, 'success');
+            } else {
+                if (statusEl) {
+                    statusEl.innerHTML = `<div class="flex-row align-center gap-2 text-danger"><i data-lucide="alert-circle"></i> ${result.message}</div>`;
+                    this.refreshIcons();
+                }
+                this.app.notifications.toast('Connection Failed', result.message, 'error');
+            }
+        } catch (err) {
+            if (statusEl) {
+                statusEl.innerHTML = `<div class="flex-row align-center gap-2 text-danger"><i data-lucide="alert-circle"></i> ${err.message}</div>`;
+                this.refreshIcons();
+            }
+            this.app.notifications.toast('Test Error', err.message, 'error');
+        }
+    }
+
+    handleNewExchangeRate() {
+        this.editingExchangeRateId = null;
+        this.showExchangeRateModal();
+    }
+
+    async handleEditExchangeRate(id) {
+        const rates = await window.api.getExchangeRates();
+        const rate = rates.find(r => r.id === id);
+        if (!rate) return;
+
+        this.editingExchangeRateId = id;
+        this.showExchangeRateModal(rate);
+    }
+
+    showExchangeRateModal(rate = null) {
+        const baseCurrency = this.app.state.getBaseCurrency();
+
+        const content = `
+            <div class="form-grid">
+                <div class="form-group">
+                    <label>From Currency</label>
+                    <select id="rate-from-currency" class="form-control currency-select"></select>
+                </div>
+                <div class="form-group">
+                    <label>To Currency</label>
+                    <select id="rate-to-currency" class="form-control currency-select"></select>
+                </div>
+                <div class="form-group full-width">
+                    <label>Exchange Rate</label>
+                    <input type="number" id="rate-value" class="form-control" step="0.000001" placeholder="e.g., 133.50">
+                    <small class="text-muted">1 [From] = [Rate] [To]</small>
+                </div>
+            </div>
+        `;
+
+        this.app.notifications.modal({
+            title: rate ? 'Edit Exchange Rate' : 'Add Exchange Rate',
+            content,
+            confirmText: rate ? 'Update' : 'Add',
+            cancelText: 'Cancel',
+            onConfirm: async () => {
+                const from = $('#rate-from-currency').value;
+                const to = $('#rate-to-currency').value;
+                const rateValue = parseFloat($('#rate-value').value);
+
+                if (!from || !to || isNaN(rateValue) || rateValue <= 0) {
+                    this.app.notifications.toast('Validation Error', 'Please fill all fields with valid values', 'error');
+                    return false;
+                }
+
+                if (from === to) {
+                    this.app.notifications.toast('Validation Error', 'From and To currencies must be different', 'error');
+                    return false;
+                }
+
+                try {
+                    await window.api.setExchangeRate(from, to, rateValue, 'manual');
+                    this.app.notifications.toast('Success', `Exchange rate ${from} → ${to} saved`, 'success');
+                    await this.app.state.loadExchangeRates();
+                    await this.renderExchangeRatesTable();
+                    return true;
+                } catch (err) {
+                    this.app.notifications.toast('Error', err.message, 'error');
+                    return false;
+                }
+            }
+        });
+
+        // Populate currency selects after modal is shown
+        setTimeout(() => {
+            this.app.populateCurrencyDropdowns();
+            if (rate) {
+                $('#rate-from-currency').value = rate.from_currency;
+                $('#rate-to-currency').value = rate.to_currency;
+                $('#rate-value').value = rate.rate;
+            } else {
+                $('#rate-from-currency').value = baseCurrency;
+            }
+        }, 100);
+    }
+
+    async handleDeleteExchangeRate(id) {
+        const confirmed = await this.app.notifications.confirm(
+            'Delete Exchange Rate',
+            'Are you sure you want to delete this exchange rate?'
+        );
+
+        if (confirmed) {
+            try {
+                await window.api.deleteExchangeRate(id);
+                this.app.notifications.toast('Deleted', 'Exchange rate removed', 'success');
+                await this.app.state.loadExchangeRates();
+                await this.renderExchangeRatesTable();
+            } catch (err) {
+                this.app.notifications.toast('Error', err.message, 'error');
+            }
         }
     }
 }

@@ -493,6 +493,81 @@ function registerIpcHandlers() {
             return { success: false, message: err.message };
         }
     });
+
+    // ==================== EXCHANGE RATES HANDLERS ====================
+
+    ipcMain.handle('get-exchange-rates', async () => {
+        return await FinanceModel.getExchangeRates();
+    });
+
+    ipcMain.handle('get-exchange-rate', async (event, { from, to }) => {
+        return await FinanceModel.getExchangeRate(from, to);
+    });
+
+    ipcMain.handle('set-exchange-rate', async (event, { from, to, rate, source }) => {
+        return await FinanceModel.setExchangeRate(from, to, rate, source || 'manual');
+    });
+
+    ipcMain.handle('delete-exchange-rate', async (event, id) => {
+        return await FinanceModel.deleteExchangeRate(id);
+    });
+
+    ipcMain.handle('convert-currency', async (event, { amount, from, to }) => {
+        return await FinanceModel.convertCurrency(amount, from, to);
+    });
+
+    ipcMain.handle('get-used-currencies', async () => {
+        return await FinanceModel.getUsedCurrencies();
+    });
+
+    ipcMain.handle('get-accounts-converted', async (event, baseCurrency) => {
+        return await FinanceModel.getAccountsWithConvertedBalances(baseCurrency);
+    });
+
+    ipcMain.handle('sync-exchange-rates', async (event, { provider, baseCurrency, customUrl }) => {
+        try {
+            const CurrencyService = require('../../services/currencyService');
+
+            // Fetch rates from API
+            const rates = await CurrencyService.fetchRates(provider, baseCurrency, customUrl);
+
+            // Get currencies used in accounts to filter relevant rates
+            const usedCurrencies = await FinanceModel.getUsedCurrencies();
+            usedCurrencies.push(baseCurrency); // Include base currency
+
+            // Filter to only relevant rates
+            const relevantRates = CurrencyService.filterRelevantRates(rates, usedCurrencies);
+
+            // Save to database
+            await FinanceModel.setExchangeRatesBulk(relevantRates, 'api');
+
+            // Update last sync time
+            await FinanceModel.updateSetting('currency_last_sync', new Date().toISOString());
+
+            return {
+                success: true,
+                message: `Synced ${relevantRates.length} exchange rates`,
+                ratesUpdated: relevantRates.length
+            };
+        } catch (err) {
+            console.error('Exchange rate sync failed:', err);
+            return { success: false, message: err.message };
+        }
+    });
+
+    ipcMain.handle('test-currency-api', async (event, { provider, baseCurrency, customUrl }) => {
+        try {
+            const CurrencyService = require('../../services/currencyService');
+            return await CurrencyService.testConnection(provider, baseCurrency, customUrl);
+        } catch (err) {
+            return { success: false, message: err.message };
+        }
+    });
+
+    ipcMain.handle('get-currency-providers', async () => {
+        const CurrencyService = require('../../services/currencyService');
+        return CurrencyService.getProviders();
+    });
 }
 
 // Auto-backup on app close (called from main.js)

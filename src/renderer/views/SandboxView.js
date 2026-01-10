@@ -607,9 +607,9 @@ Be direct, practical, and give specific advice on how to balance this plan if ne
 
             return `
                             <tr>
-                                <td><strong>${item.description}</strong></td>
-                                <td>${item.category}</td>
-                                <td>${account?.name || 'Unknown'}</td>
+                                <td><strong>${UIUtils.escapeHTML(item.description)}</strong></td>
+                                <td>${UIUtils.escapeHTML(item.category)}</td>
+                                <td>${UIUtils.escapeHTML(account?.name || 'Unknown')}</td>
                                 <td>${freqLabel}</td>
                                 <td>${item.start_date}</td>
                                 <td class="text-right font-bold ${amountClass}">${amountPrefix}${this.formatter.formatCurrency(item.amount)}</td>

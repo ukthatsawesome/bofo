@@ -185,8 +185,8 @@ export class RecurringChargesView extends BaseView {
                     const freq = { weekly: 'Weekly', monthly: 'Monthly', yearly: 'Yearly' };
                     return `
                         <tr class="${!c.is_active ? 'opacity-40' : ''}">
-                            <td><strong>${c.name}</strong></td>
-                            <td><span class="badge secondary">${c.category}</span></td>
+                            <td><strong>${UIUtils.escapeHTML(c.name)}</strong></td>
+                            <td><span class="badge secondary">${UIUtils.escapeHTML(c.category)}</span></td>
                             <td>${freq[c.frequency]}</td>
                             <td class="amount expense font-bold">${formatter.formatCurrency(c.amount)}</td>
                             <td>${StatusBadge(c.is_active ? 'Active' : 'Paused', c.is_active ? 'success' : 'warning')}</td>

@@ -12,6 +12,8 @@ export const NotificationModal = () => {
                 <h2 id="notification-title" class="text-2xl font-bold text-text-main mb-3">Notification</h2>
                 <p id="notification-message" class="text-text-muted mb-8 text-lg leading-relaxed"></p>
                 
+                <div id="notification-custom-content" class="w-full mb-8 empty:hidden"></div>
+                
                 <div class="flex gap-4 w-full justify-center">
                     <button id="notification-cancel" class="btn secondary px-8 py-3 text-lg hidden">Cancel</button>
                     <button id="notification-confirm" class="btn primary px-8 py-3 text-lg">Confirm</button>

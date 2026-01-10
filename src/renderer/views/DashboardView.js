@@ -178,14 +178,23 @@ export class DashboardView extends BaseView {
     }
 
     async render() {
+        // Load exchange rates for currency conversion
+        await this.formatter.loadExchangeRates();
+
+        const baseCurrency = this.state.getBaseCurrency();
         let liquidBalance = 0, totalAssets = 0, totalLiabilities = 0;
 
+        // Calculate balances with currency conversion to base currency
         this.state.accounts.forEach(acc => {
             const isLiquid = acc.type === 'bank' || acc.type === 'wallet';
             const isAsset = isLiquid || acc.type === 'investment';
-            if (isLiquid) liquidBalance += acc.balance;
-            if (isAsset) totalAssets += acc.balance;
-            else totalLiabilities += acc.balance;
+
+            // Convert balance to base currency
+            const convertedBalance = this.formatter.toBase(acc.balance, acc.currency || baseCurrency);
+
+            if (isLiquid) liquidBalance += convertedBalance;
+            if (isAsset) totalAssets += convertedBalance;
+            else totalLiabilities += convertedBalance;
         });
 
         const netWorth = totalAssets - totalLiabilities;
@@ -195,8 +204,12 @@ export class DashboardView extends BaseView {
 
         let totalIncome = 0, totalExpense = 0;
         recentTxs.forEach(t => {
-            if (t.type === 'income') totalIncome += t.amount;
-            else if (t.type === 'expense') totalExpense += t.amount;
+            // Convert transaction amounts to base currency
+            const txCurrency = t.currency || baseCurrency;
+            const convertedAmount = this.formatter.toBase(t.amount, txCurrency);
+
+            if (t.type === 'income') totalIncome += convertedAmount;
+            else if (t.type === 'expense') totalExpense += convertedAmount;
         });
 
         const monthlyIncome = totalIncome / 3;

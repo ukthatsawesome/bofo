@@ -1,3 +1,5 @@
+import { UIUtils } from '../../core/dom.js';
+
 /**
  * ListItem Component - Tailwind version
  * For growth/trend displays
@@ -27,8 +29,8 @@ export const ListItem = ({
     return `
     <div class="flex items-center justify-between py-2.5 border-b border-border/50 last:border-0">
         <div class="flex flex-col">
-            <span class="text-sm font-medium text-text-main">${label}</span>
-            ${sublabel ? `<span class="text-xs text-text-muted opacity-70">${sublabel}</span>` : ''}
+            <span class="text-sm font-medium text-text-main">${UIUtils.escapeHTML(label)}</span>
+            ${sublabel ? `<span class="text-xs text-text-muted opacity-70">${UIUtils.escapeHTML(sublabel)}</span>` : ''}
         </div>
         <div class="flex items-center gap-1.5 px-2.5 py-1 rounded-lg ${colorClass}">
             <i data-lucide="${trendIcon}" class="w-3.5 h-3.5"></i>

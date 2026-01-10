@@ -199,7 +199,7 @@ export class BudgetView extends BaseView {
 
             return `
                 <tr>
-                    <td><strong>${budget.category}</strong></td>
+                    <td><strong>${UIUtils.escapeHTML(budget.category)}</strong></td>
                     <td><span class="badge secondary">${freq[budget.period] || budget.period}</span></td>
                     <td class="font-bold">${formatter.formatCurrency(budget.amount)}</td>
                     <td class="amount expense font-bold">${formatter.formatCurrency(budget.spent)}</td>

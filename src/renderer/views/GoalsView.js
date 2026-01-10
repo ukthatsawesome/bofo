@@ -1,5 +1,5 @@
 import { BaseView } from './BaseView.js';
-import { $, UIUtils } from '../core/dom.js';
+import { $, $$, UIUtils } from '../core/dom.js';
 import { StatCard } from '../components/common/StatCard.js';
 import { GoalCard } from '../components/common/GoalCard.js';
 import { SegmentedControl } from '../components/common/SegmentedControl.js';

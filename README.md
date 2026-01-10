@@ -23,7 +23,7 @@ Bofo is a sleek, modern, and powerful personal finance application built with **
 
 - **Frontend**: Vanilla JavaScript (ESM), Tailwind CSS, Lucide Icons
 - **Backend**: Electron (Main/Renderer IPC Architecture)
-- **Database**: SQLite3 (with transactional migration system)
+- **Database**: SQLCipher (AES-256 encrypted SQLite)
 - **Visualization**: Chart.js
 - **AI Integration**: Ollama (REST API)
 
@@ -91,9 +91,13 @@ npm run dist:linux
 ## 🛡️ Data & Privacy
 
 Bofo is designed with privacy in mind. **All your data stays on your machine.**
-- Local SQLite database.
-- Local AI processing via Ollama.
-- No cloud storage or third-party tracking.
+- 🔒 **Encrypted database** using SQLCipher (AES-256 encryption at rest).
+- 🔑 **Unique encryption key** per installation, machine-bound for extra security.
+- 🤖 Local AI processing via Ollama.
+- 🔤 Self-hosted fonts for 100% offline usage.
+- ☁️ No cloud storage or third-party tracking.
+
+For more details, see [SECURITY.md](SECURITY.md).
 
 ---
 
