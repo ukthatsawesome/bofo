@@ -18,17 +18,17 @@ const {
     getOrCreateEncryptionKey,
     isDatabaseEncrypted,
     getSQLCipherConfig,
-    isDev
+    isDev,
+    log
 } = require('./encryption');
 
 // Use SQLCipher instead of plain sqlite3
 let sqlite3;
 try {
     sqlite3 = require('@journeyapps/sqlcipher').verbose();
-    console.log('[DB] Using SQLCipher for encrypted database');
+    log('[DB] Using SQLCipher engine');
 } catch (e) {
-    // Fallback to regular sqlite3 if sqlcipher is not available
-    console.warn('[DB] SQLCipher not available, falling back to unencrypted sqlite3');
+    log('[DB] Falling back to plain sqlite3');
     sqlite3 = require('sqlite3').verbose();
 }
 
@@ -38,67 +38,55 @@ try {
 } catch (e) {
     app = null;
 }
+log(`[DB] Environment: ${isDev ? 'DEVELOPMENT' : 'PRODUCTION'}`);
 
 // Database paths
 const dbPath = isDev
     ? path.join(__dirname, '../../finance.dev.db')
     : path.join(app.getPath('userData'), 'finance.db');
 
-// Backup path for migration from unencrypted to encrypted
-
-
-console.log(`[DB] Environment: ${isDev ? 'DEVELOPMENT' : 'PRODUCTION'}`);
-console.log(`[DB] Database path: ${dbPath}`);
+log(`[DB] Path: ${dbPath}`);
 
 // Get encryption key
 const encryptionKey = getOrCreateEncryptionKey();
 
 // Check if we need to migrate from unencrypted database
-// We detect this synchronously to handle file operations before DB open
-const needsMigration = fs.existsSync(dbPath) && !isDatabaseEncrypted(dbPath);
+// SAFER CHECK: Only migrate if we are CERTAIN it is plaintext.
+// If it is encrypted OR we can't tell (null), we skip migration to avoid data loss.
+const isEnc = isDatabaseEncrypted(dbPath);
+const needsMigration = isEnc === false && fs.existsSync(dbPath);
 const backupPath = dbPath + '.plaintext.bak';
 
 if (needsMigration) {
-    console.log('[DB] Detected unencrypted database. Starting migration...');
+    log('[DB] Detected plaintext database. Starting migration...');
     try {
-        // Move the plaintext database out of the way
-        // This allows us to create a fresh encrypted database at dbPath
-        if (fs.existsSync(backupPath)) {
-            fs.unlinkSync(backupPath);
-        }
+        if (fs.existsSync(backupPath)) fs.unlinkSync(backupPath);
         fs.renameSync(dbPath, backupPath);
-        console.log(`[DB] Moved plaintext database to: ${backupPath}`);
+        log(`[DB] Moved plaintext to backup: ${backupPath}`);
     } catch (error) {
-        console.error('[DB] Failed to move plaintext database:', error);
-        // If we can't move it, we can't proceed safely
+        log(`[DB] Migration rename failed: ${error.message}`);
         process.exit(1);
     }
+} else {
+    log(`[DB] Migration skipped. (isEncrypted: ${isEnc})`);
 }
 
-// Create database connection (creates new file if needed)
+// Create database connection
 const db = new sqlite3.Database(dbPath, async (err) => {
     if (err) {
-        console.error('[DB] FAILED to open database:', err);
+        log(`[DB] FAILED to open: ${err.message}`);
         return;
     }
 
-    console.log('[DB] Database connected successfully');
+    log('[DB] Connected successfully');
 
     try {
-        // Configure SQLCipher encryption (Sets key on the new/existing DB)
         await configureEncryption();
-
-        // If we are migrating, import data from the backup
-        if (needsMigration) {
-            await migrateFromBackup(backupPath);
-        }
-
-        // Bootstrap database schema and migrations
+        if (needsMigration) await migrateFromBackup(backupPath);
         await bootstrapDb();
-
-        console.log('[DB] Database initialization complete');
+        log('[DB] Initialization complete');
     } catch (error) {
-        console.error('[DB] Database initialization failed:', error);
+        log(`[DB] Initialization FAILED: ${error.message}`);
     }
 });
 

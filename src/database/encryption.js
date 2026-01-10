@@ -22,21 +22,56 @@ try {
     app = null;
 }
 
-const isDev = !app || !app.isPackaged || process.env.NODE_ENV === 'development';
+const isDev = app ? !app.isPackaged : (process.env.NODE_ENV === 'development');
 
 // Constants
 const KEY_LENGTH = 32; // 256 bits for AES-256
 const KEY_FILE_NAME = '.bofo-key';
 const DEV_KEY_SALT = 'bofo-dev-environment-salt-2025';
 
+// Log function to help debug production issues
+function log(message) {
+    const timestamp = new Date().toISOString();
+    const logMessage = `[${timestamp}] ${message}\n`;
+    console.log(message);
+    try {
+        if (app) {
+            const logPath = path.join(app.getPath('userData'), 'bofo.log');
+            fs.appendFileSync(logPath, logMessage);
+        }
+    } catch (e) { }
+}
+
 /**
  * Gets the directory for storing the encryption key
  */
 function getKeyDirectory() {
+    let dir;
     if (isDev) {
-        return path.join(__dirname, '../..');
+        dir = path.join(__dirname, '../..');
+    } else {
+        if (!app) {
+            log('[Encryption] ERROR: app is null in production!');
+            // Fallback to a safe default - use APPDATA directly
+            const appData = process.env.APPDATA || process.env.HOME;
+            dir = path.join(appData, 'Bofo');
+        } else {
+            dir = app.getPath('userData');
+        }
     }
-    return app.getPath('userData');
+    log(`[Encryption] Storage directory: ${dir}`);
+
+    // Ensure the directory exists
+    try {
+        if (!fs.existsSync(dir)) {
+            fs.mkdirSync(dir, { recursive: true });
+            log(`[Encryption] Created storage directory: ${dir}`);
+        }
+    } catch (err) {
+        log(`[Encryption] Failed to create directory: ${err.message}`);
+    }
+
+    return dir;
 }
 
 /**
@@ -48,16 +83,16 @@ function generateSecureKey() {
 
 /**
  * Gets a machine-specific salt for additional key protection
- * Uses hostname + username as entropy sources
+ * Returns 64 hex characters = 32 bytes when decoded (required for AES-256)
  */
 function getMachineSalt() {
     const os = require('os');
-    const hostname = os.hostname();
-    const username = os.userInfo().username;
+    const hostname = os.hostname() || 'unknown-host';
+    const username = (os.userInfo() && os.userInfo().username) || 'unknown-user';
+    // Return full 64-char hex string (32 bytes) for AES-256
     return crypto.createHash('sha256')
-        .update(`${hostname}:${username}:bofo-finance`)
-        .digest('hex')
-        .slice(0, 32);
+        .update(`${hostname}:${username}:bofo-finance-v1`)
+        .digest('hex');
 }
 
 /**
@@ -66,7 +101,8 @@ function getMachineSalt() {
 function encryptKey(key) {
     const salt = getMachineSalt();
     const iv = crypto.randomBytes(16);
-    const cipher = crypto.createCipheriv('aes-256-gcm', Buffer.from(salt, 'hex').slice(0, 32), iv);
+    // Salt is 64 hex chars = 32 bytes, exactly what AES-256 needs
+    const cipher = crypto.createCipheriv('aes-256-gcm', Buffer.from(salt, 'hex'), iv);
 
     let encrypted = cipher.update(key, 'utf8', 'hex');
     encrypted += cipher.final('hex');
@@ -92,9 +128,10 @@ function decryptKey(encryptedData) {
         }
 
         const salt = getMachineSalt();
+        // Salt is 64 hex chars = 32 bytes, exactly what AES-256 needs
         const decipher = crypto.createDecipheriv(
             'aes-256-gcm',
-            Buffer.from(salt, 'hex').slice(0, 32),
+            Buffer.from(salt, 'hex'),
             Buffer.from(iv, 'hex')
         );
         decipher.setAuthTag(Buffer.from(authTag, 'hex'));
@@ -104,60 +141,65 @@ function decryptKey(encryptedData) {
 
         return decrypted;
     } catch (error) {
-        console.error('[Encryption] Failed to decrypt key:', error.message);
+        log(`[Encryption] Decryption failed: ${error.message}`);
         return null;
     }
 }
 
 /**
  * Gets or creates the database encryption key
- * 
- * For development: Uses a deterministic key derived from a known salt
- * For production: Uses a secure random key stored encrypted on disk
  */
 function getOrCreateEncryptionKey() {
+    log(`[Encryption] Init - isDev: ${isDev}, isPackaged: ${app ? app.isPackaged : 'N/A'}`);
+
     if (isDev) {
-        // Development uses a deterministic key for easier debugging
-        // This is NOT secure and should NEVER be used in production
-        const devKey = crypto.createHash('sha256')
-            .update(DEV_KEY_SALT)
-            .digest('hex');
-        console.log('[Encryption] Using development encryption key');
+        const devKey = crypto.createHash('sha256').update(DEV_KEY_SALT).digest('hex');
+        log('[Encryption] Using dev key');
         return devKey;
     }
 
     const keyFilePath = path.join(getKeyDirectory(), KEY_FILE_NAME);
 
-    // Try to read existing key
     if (fs.existsSync(keyFilePath)) {
         try {
             const encryptedKey = fs.readFileSync(keyFilePath, 'utf8');
             const key = decryptKey(encryptedKey);
 
             if (key) {
-                console.log('[Encryption] Loaded existing encryption key');
+                log('[Encryption] Key loaded successfully');
                 return key;
             }
-
-            // If decryption failed, the file is corrupted or from different machine
-            console.warn('[Encryption] Could not decrypt key file, generating new key');
+            log('[Encryption] Key exists but decryption failed');
         } catch (error) {
-            console.error('[Encryption] Error reading key file:', error.message);
+            log(`[Encryption] Error reading key file: ${error.message}`);
         }
     }
 
-    // Generate new key for first-time setup
-    console.log('[Encryption] Generating new encryption key for this installation');
+    log(`[Encryption] Generating new production key. Will save to: ${keyFilePath}`);
     const newKey = generateSecureKey();
 
     try {
+        // Double-check directory exists before writing
+        const keyDir = path.dirname(keyFilePath);
+        if (!fs.existsSync(keyDir)) {
+            fs.mkdirSync(keyDir, { recursive: true });
+            log(`[Encryption] Created key directory: ${keyDir}`);
+        }
+
         const encryptedKey = encryptKey(newKey);
-        fs.writeFileSync(keyFilePath, encryptedKey, { mode: 0o600 }); // Owner read/write only
-        console.log('[Encryption] Encryption key saved securely');
+        fs.writeFileSync(keyFilePath, encryptedKey, { encoding: 'utf8' });
+        log(`[Encryption] New key saved successfully to: ${keyFilePath}`);
+
+        // Verify the file was written
+        if (fs.existsSync(keyFilePath)) {
+            const stat = fs.statSync(keyFilePath);
+            log(`[Encryption] Key file verified: ${stat.size} bytes`);
+        } else {
+            log('[Encryption] WARNING: Key file not found after write!');
+        }
     } catch (error) {
-        console.error('[Encryption] Failed to save encryption key:', error.message);
-        // Continue anyway - the key will be regenerated on next launch
-        // This means data won't persist, but the app will still work
+        log(`[Encryption] Failed to save key: ${error.message}`);
+        log(`[Encryption] Error stack: ${error.stack}`);
     }
 
     return newKey;
@@ -165,47 +207,41 @@ function getOrCreateEncryptionKey() {
 
 /**
  * Checks if a database file is encrypted with SQLCipher
+ * Returns: true if encrypted, false if plaintext, null if error
  */
 function isDatabaseEncrypted(dbPath) {
-    if (!fs.existsSync(dbPath)) {
-        return false; // New database, will be created encrypted
-    }
+    if (!fs.existsSync(dbPath)) return false;
 
+    let fd;
     try {
-        // SQLite databases start with "SQLite format 3\0"
-        // SQLCipher encrypted databases start with random bytes
+        const stats = fs.statSync(dbPath);
+        if (stats.size < 16) return false; // Not a valid DB yet
+
         const header = Buffer.alloc(16);
-        const fd = fs.openSync(dbPath, 'r');
+        fd = fs.openSync(dbPath, 'r');
         fs.readSync(fd, header, 0, 16, 0);
-        fs.closeSync(fd);
 
         const sqliteHeader = 'SQLite format 3';
-        const isPlainSqlite = header.toString('utf8', 0, 15) === sqliteHeader;
+        const isPlain = header.toString('utf8', 0, 15) === sqliteHeader;
 
-        return !isPlainSqlite;
+        log(`[Encryption] DB Check: ${dbPath} - isPlain: ${isPlain}`);
+        return !isPlain;
     } catch (error) {
-        console.error('[Encryption] Error checking database encryption:', error.message);
-        return false;
+        log(`[Encryption] DB Check Error: ${error.message}`);
+        return null; // Uncertain
+    } finally {
+        if (fd !== undefined) fs.closeSync(fd);
     }
 }
 
 /**
  * Configuration for SQLCipher
- * These are executed as PRAGMA statements after opening the database
  */
 function getSQLCipherConfig(key) {
     return [
-        // Set the encryption key (MUST be first)
         `PRAGMA key = "x'${key}'"`,
-
-        // Use SQLCipher 4 defaults (compatible with most versions)
         'PRAGMA cipher_compatibility = 4',
-
-        // Performance optimizations
-        'PRAGMA cipher_memory_security = OFF', // Slight performance gain
-
-        // Verify the key works by reading the database
-        'SELECT count(*) FROM sqlite_master'
+        'PRAGMA cipher_memory_security = OFF'
     ];
 }
 
@@ -214,5 +250,6 @@ module.exports = {
     isDatabaseEncrypted,
     getSQLCipherConfig,
     isDev,
-    KEY_FILE_NAME
+    KEY_FILE_NAME,
+    log
 };

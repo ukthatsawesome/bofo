@@ -1,12 +1,56 @@
-const { app, BrowserWindow, Menu } = require('electron');
+const { app, BrowserWindow, Menu, nativeImage } = require('electron');
 const path = require('path');
 const { registerIpcHandlers, performAutoBackup } = require('./ipc/handlers');
 
+// Single instance lock
+const gotTheLock = app.requestSingleInstanceLock();
+if (!gotTheLock) {
+    app.quit();
+} else {
+    app.on('second-instance', () => {
+        const windows = BrowserWindow.getAllWindows();
+        if (windows.length > 0) {
+            if (windows[0].isMinimized()) windows[0].restore();
+            windows[0].focus();
+        }
+    });
+}
+
+/**
+ * Gets the correct icon path for both development and production
+ * In production, icons are in resources/assets/icons (from extraResources)
+ */
+function getIconPath() {
+    const iconName = process.platform === 'win32' ? 'icon.ico' : 'icon.png';
+
+    if (app.isPackaged) {
+        // In production, extraResources are in resources folder
+        return path.join(process.resourcesPath, 'assets', 'icons', iconName);
+    } else {
+        // In development, use the source path
+        return path.join(__dirname, '../../assets/icons', iconName);
+    }
+}
+
 function createWindow() {
+    const iconPath = getIconPath();
+    console.log('[Main] Icon path:', iconPath);
+
+    // Create native image for better Windows taskbar support
+    let icon;
+    try {
+        icon = nativeImage.createFromPath(iconPath);
+        if (icon.isEmpty()) {
+            console.log('[Main] Warning: Icon image is empty');
+        }
+    } catch (err) {
+        console.log('[Main] Error loading icon:', err.message);
+    }
+
     const win = new BrowserWindow({
         width: 1200,
         height: 800,
-        icon: path.join(__dirname, '../../assets/icons/icon.png'),
+        icon: icon || iconPath,
         webPreferences: {
             preload: path.join(__dirname, 'preload.js'),
             contextIsolation: true,
@@ -79,6 +123,11 @@ function setupMenu() {
 }
 
 app.whenReady().then(() => {
+    // Set app ID for Windows taskbar - must match appId in package.json build config
+    if (process.platform === 'win32') {
+        app.setAppUserModelId('com.bofo.finance');
+    }
+
     registerIpcHandlers();
     setupMenu();
     createWindow();
