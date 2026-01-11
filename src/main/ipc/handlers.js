@@ -42,6 +42,15 @@ function registerIpcHandlers() {
         return await FinanceModel.deleteTransaction(id);
     });
 
+    // Paginated Transactions Handler
+    ipcMain.handle('get-transactions-paginated', async (event, options) => {
+        return await FinanceModel.getTransactionsPaginated(options);
+    });
+
+    ipcMain.handle('get-transaction-count', async (event, options) => {
+        return await FinanceModel.getTransactionCount(options);
+    });
+
     // Category Handlers
     ipcMain.handle('get-categories', async () => {
         return await FinanceModel.getAllCategories();
@@ -431,6 +440,10 @@ function registerIpcHandlers() {
 
     ipcMain.handle('get-bill-readings', async (event, filters) => {
         return await FinanceModel.getBillReadings(filters);
+    });
+
+    ipcMain.handle('get-bill-readings-paginated', async (event, options) => {
+        return await FinanceModel.getBillReadingsPaginated(options);
     });
 
     ipcMain.handle('add-bill-reading', async (event, data) => {

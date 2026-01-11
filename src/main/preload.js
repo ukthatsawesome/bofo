@@ -3,6 +3,8 @@ const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('api', {
     // Transactions
     getTransactions: () => ipcRenderer.invoke('get-transactions'),
+    getTransactionsPaginated: (options) => ipcRenderer.invoke('get-transactions-paginated', options),
+    getTransactionCount: (options) => ipcRenderer.invoke('get-transaction-count', options),
     addTransaction: (data) => ipcRenderer.invoke('add-transaction', data),
     updateTransaction: (id, data) => ipcRenderer.invoke('update-transaction', { id, data }),
     deleteTransaction: (id) => ipcRenderer.invoke('delete-transaction', id),
@@ -88,6 +90,7 @@ contextBridge.exposeInMainWorld('api', {
     updateBillType: (data) => ipcRenderer.invoke('update-bill-type', data),
     deleteBillType: (id) => ipcRenderer.invoke('delete-bill-type', id),
     getBillReadings: (filters) => ipcRenderer.invoke('get-bill-readings', filters),
+    getBillReadingsPaginated: (options) => ipcRenderer.invoke('get-bill-readings-paginated', options),
     addBillReading: (data) => ipcRenderer.invoke('add-bill-reading', data),
     updateBillReading: (id, data) => ipcRenderer.invoke('update-bill-reading', { id, data }),
     deleteBillReading: (id) => ipcRenderer.invoke('delete-bill-reading', id),

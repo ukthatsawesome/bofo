@@ -101,6 +101,17 @@ INSERT OR IGNORE INTO categories (type, name, is_default) VALUES
 
 CREATE INDEX IF NOT EXISTS idx_transactions_date ON transactions(start_date);
 CREATE INDEX IF NOT EXISTS idx_transactions_type ON transactions(type);
+CREATE INDEX IF NOT EXISTS idx_transactions_account ON transactions(account_id);
+CREATE INDEX IF NOT EXISTS idx_transactions_to_account ON transactions(to_account_id);
+CREATE INDEX IF NOT EXISTS idx_transactions_category ON transactions(category);
+CREATE INDEX IF NOT EXISTS idx_transactions_is_active ON transactions(is_active);
+CREATE INDEX IF NOT EXISTS idx_transactions_created_at ON transactions(created_at);
+
+-- Composite indexes for common query patterns (pagination, filtering)
+CREATE INDEX IF NOT EXISTS idx_transactions_active_date ON transactions(is_active, start_date DESC);
+CREATE INDEX IF NOT EXISTS idx_transactions_account_date ON transactions(account_id, start_date DESC);
+CREATE INDEX IF NOT EXISTS idx_transactions_type_date ON transactions(type, start_date DESC);
+CREATE INDEX IF NOT EXISTS idx_transactions_category_date ON transactions(category, start_date DESC);
 
 CREATE TABLE IF NOT EXISTS budgets (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -111,6 +122,16 @@ CREATE TABLE IF NOT EXISTS budgets (
     end_date TEXT NOT NULL,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
+
+-- Categories and Accounts indexes
+CREATE INDEX IF NOT EXISTS idx_categories_type ON categories(type);
+CREATE INDEX IF NOT EXISTS idx_categories_status ON categories(status);
+CREATE INDEX IF NOT EXISTS idx_accounts_type ON accounts(type);
+CREATE INDEX IF NOT EXISTS idx_accounts_status ON accounts(status);
+
+-- Budgets indexes
+CREATE INDEX IF NOT EXISTS idx_budgets_category ON budgets(category);
+CREATE INDEX IF NOT EXISTS idx_budgets_dates ON budgets(start_date, end_date);
 
 -- Goals: Track savings targets (e.g., laptop, vacation, emergency fund)
 CREATE TABLE IF NOT EXISTS goals (
@@ -156,8 +177,11 @@ CREATE TABLE IF NOT EXISTS goal_contributions (
 );
 
 CREATE INDEX IF NOT EXISTS idx_goals_status ON goals(status);
+CREATE INDEX IF NOT EXISTS idx_goals_priority ON goals(priority);
 CREATE INDEX IF NOT EXISTS idx_recurring_active ON recurring_charges(is_active);
+CREATE INDEX IF NOT EXISTS idx_recurring_category ON recurring_charges(category);
 CREATE INDEX IF NOT EXISTS idx_contributions_goal ON goal_contributions(goal_id);
+CREATE INDEX IF NOT EXISTS idx_contributions_date ON goal_contributions(contributed_at DESC);
 
 -- Bills Tracking
 CREATE TABLE IF NOT EXISTS bill_types (

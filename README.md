@@ -92,7 +92,7 @@ npm run dist:linux
 
 Bofo is designed with privacy in mind. **All your data stays on your machine.**
 - 🔒 **Encrypted database** using SQLCipher (AES-256 encryption at rest).
-- 🔑 **Unique encryption key** per installation, machine-bound for extra security.
+- 🔐 **OS-Level Security**: Uses Electron's `safeStorage` API (DPAPI/Keychain) to protect encryption keys.
 - 🤖 Local AI processing via Ollama.
 - 🔤 Self-hosted fonts for 100% offline usage.
 - ☁️ No cloud storage or third-party tracking.

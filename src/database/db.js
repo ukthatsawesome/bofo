@@ -303,6 +303,41 @@ const MIGRATIONS = [
 
             console.log('Exchange rates table and settings created.');
         }
+    },
+    {
+        id: 7,
+        name: 'Add Performance Indexes',
+        up: async () => {
+            // Transactions indexes - critical for filtering and sorting
+            await run(`CREATE INDEX IF NOT EXISTS idx_transactions_account ON transactions(account_id)`);
+            await run(`CREATE INDEX IF NOT EXISTS idx_transactions_to_account ON transactions(to_account_id)`);
+            await run(`CREATE INDEX IF NOT EXISTS idx_transactions_category ON transactions(category)`);
+            await run(`CREATE INDEX IF NOT EXISTS idx_transactions_is_active ON transactions(is_active)`);
+            await run(`CREATE INDEX IF NOT EXISTS idx_transactions_created_at ON transactions(created_at)`);
+
+            // Composite indexes for common query patterns
+            await run(`CREATE INDEX IF NOT EXISTS idx_transactions_active_date ON transactions(is_active, start_date DESC)`);
+            await run(`CREATE INDEX IF NOT EXISTS idx_transactions_account_date ON transactions(account_id, start_date DESC)`);
+            await run(`CREATE INDEX IF NOT EXISTS idx_transactions_type_date ON transactions(type, start_date DESC)`);
+            await run(`CREATE INDEX IF NOT EXISTS idx_transactions_category_date ON transactions(category, start_date DESC)`);
+
+            // Categories indexes
+            await run(`CREATE INDEX IF NOT EXISTS idx_categories_type ON categories(type)`);
+            await run(`CREATE INDEX IF NOT EXISTS idx_categories_status ON categories(status)`);
+
+            // Accounts indexes
+            await run(`CREATE INDEX IF NOT EXISTS idx_accounts_type ON accounts(type)`);
+            await run(`CREATE INDEX IF NOT EXISTS idx_accounts_status ON accounts(status)`);
+
+            // Budgets indexes
+            await run(`CREATE INDEX IF NOT EXISTS idx_budgets_category ON budgets(category)`);
+            await run(`CREATE INDEX IF NOT EXISTS idx_budgets_dates ON budgets(start_date, end_date)`);
+
+            // Goal contributions index
+            await run(`CREATE INDEX IF NOT EXISTS idx_contributions_date ON goal_contributions(contributed_at DESC)`);
+
+            console.log('Performance indexes created successfully.');
+        }
     }
 ];
 

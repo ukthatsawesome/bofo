@@ -72,6 +72,130 @@ const FinanceModel = {
         return await all(`SELECT * FROM transactions WHERE is_active = 1`);
     },
 
+    /**
+     * Get transactions with pagination and filtering
+     * @param {Object} options - Query options
+     * @param {number} options.limit - Number of records to return (default 50, max 500)
+     * @param {number} options.offset - Number of records to skip (default 0)
+     * @param {number} options.accountId - Filter by account ID
+     * @param {string} options.category - Filter by category name
+     * @param {string} options.type - Filter by transaction type
+     * @param {string} options.startDate - Filter by start date (YYYY-MM-DD)
+     * @param {string} options.endDate - Filter by end date (YYYY-MM-DD)
+     * @param {string} options.search - Search in description
+     * @param {boolean} options.activeOnly - Only return active transactions (default true)
+     * @param {string} options.sortBy - Column to sort by (default 'start_date')
+     * @param {string} options.sortOrder - Sort order 'ASC' or 'DESC' (default 'DESC')
+     * @returns {Promise<{data: Array, total: number, limit: number, offset: number, hasMore: boolean}>}
+     */
+    getTransactionsPaginated: async (options = {}) => {
+        const limit = Math.min(Math.max(1, options.limit || 50), 500);
+        const offset = Math.max(0, options.offset || 0);
+        const activeOnly = options.activeOnly !== false;
+        const sortBy = ['start_date', 'amount', 'category', 'created_at'].includes(options.sortBy)
+            ? options.sortBy
+            : 'start_date';
+        const sortOrder = options.sortOrder === 'ASC' ? 'ASC' : 'DESC';
+
+        const conditions = [];
+        const params = [];
+
+        if (activeOnly) {
+            conditions.push('is_active = 1');
+        }
+
+        if (options.accountId) {
+            conditions.push('(account_id = ? OR to_account_id = ?)');
+            params.push(options.accountId, options.accountId);
+        }
+
+        if (options.category) {
+            conditions.push('category = ?');
+            params.push(options.category);
+        }
+
+        if (options.type) {
+            conditions.push('type = ?');
+            params.push(options.type);
+        }
+
+        if (options.startDate) {
+            conditions.push('start_date >= ?');
+            params.push(options.startDate);
+        }
+
+        if (options.endDate) {
+            conditions.push('start_date <= ?');
+            params.push(options.endDate);
+        }
+
+        if (options.search) {
+            conditions.push('description LIKE ?');
+            params.push(`%${options.search}%`);
+        }
+
+        const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+
+        // Get total count
+        const countSql = `SELECT COUNT(*) as total FROM transactions ${whereClause}`;
+        const countResult = await get(countSql, params);
+        const total = countResult.total;
+
+        // Get paginated data
+        const dataSql = `SELECT * FROM transactions ${whereClause} ORDER BY ${sortBy} ${sortOrder} LIMIT ? OFFSET ?`;
+        const data = await all(dataSql, [...params, limit, offset]);
+
+        return {
+            data,
+            total,
+            limit,
+            offset,
+            hasMore: offset + data.length < total
+        };
+    },
+
+    /**
+     * Get transaction count with optional filters (for UI counters)
+     */
+    getTransactionCount: async (options = {}) => {
+        const conditions = [];
+        const params = [];
+
+        if (options.activeOnly !== false) {
+            conditions.push('is_active = 1');
+        }
+
+        if (options.accountId) {
+            conditions.push('(account_id = ? OR to_account_id = ?)');
+            params.push(options.accountId, options.accountId);
+        }
+
+        if (options.category) {
+            conditions.push('category = ?');
+            params.push(options.category);
+        }
+
+        if (options.type) {
+            conditions.push('type = ?');
+            params.push(options.type);
+        }
+
+        if (options.startDate) {
+            conditions.push('start_date >= ?');
+            params.push(options.startDate);
+        }
+
+        if (options.endDate) {
+            conditions.push('start_date <= ?');
+            params.push(options.endDate);
+        }
+
+        const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+        const sql = `SELECT COUNT(*) as count FROM transactions ${whereClause}`;
+        const result = await get(sql, params);
+        return result.count;
+    },
+
     updateTransaction: async (id, data) => {
         // 1. Get original accounts to sync them later
         const originalTx = await get('SELECT account_id, to_account_id FROM transactions WHERE id = ?', [id]);
@@ -711,6 +835,63 @@ const FinanceModel = {
 
         sql += ` ORDER BY r.date DESC`;
         return await all(sql, params);
+    },
+
+    /**
+     * Get bill readings with pagination
+     * @param {Object} options - Query options
+     * @param {number} options.limit - Records per page (default 50)
+     * @param {number} options.offset - Records to skip
+     * @param {number} options.bill_type_id - Filter by bill type
+     * @param {number} options.year - Filter by year
+     * @param {number} options.month - Filter by month
+     * @returns {Promise<{data: Array, total: number, hasMore: boolean}>}
+     */
+    getBillReadingsPaginated: async (options = {}) => {
+        const limit = Math.min(Math.max(1, options.limit || 50), 500);
+        const offset = Math.max(0, options.offset || 0);
+
+        const where = [];
+        const params = [];
+
+        if (options.bill_type_id) {
+            where.push(`r.bill_type_id = ?`);
+            params.push(options.bill_type_id);
+        }
+        if (options.year && options.year != 0) {
+            where.push(`strftime('%Y', r.date) = ?`);
+            params.push(String(options.year));
+        }
+        if (options.month && options.month != 0) {
+            where.push(`strftime('%m', r.date) = ?`);
+            params.push(String(options.month).padStart(2, '0'));
+        }
+
+        const whereClause = where.length > 0 ? `WHERE ${where.join(' AND ')}` : '';
+
+        // Count query
+        const countSql = `SELECT COUNT(*) as total FROM bill_readings r ${whereClause}`;
+        const countResult = await get(countSql, params);
+        const total = countResult.total;
+
+        // Data query
+        const dataSql = `
+            SELECT r.*, t.name as bill_name, t.unit_name, t.cost_per_unit as current_cost_per_unit, t.color, t.icon, t.category_name
+            FROM bill_readings r
+            JOIN bill_types t ON r.bill_type_id = t.id
+            ${whereClause}
+            ORDER BY r.date DESC
+            LIMIT ? OFFSET ?
+        `;
+        const data = await all(dataSql, [...params, limit, offset]);
+
+        return {
+            data,
+            total,
+            limit,
+            offset,
+            hasMore: offset + data.length < total
+        };
     },
 
     addBillReading: async (data) => {
