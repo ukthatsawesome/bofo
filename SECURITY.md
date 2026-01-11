@@ -31,6 +31,8 @@ Bofo uses **SQLCipher**, an open-source extension to SQLite that provides transp
 
 ### Encryption Key Management
 
+Bofo uses **Electron's safeStorage API** as the primary method for securing the database encryption key. This provides **OS-level credential protection** that is significantly more secure than file-based storage.
+
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                    Key Generation Flow                       │
@@ -39,39 +41,71 @@ Bofo uses **SQLCipher**, an open-source extension to SQLite that provides transp
 │   First Launch                                               │
 │       │                                                      │
 │       ▼                                                      │
-│   Generate 256-bit random key                                │
+│   Generate 256-bit random key (CSPRNG)                       │
 │       │                                                      │
 │       ▼                                                      │
-│   Encrypt key with machine-specific salt                     │
-│   (uses AES-256-GCM + hostname + username)                   │
-│       │                                                      │
-│       ▼                                                      │
-│   Store encrypted key in userData/.bofo-key                  │
-│       │                                                      │
-│       ▼                                                      │
-│   Use key to encrypt database                                │
+│   ┌─────────────────────────────────────────┐                │
+│   │ Is safeStorage available?               │                │
+│   │ (OS Credential Store)                   │                │
+│   └──────────────┬──────────────────────────┘                │
+│              YES │                    NO                     │
+│       ┌──────────┴───────────┐    ┌─────────────────────┐    │
+│       ▼                      │    ▼                     │    │
+│   Encrypt with safeStorage   │  Encrypt with machine   │    │
+│   (OS credential manager)    │  salt (AES-256-GCM)     │    │
+│       │                      │    │                     │    │
+│       ▼                      │    ▼                     │    │
+│   Save to .bofo-key-secure   │  Save to .bofo-key      │    │
+│       └──────────────────────┴────┘                          │
+│                       │                                      │
+│                       ▼                                      │
+│   Use key to encrypt database with SQLCipher                 │
 │                                                              │
 └─────────────────────────────────────────────────────────────┘
 ```
 
+### safeStorage Protection (Primary Method)
+
+The safeStorage API uses the operating system's native secure credential storage:
+
+| Platform | Backend | Protection |
+|----------|---------|------------|
+| **Windows** | Credential Manager (DPAPI) | Tied to Windows user session |
+| **macOS** | Keychain | Tied to macOS user account |
+| **Linux** | Secret Service API / libsecret | Tied to user session/GNOME Keyring |
+
+**Why safeStorage is more secure:**
+- 🔒 **OS-level encryption**: Keys are encrypted by the operating system itself
+- 🚫 **Cannot be copied**: Even if you copy the encrypted file, it cannot be decrypted on another machine or by another user
+- 🔑 **Session-bound**: Tied to the user's OS session, not just machine identifiers
+- ✅ **Industry standard**: Uses the same mechanisms as password managers and browsers
+
 ### Key Storage Locations
 
-| Environment | Key Location | Notes |
-|-------------|--------------|-------|
-| **Production (Windows)** | `%APPDATA%\bofo\.bofo-key` | Encrypted, machine-bound |
-| **Production (macOS)** | `~/Library/Application Support/bofo/.bofo-key` | Encrypted, machine-bound |
-| **Production (Linux)** | `~/.config/bofo/.bofo-key` | Encrypted, machine-bound |
-| **Development** | Deterministic key from salt | For debugging only |
+| Environment | Primary Key Location | Fallback Location |
+|-------------|---------------------|-------------------|
+| **Production (Windows)** | `%APPDATA%\bofo\.bofo-key-secure` | `%APPDATA%\bofo\.bofo-key` |
+| **Production (macOS)** | `~/Library/Application Support/bofo/.bofo-key-secure` | `~/Library/Application Support/bofo/.bofo-key` |
+| **Production (Linux)** | `~/.config/bofo/.bofo-key-secure` | `~/.config/bofo/.bofo-key` |
+| **Development** | N/A (in-memory deterministic key) | N/A |
 
 ### Security Properties
 
-1. **Machine-Bound Keys**: The encryption key is further protected using a salt derived from your machine's hostname and username. This means:
-   - The key file cannot be copied to another machine
-   - Even if someone steals the key file, they cannot decrypt it elsewhere
+1. **OS-Protected Keys (safeStorage)**: The encryption key is protected by the operating system's credential manager:
+   - 🔐 Windows: Uses DPAPI (Data Protection API) tied to your Windows login
+   - 🔐 macOS: Stored in the Keychain, protected by your macOS password
+   - 🔐 Linux: Uses libsecret/GNOME Keyring or similar
 
-2. **Unique Per Installation**: Each installation generates its own random encryption key
+2. **Automatic Migration**: If you have an existing installation with the legacy key format, Bofo will automatically:
+   - Load the key from the legacy format
+   - Re-encrypt it using safeStorage
+   - Use the more secure format going forward
 
-3. **No Network Transmission**: Keys are never sent over the network
+3. **Fallback Protection**: On systems where safeStorage is unavailable, keys are encrypted with a machine-specific salt (hostname + username + AES-256-GCM)
+
+4. **Unique Per Installation**: Each installation generates its own random encryption key
+
+5. **No Network Transmission**: Keys are never sent over the network
 
 ---
 
@@ -125,11 +159,12 @@ If automatic migration fails, you can manually migrate:
 
 This error occurs when:
 - The database was created with a different encryption key
-- The key file (`.bofo-key`) was deleted or corrupted
+- The key file (`.bofo-key-secure` or `.bofo-key`) was deleted or corrupted
 - The database file is corrupted
+- The OS credential store has been reset (safeStorage uses OS credentials)
 
 **Solution:**
-1. Check if `.bofo-key` exists in your userData folder
+1. Check if `.bofo-key-secure` or `.bofo-key` exists in your userData folder
 2. If you have a backup, restore from backup
 3. If no backup, you may need to start fresh (data will be lost)
 
@@ -165,7 +200,9 @@ For developers and security reviewers:
 
 - [x] **Encryption at Rest**: SQLCipher AES-256
 - [x] **Key Derivation**: CSPRNG for key generation
-- [x] **Key Storage**: AES-256-GCM encrypted with machine salt
+- [x] **Key Storage (Primary)**: Electron safeStorage API (OS credential store)
+- [x] **Key Storage (Fallback)**: AES-256-GCM encrypted with machine salt
+- [x] **Key Migration**: Automatic upgrade from legacy to safeStorage format
 - [x] **SQL Injection**: Parameterized queries throughout
 - [x] **XSS Prevention**: DOM sanitization in all user-facing inputs
 - [x] **CSP Headers**: Content Security Policy enabled
