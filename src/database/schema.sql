@@ -63,7 +63,10 @@ INSERT OR IGNORE INTO settings (key, value, category) VALUES
 ('currency_last_sync', '', 'currency'),
 ('theme', 'dark', 'appearance'),
 ('landing_view', 'dashboard', 'appearance'),
-('backup_on_close', 'true', 'safety');
+('backup_on_close', 'true', 'safety'),
+('remote_access_enabled', 'false', 'remote'),
+('remote_access_port', '5174', 'remote'),
+('remote_access_key', '', 'remote');
 
 -- Exchange rates table for multi-currency conversion
 CREATE TABLE IF NOT EXISTS exchange_rates (

@@ -77,7 +77,7 @@ class FinanceService {
         return await FinanceModel.updateSetting(key, value);
     }
 
-    async calculateForecast(transactions, months, accounts = []) {
+    async calculateForecast(transactions, months, accounts = [], recurringCharges = null) {
         let txs = transactions;
         if (!txs) {
             txs = await FinanceModel.getAllTransactions();
@@ -86,8 +86,12 @@ class FinanceService {
         if (!accs || accs.length === 0) {
             accs = await FinanceModel.getAllAccounts();
         }
+        let rcs = recurringCharges;
+        if (!rcs) {
+            rcs = await FinanceModel.getAll('recurringCharge');
+        }
         const settings = await FinanceModel.getAllSettings();
-        const engine = new ForecastEngine(txs, accs, settings);
+        const engine = new ForecastEngine(txs, accs, settings, rcs);
         return engine.generateForecast(months);
     }
 

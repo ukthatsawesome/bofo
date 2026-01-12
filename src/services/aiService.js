@@ -1,7 +1,42 @@
+/**
+ * AI Service - Enhanced with Timeout, Retry, and Circuit Breaker
+ * 
+ * Features:
+ * - Request timeouts (prevents hanging)
+ * - Automatic retry with exponential backoff
+ * - Circuit breaker pattern (fails fast when AI is down)
+ * - Connection health tracking
+ * - Detailed error reporting
+ */
+
 class AIService {
     constructor() {
         this.baseUrl = 'http://127.0.0.1:11434';
         this.model = 'gemma3:4b';
+
+        // Timeout and retry configuration
+        this.config = {
+            timeout: 30000,          // 30 second default timeout
+            maxRetries: 2,           // Max retry attempts
+            retryDelay: 1000,        // Initial retry delay (ms)
+            retryBackoff: 2,         // Exponential backoff multiplier
+            circuitBreakerThreshold: 3,  // Failures before circuit opens
+            circuitBreakerReset: 60000   // Time before circuit resets (ms)
+        };
+
+        // Circuit breaker state
+        this._circuit = {
+            failures: 0,
+            lastFailure: null,
+            isOpen: false
+        };
+
+        // Health status
+        this._health = {
+            lastCheck: null,
+            isConnected: false,
+            lastError: null
+        };
 
         // Centralized Default Prompts
         this.DEFAULTS = {
@@ -76,18 +111,134 @@ OR
         this.promptChat = null;
     }
 
+    // =========================================================================
+    // CONFIGURATION
+    // =========================================================================
+
     async setConfig(url, model) {
         this.baseUrl = url || 'http://127.0.0.1:11434';
         this.model = model || 'gemma3:4b';
+        // Reset circuit breaker on config change
+        this._resetCircuit();
     }
 
-    /**
-     * Private helper for Ollama API calls
-     */
-    async _callApi(endpoint, body, isStreaming = false) {
-        const url = `${this.baseUrl}/api/${endpoint}`;
+    setTimeoutConfig(options = {}) {
+        Object.assign(this.config, options);
+    }
+
+    // =========================================================================
+    // CIRCUIT BREAKER
+    // =========================================================================
+
+    _checkCircuit() {
+        if (!this._circuit.isOpen) return true;
+
+        // Check if enough time has passed to reset
+        const timeSinceFailure = Date.now() - this._circuit.lastFailure;
+        if (timeSinceFailure >= this.config.circuitBreakerReset) {
+            this._resetCircuit();
+            console.log('[AI] Circuit breaker reset - retrying connection');
+            return true;
+        }
+
+        console.log(`[AI] Circuit breaker open - ${Math.ceil((this.config.circuitBreakerReset - timeSinceFailure) / 1000)}s until retry`);
+        return false;
+    }
+
+    _recordFailure(error) {
+        this._circuit.failures++;
+        this._circuit.lastFailure = Date.now();
+        this._health.lastError = error.message;
+        this._health.isConnected = false;
+
+        if (this._circuit.failures >= this.config.circuitBreakerThreshold) {
+            this._circuit.isOpen = true;
+            console.log('[AI] Circuit breaker opened due to repeated failures');
+        }
+    }
+
+    _recordSuccess() {
+        this._circuit.failures = 0;
+        this._circuit.isOpen = false;
+        this._health.isConnected = true;
+        this._health.lastError = null;
+    }
+
+    _resetCircuit() {
+        this._circuit = { failures: 0, lastFailure: null, isOpen: false };
+    }
+
+    // =========================================================================
+    // FETCH WITH TIMEOUT
+    // =========================================================================
+
+    async _fetchWithTimeout(url, options, timeout = this.config.timeout) {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), timeout);
+
         try {
             const response = await fetch(url, {
+                ...options,
+                signal: controller.signal
+            });
+            clearTimeout(timeoutId);
+            return response;
+        } catch (error) {
+            clearTimeout(timeoutId);
+            if (error.name === 'AbortError') {
+                throw new Error(`Request timed out after ${timeout / 1000}s`);
+            }
+            throw error;
+        }
+    }
+
+    // =========================================================================
+    // RETRY LOGIC
+    // =========================================================================
+
+    async _withRetry(fn, retries = this.config.maxRetries) {
+        let lastError;
+        let delay = this.config.retryDelay;
+
+        for (let attempt = 0; attempt <= retries; attempt++) {
+            try {
+                const result = await fn();
+                this._recordSuccess();
+                return result;
+            } catch (error) {
+                lastError = error;
+                console.warn(`[AI] Attempt ${attempt + 1} failed:`, error.message);
+
+                if (attempt < retries) {
+                    console.log(`[AI] Retrying in ${delay}ms...`);
+                    await this._sleep(delay);
+                    delay *= this.config.retryBackoff;
+                }
+            }
+        }
+
+        this._recordFailure(lastError);
+        throw lastError;
+    }
+
+    _sleep(ms) {
+        return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
+    // =========================================================================
+    // API CALLS
+    // =========================================================================
+
+    async _callApi(endpoint, body, isStreaming = false) {
+        // Check circuit breaker
+        if (!this._checkCircuit()) {
+            throw new Error('AI service temporarily unavailable. Please try again later.');
+        }
+
+        const url = `${this.baseUrl}/api/${endpoint}`;
+
+        const makeRequest = async () => {
+            const response = await this._fetchWithTimeout(url, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -103,15 +254,28 @@ OR
             }
 
             return response;
-        } catch (error) {
-            console.error(`Ollama API Call Failed [${endpoint}]:`, error);
-            throw error;
+        };
+
+        // Use retry for non-streaming requests
+        if (!isStreaming) {
+            return await this._withRetry(makeRequest);
+        } else {
+            // Streaming requests don't retry (user expects real-time feedback)
+            try {
+                const result = await makeRequest();
+                this._recordSuccess();
+                return result;
+            } catch (error) {
+                this._recordFailure(error);
+                throw error;
+            }
         }
     }
 
-    /**
-     * Helper for template replacement
-     */
+    // =========================================================================
+    // HELPER METHODS
+    // =========================================================================
+
     _replaceTemplate(template, data) {
         let result = template;
         for (const [key, value] of Object.entries(data)) {
@@ -120,25 +284,66 @@ OR
         return result;
     }
 
+    // =========================================================================
+    // CONNECTION & HEALTH
+    // =========================================================================
+
     async checkConnection() {
         try {
-            const response = await fetch(`${this.baseUrl}/api/tags`);
-            return response.ok;
+            const response = await this._fetchWithTimeout(
+                `${this.baseUrl}/api/tags`,
+                { method: 'GET' },
+                5000 // 5 second timeout for health check
+            );
+
+            const isOk = response.ok;
+            this._health.lastCheck = Date.now();
+            this._health.isConnected = isOk;
+
+            if (isOk) {
+                this._recordSuccess();
+            }
+
+            return isOk;
         } catch (error) {
+            this._health.lastCheck = Date.now();
+            this._health.isConnected = false;
+            this._health.lastError = error.message;
             return false;
         }
     }
 
+    getHealthStatus() {
+        return {
+            isConnected: this._health.isConnected,
+            lastCheck: this._health.lastCheck,
+            lastError: this._health.lastError,
+            circuitOpen: this._circuit.isOpen,
+            failureCount: this._circuit.failures
+        };
+    }
+
     async getInstalledModels() {
         try {
-            const response = await fetch(`${this.baseUrl}/api/tags`);
+            const response = await this._fetchWithTimeout(
+                `${this.baseUrl}/api/tags`,
+                { method: 'GET' },
+                10000 // 10 second timeout
+            );
+
             if (!response.ok) return [];
             const data = await response.json();
+            this._recordSuccess();
             return data.models || [];
         } catch (error) {
+            console.warn('[AI] Failed to fetch models:', error.message);
             return [];
         }
     }
+
+    // =========================================================================
+    // AI OPERATIONS
+    // =========================================================================
 
     async parseTransactionFromText(text, categories, accountNames = [], promptTemplate = null) {
         const template = promptTemplate || this.promptTx || this.DEFAULTS.promptTx;
@@ -154,8 +359,8 @@ OR
             const data = await response.json();
             return JSON.parse(data.response);
         } catch (error) {
-            console.error('AI Parse Failed:', error);
-            throw error;
+            console.error('[AI] Parse transaction failed:', error.message);
+            throw new Error(`AI parsing failed: ${error.message}`);
         }
     }
 
@@ -170,8 +375,21 @@ OR
             const data = await response.json();
             return data.response.replace(/^"|"$/g, '').trim();
         } catch (error) {
-            return "Keep tracking your spending to stay on top of your goals!";
+            console.warn('[AI] Insight generation failed, using fallback:', error.message);
+            return this._getFallbackInsight(summaryData);
         }
+    }
+
+    _getFallbackInsight(data) {
+        // Provide meaningful fallback based on data
+        if (data.totalExpenses > data.totalIncome) {
+            return "Your expenses exceed your income this period. Review your spending to maintain a healthy balance.";
+        } else if (data.savingsRate > 0.2) {
+            return "Great job! You're saving over 20% of your income.";
+        } else if (data.topCategory) {
+            return `Your highest spending category is ${data.topCategory}. Keep an eye on it!`;
+        }
+        return "Keep tracking your spending to stay on top of your goals!";
     }
 
     async chatSandbox(userText, context, promptTemplate = null, onChunk = null) {
@@ -220,8 +438,20 @@ OR
                 return data.response;
             }
         } catch (error) {
-            return "I'm having trouble connecting to the simulation engine.";
+            console.error('[AI] Chat sandbox failed:', error.message);
+            return this._getChatFallback(error);
         }
+    }
+
+    _getChatFallback(error) {
+        if (error.message.includes('timed out')) {
+            return "The AI is taking too long to respond. Try a simpler question or check if Ollama is running.";
+        } else if (error.message.includes('temporarily unavailable')) {
+            return "The AI service is temporarily unavailable. It will automatically retry in about a minute.";
+        } else if (error.message.includes('Connection refused') || error.message.includes('ECONNREFUSED')) {
+            return "Cannot connect to Ollama. Make sure it's running at the configured URL.";
+        }
+        return "I'm having trouble connecting to the simulation engine. Please check your AI configuration.";
     }
 }
 

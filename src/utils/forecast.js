@@ -5,10 +5,11 @@
  */
 
 class ForecastEngine {
-    constructor(transactions, accounts = [], settings = {}) {
+    constructor(transactions, accounts = [], settings = {}, recurringCharges = []) {
         this.transactions = transactions || [];
         this.accounts = accounts || [];
         this.settings = settings || {};
+        this.recurringCharges = recurringCharges || [];
     }
 
     /* ==================== PUBLIC API ==================== */
@@ -43,6 +44,7 @@ class ForecastEngine {
             let dailyIncome = 0;
             let dailyExpense = 0;
 
+            // Process regular transactions
             this.transactions.forEach(tx => {
                 if (!tx.is_active) return;
                 if (tx.type !== 'income' && tx.type !== 'expense') return;
@@ -59,6 +61,22 @@ class ForecastEngine {
                 if (tx.type === 'income') dailyIncome += amount;
                 if (tx.type === 'expense') dailyExpense += amount;
             });
+
+            // Process recurring charges (Only for future dates)
+            if (isFuture) {
+                this.recurringCharges.forEach(charge => {
+                    if (!charge.is_active) return;
+                    if (!this._recurringChargeApplies(charge, cursor)) return;
+
+                    let amount = charge.amount;
+                    if (inflationEnabled) {
+                        const daysAhead = this._daysBetween(today, cursor);
+                        amount *= Math.pow(dailyInflationRate, daysAhead);
+                    }
+
+                    dailyExpense += amount;
+                });
+            }
 
             cash += dailyIncome - dailyExpense;
 
@@ -188,7 +206,6 @@ class ForecastEngine {
         if (freq === 'monthly') {
             const dayOfStart = start.getDate();
             const lastDayOfMonth = new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
-            // If start was 31st and current month has 30 days, trigger on 30th
             const triggerDay = Math.min(dayOfStart, lastDayOfMonth);
             return date.getDate() === triggerDay;
         }
@@ -200,6 +217,36 @@ class ForecastEngine {
 
             const lastDayOfMonth = new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
             const triggerDay = Math.min(dayOfStart, lastDayOfMonth);
+            return date.getDate() === triggerDay;
+        }
+
+        return false;
+    }
+
+    _recurringChargeApplies(charge, date) {
+        const freq = charge.frequency;
+        const dueDay = charge.due_day || 1;
+
+        if (freq === 'weekly') {
+            // For weekly recurring charges, we assume it's the same day of week as creation
+            const start = this._startOfDay(new Date(charge.created_at || Date.now()));
+            return start.getDay() === date.getDay();
+        }
+
+        if (freq === 'monthly') {
+            const lastDayOfMonth = new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
+            const triggerDay = Math.min(dueDay, lastDayOfMonth);
+            return date.getDate() === triggerDay;
+        }
+
+        if (freq === 'yearly') {
+            // For yearly, we use the month of creation and the due_day
+            const start = this._startOfDay(new Date(charge.created_at || Date.now()));
+            const monthOfStart = start.getMonth();
+            if (date.getMonth() !== monthOfStart) return false;
+
+            const lastDayOfMonth = new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
+            const triggerDay = Math.min(dueDay, lastDayOfMonth);
             return date.getDate() === triggerDay;
         }
 

@@ -8,6 +8,11 @@
     <meta name="theme-color" content="#09090b">
     <title>Bofo - AI Finance</title>
 
+    <!-- Security: Content Security Policy -->
+    <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' http: ws: https://api.currencyapi.com;">
+
+
     <!-- Fonts are now loaded locally via tailwind.css -->
 
     <!-- Styles - Handled by Vite -->
@@ -90,6 +95,7 @@
             <section id="goals" class="view"></section>
             <section id="whatif" class="view"></section>
             <section id="settings" class="view"></section>
+            <section id="ai-settings" class="view"></section>
         </main>
     </div>
 

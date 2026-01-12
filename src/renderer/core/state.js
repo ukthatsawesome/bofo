@@ -31,6 +31,7 @@ export class StateManager {
             month: 0 // All Months
         };
         this.exchangeRates = [];
+        this.recurringCharges = [];
     }
 
     async loadSettings() {
@@ -103,6 +104,10 @@ export class StateManager {
     async loadBillReadings(filters = null) {
         this.billReadings = await window.api.getBillReadings(filters || this.billHistoryFilter);
         this.allBillReadings = await window.api.getBillReadings({}); // All time
+    }
+
+    async loadRecurringCharges() {
+        this.recurringCharges = await window.api.getRecurringCharges();
     }
 }
 

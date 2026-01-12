@@ -72,3 +72,6 @@ Thumbs.db
 
 # Build Scripts
 build_app.ps1
+
+# Agent
+.agent/

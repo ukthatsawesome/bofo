@@ -72,9 +72,16 @@ if (needsMigration) {
 }
 
 // Create database connection
+let dbResolve, dbReject;
+const dbInitialized = new Promise((resolve, reject) => {
+    dbResolve = resolve;
+    dbReject = reject;
+});
+
 const db = new sqlite3.Database(dbPath, async (err) => {
     if (err) {
         log(`[DB] FAILED to open: ${err.message}`);
+        dbReject(err);
         return;
     }
 
@@ -85,8 +92,10 @@ const db = new sqlite3.Database(dbPath, async (err) => {
         if (needsMigration) await migrateFromBackup(backupPath);
         await bootstrapDb();
         log('[DB] Initialization complete');
+        dbResolve();
     } catch (error) {
         log(`[DB] Initialization FAILED: ${error.message}`);
+        dbReject(error);
     }
 });
 
@@ -519,3 +528,4 @@ async function processMigrations() {
 }
 
 module.exports = db;
+module.exports.dbInitialized = dbInitialized;

@@ -20,6 +20,7 @@ import { SandboxView } from '../views/SandboxView.js';
 import { RecurringChargesView } from '../views/RecurringChargesView.js';
 import { BillsView } from '../views/BillsView.js';
 import { SettingsView } from '../views/SettingsView.js';
+import { AISettingsView } from '../views/AISettingsView.js';
 
 // Modals
 import { TransactionModal } from '../modals/TransactionModal.js';
@@ -48,7 +49,8 @@ export class App {
             whatif: new SandboxView(this, 'whatif'),
             recurring: new RecurringChargesView(this, 'recurring'),
             bills: new BillsView(this, 'bills'),
-            settings: new SettingsView(this, 'settings')
+            settings: new SettingsView(this, 'settings'),
+            'ai-settings': new AISettingsView(this, 'ai-settings')
         };
 
         this.router = new Router(this);
@@ -64,7 +66,8 @@ export class App {
                 this.state.loadAccounts(),
                 this.state.loadCategories(),
                 this.state.loadTransactions(),
-                this.state.loadBudgets()
+                this.state.loadBudgets(),
+                this.state.loadRecurringCharges()
             ]);
 
             // Initialize fallback generator with formatter
@@ -107,16 +110,13 @@ export class App {
             this.updateAIStatusIndicator(e.detail.connected);
         });
 
-        // Click handler - navigate directly to AI settings
+        // Click handler - navigate directly to AI settings view
         navItem.addEventListener('click', () => {
             // Remove active from other nav items
             document.querySelectorAll('.nav-links li').forEach(li => li.classList.remove('active'));
             navItem.classList.add('active');
 
-            this.router.navigate('settings');
-            setTimeout(() => {
-                this.views.settings.showSubView('ai-settings');
-            }, 100);
+            this.router.navigate('ai-settings');
         });
     }
 
@@ -217,32 +217,168 @@ export class App {
         }
 
         this.setupModalListeners();
+        this.setupModalActions();
+    }
+
+    setupModalActions() {
+        // --- Transaction Modal ---
+        const btnTxSave = document.getElementById('modal-tx-save');
+        if (btnTxSave) {
+            btnTxSave.replaceWith(btnTxSave.cloneNode(true)); // Clear listeners
+            document.getElementById('modal-tx-save').addEventListener('click', async () => {
+                const amount = parseFloat($('#modal-tx-amount').value);
+                const date = $('#modal-tx-date').value;
+                const accountId = parseInt($('#modal-tx-account').value);
+                const category = $('#modal-tx-category').value;
+                const description = $('#modal-tx-desc').value;
+                const type = $('#transaction-modal .segment.active')?.dataset?.type || 'expense';
+
+                if (!amount || amount <= 0 || !date) {
+                    return this.notifications.toast('Error', 'Please fill all required fields', 'error');
+                }
+
+                const tx = { amount, start_date: date, account_id: accountId, category, description, type, frequency: 'once' };
+
+                // Handle transfer fields
+                if (type === 'transfer') {
+                    tx.to_account_id = parseInt($('#modal-tx-to-account').value);
+                    tx.category = 'Transfer';
+                    if (tx.account_id === tx.to_account_id) {
+                        return this.notifications.toast('Error', 'Source and destination must be different', 'error');
+                    }
+                }
+
+                try {
+                    await window.api.addTransaction(tx);
+                    this.notifications.toast('Success', 'Transaction saved');
+                    UIUtils.setHidden('#transaction-modal', true);
+                    eventBus.emit('transaction:saved');
+                } catch (e) {
+                    this.notifications.alert('Error', e.message);
+                }
+            });
+        }
+
+        // --- Account Modal ---
+        const btnAccSave = document.getElementById('save-account');
+        if (btnAccSave) {
+            btnAccSave.replaceWith(btnAccSave.cloneNode(true));
+            document.getElementById('save-account').addEventListener('click', async () => {
+                const name = $('#acc-name').value;
+                const type = $('#acc-type').value;
+                const balance = parseFloat($('#acc-balance').value) || 0;
+                const currency = $('#acc-currency').value;
+
+                if (!name) return this.notifications.toast('Error', 'Name is required', 'error');
+
+                try {
+                    await window.api.addAccount({ name, type, balance, currency });
+                    this.notifications.toast('Success', 'Account created');
+                    UIUtils.setHidden('#account-modal', true);
+                    await this.state.loadAccounts();
+                    this.updateAccountDropdowns();
+                    this.router.views[this.router.currentView]?.render();
+                } catch (e) {
+                    this.notifications.alert('Error', e.message);
+                }
+            });
+        }
+
+        // --- Category Modal ---
+        const btnCatSave = document.getElementById('save-category');
+        if (btnCatSave) {
+            btnCatSave.replaceWith(btnCatSave.cloneNode(true));
+            document.getElementById('save-category').addEventListener('click', async () => {
+                const name = $('#new-cat-name').value;
+                const type = $('#new-cat-type').value;
+
+                if (!name) return this.notifications.toast('Error', 'Name is required', 'error');
+
+                try {
+                    await window.api.addCategory(type, name);
+                    this.notifications.toast('Success', 'Category saved');
+                    UIUtils.setHidden('#category-modal', true);
+                    await this.state.loadCategories();
+                    this.updateCategoryDropdowns();
+                } catch (e) {
+                    this.notifications.alert('Error', e.message);
+                }
+            });
+        }
+
+        // --- Budget Modal ---
+        const btnBudSave = document.getElementById('save-budget');
+        if (btnBudSave) {
+            btnBudSave.replaceWith(btnBudSave.cloneNode(true));
+            document.getElementById('save-budget').addEventListener('click', async () => {
+                const category = $('#budget-category').value;
+                const amount = parseFloat($('#budget-limit').value);
+                const period = $('#budget-period').value;
+                const startNode = $('#budget-start');
+                const endNode = $('#budget-end');
+
+                // Determine dates if not manual
+                let start = startNode.value;
+                let end = endNode.value;
+
+                if (!amount) return this.notifications.toast('Error', 'Amount is required', 'error');
+                if (!start || !end) {
+                    // Auto-fill if empty (simplification)
+                    const now = new Date();
+                    start = now.toISOString().split('T')[0];
+                    const endDateObj = new Date();
+                    if (period === 'monthly') endDateObj.setMonth(endDateObj.getMonth() + 1);
+                    else if (period === 'weekly') endDateObj.setDate(endDateObj.getDate() + 7);
+                    else endDateObj.setFullYear(endDateObj.getFullYear() + 1);
+                    end = endDateObj.toISOString().split('T')[0];
+                }
+
+                try {
+                    await window.api.setBudget({ category, amount, period, startDate: start, endDate: end });
+                    this.notifications.toast('Success', 'Budget set');
+                    UIUtils.setHidden('#budget-modal', true);
+                    if (this.router.currentView === 'budget') this.router.views.budget.render();
+                } catch (e) {
+                    this.notifications.alert('Error', e.message);
+                }
+            });
+        }
+
+        // --- Transaction Modal Type Toggles ---
+        document.querySelectorAll('#transaction-modal .segment').forEach(seg => {
+            seg.addEventListener('click', () => {
+                document.querySelectorAll('#transaction-modal .segment').forEach(s => s.classList.remove('active'));
+                seg.classList.add('active');
+
+                const type = seg.dataset.type;
+                if (type === 'transfer') {
+                    UIUtils.setHidden('#modal-tx-to-account-group', false);
+                    UIUtils.setHidden('#modal-tx-category', true); // Hide category for transfer? Or auto-set
+                } else {
+                    UIUtils.setHidden('#modal-tx-to-account-group', true);
+                    UIUtils.setHidden('#modal-tx-category', false);
+                }
+            });
+        });
     }
 
     setupModalListeners() {
-        // Modal close buttons
-        document.querySelectorAll('.modal .close').forEach(btn => {
-            btn.addEventListener('click', () => {
-                const modal = btn.closest('.modal');
-                if (modal) UIUtils.setHidden(`#${modal.id}`, true);
-            });
-        });
+        // Use event delegation for standard modal interactions
+        document.addEventListener('click', (e) => {
+            // Close button or Cancel button
+            const closeBtn = e.target.closest('.modal .close, .modal .btn.secondary, [data-modal-close]');
+            if (closeBtn) {
+                const modal = closeBtn.closest('.modal');
+                if (modal) {
+                    UIUtils.setHidden(`#${modal.id}`, true);
+                }
+                return;
+            }
 
-        // Specific modal buttons
-        document.getElementById('cancel-category')?.addEventListener('click', () => {
-            UIUtils.setHidden('#category-modal', true);
-        });
-
-        document.getElementById('cancel-account')?.addEventListener('click', () => {
-            UIUtils.setHidden('#account-modal', true);
-        });
-
-        document.getElementById('cancel-bill-type')?.addEventListener('click', () => {
-            UIUtils.setHidden('#bill-type-modal', true);
-        });
-
-        document.getElementById('cancel-bill-reading')?.addEventListener('click', () => {
-            UIUtils.setHidden('#bill-reading-modal', true);
+            // Backdrop click (target is the modal itself)
+            if (e.target.classList.contains('modal')) {
+                UIUtils.setHidden(`#${e.target.id}`, true);
+            }
         });
     }
 
@@ -261,6 +397,16 @@ export class App {
         eventBus.on('ai:settings-changed', async () => {
             await this.updateAIStatusIndicator();
             this.aiCache.invalidate(); // Clear all cached insights
+        });
+
+        // Global Escape key to close modals
+        window.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                const visibleModals = document.querySelectorAll('.modal:not(.hidden)');
+                visibleModals.forEach(modal => {
+                    UIUtils.setHidden(`#${modal.id}`, true);
+                });
+            }
         });
     }
 

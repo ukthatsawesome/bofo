@@ -141,6 +141,152 @@ const SIMPLE_ROUTES = {
     'convert-currency': (_, { amount, from, to }) => FinanceModel.convertCurrency(amount, from, to),
     'get-used-currencies': () => FinanceModel.getUsedCurrencies(),
     'get-accounts-converted': (_, baseCurrency) => FinanceModel.getAccountsWithConvertedBalances(baseCurrency),
+
+    // AI Handlers (Mirrored from complex handlers for easy routing)
+    'get-ai-settings': async () => {
+        try { return await syncAIService(); }
+        catch (e) { return { enabled: false, url: 'http://127.0.0.1:11434', model: 'gemma3:4b' }; }
+    },
+    'get-ai-defaults': () => {
+        try { return getAIService().DEFAULTS || {}; }
+        catch (e) { return {}; }
+    },
+    'save-ai-settings': (_, settings) => {
+        return SIMPLE_ROUTES['save-ai-settings-internal'](null, settings);
+    },
+    'save-ai-settings-internal': async (_, settings) => {
+        try {
+            await FinanceModel.saveAISettings(settings);
+            await syncAIService();
+            return { success: true };
+        } catch (e) {
+            return { success: false, error: e.message };
+        }
+    },
+    'get-ai-models': async (_, url) => {
+        try {
+            const ai = getAIService();
+            if (url) ai.baseUrl = url;
+            return await ai.getInstalledModels();
+        } catch (e) {
+            console.warn('[IPC] get-ai-models failed:', e.message);
+            return [];
+        }
+    },
+    'check-ai-connection': async () => {
+        try { return await getAIService().checkConnection(); }
+        catch (e) { return false; }
+    },
+    'get-ai-health': async () => {
+        try {
+            const ai = getAIService();
+            const health = ai.getHealthStatus();
+            return {
+                ...health,
+                baseUrl: ai.baseUrl,
+                model: ai.model
+            };
+        } catch (e) {
+            return { isConnected: false, lastError: e.message, circuitOpen: true };
+        }
+    },
+    'parse-transaction-ai': async (_, { text, categories, accounts }) => {
+        try {
+            const result = await getAIService().parseTransactionFromText(text, categories || [], accounts || []);
+            return { success: true, data: result };
+        } catch (e) {
+            console.warn('[IPC] parse-transaction-ai failed:', e.message);
+            return { success: false, error: e.message, data: null };
+        }
+    },
+    'get-ai-insight': async (_, summary) => {
+        try {
+            return await getAIService().getFinancialInsight(summary);
+        } catch (e) {
+            console.warn('[IPC] get-ai-insight failed:', e.message);
+            return "Keep tracking your spending to stay on top of your goals!";
+        }
+    },
+
+    // Metadata Handlers
+    'get-host-info': () => {
+        const os = require('os');
+        const interfaces = os.networkInterfaces();
+        const results = [];
+        for (const name of Object.keys(interfaces)) {
+            for (const iface of interfaces[name]) {
+                if (iface.family === 'IPv4' && !iface.internal) {
+                    results.push(iface.address);
+                }
+            }
+        }
+        return {
+            ips: results,
+            hostname: os.hostname(),
+            platform: os.platform()
+        };
+    },
+
+    // Web-compatible raw data export
+    'get-backup-data': () => FinanceModel.exportData(),
+    'import-backup-data': (_, data) => FinanceModel.importData(data),
+
+    // Web-compatible versions of complex handlers (no dialogs, no streaming)
+    // Note: For IPC, 'chat-sandbox' also has a separate handler with streaming support
+    'chat-sandbox': async (_, { text, context }) => {
+        try {
+            // Non-streaming version for HTTP calls
+            return await getAIService().chatSandbox(text, context, null, null);
+        } catch (e) {
+            console.warn('[IPC] chat-sandbox failed:', e.message);
+            if (e.message.includes('timed out')) return "The AI is taking too long to respond.";
+            return "I'm having trouble connecting to the AI engine.";
+        }
+    },
+
+    'calculate-forecast': async (_, data) => {
+        try {
+            const ForecastEngine = require('../../utils/forecast');
+            const engine = new ForecastEngine(
+                data.transactions || [],
+                data.accounts || [],
+                data.settings || {},
+                data.recurringCharges || []
+            );
+            return engine.generateForecast(data.months || 6);
+        } catch (e) {
+            console.error('Forecast error:', e);
+            return { timeline: [], summary: {}, insights: [] };
+        }
+    },
+
+    'sync-exchange-rates': async (_, { provider, baseCurrency, customUrl }) => {
+        try {
+            const CurrencyService = require('../../services/currencyService');
+            const rates = await CurrencyService.fetchRates(provider, baseCurrency, customUrl);
+            const usedCurrencies = await FinanceModel.getUsedCurrencies();
+            usedCurrencies.push(baseCurrency);
+            const relevantRates = CurrencyService.filterRelevantRates(rates, usedCurrencies);
+            await FinanceModel.setExchangeRatesBulk(relevantRates, 'api');
+            await FinanceModel.updateSetting('currency_last_sync', new Date().toISOString());
+            return { success: true, message: `Synced ${relevantRates.length} exchange rates`, ratesUpdated: relevantRates.length };
+        } catch (err) {
+            return { success: false, message: err.message };
+        }
+    },
+
+    'test-currency-api': async (_, { provider, baseCurrency, customUrl }) => {
+        try {
+            const CurrencyService = require('../../services/currencyService');
+            return await CurrencyService.testConnection(provider, baseCurrency, customUrl);
+        } catch (err) {
+            return { success: false, message: err.message };
+        }
+    },
+
+    'get-currency-providers': () => {
+        return require('../../services/currencyService').getProviders();
+    }
 };
 
 // =============================================================================
@@ -148,8 +294,14 @@ const SIMPLE_ROUTES = {
 // =============================================================================
 
 function registerIpcHandlers() {
-    // Register all simple routes
+    // Channels that have separate IPC handlers with special features (e.g., streaming)
+    const skipForIpc = new Set(['chat-sandbox']);
+
+    // Register all simple routes (available via both IPC and HTTP)
     for (const [channel, handler] of Object.entries(SIMPLE_ROUTES)) {
+        // Skip channels that have custom IPC handlers
+        if (skipForIpc.has(channel)) continue;
+
         ipcMain.handle(channel, async (event, data) => {
             try {
                 return await handler(event, data);
@@ -161,7 +313,7 @@ function registerIpcHandlers() {
     }
 
     // ==========================================================================
-    // COMPLEX HANDLERS (require special logic)
+    // COMPLEX HANDLERS (require special logic or dialogs)
     // ==========================================================================
 
     // Export Data (with dialog)
@@ -254,113 +406,24 @@ function registerIpcHandlers() {
         }
     });
 
-    // ==========================================================================
-    // AI HANDLERS
-    // ==========================================================================
-
-    ipcMain.handle('get-ai-settings', async () => {
-        try { return await syncAIService(); }
-        catch (e) { return { enabled: false, url: 'http://127.0.0.1:11434', model: 'gemma3:4b' }; }
-    });
-
-    ipcMain.handle('get-ai-defaults', async () => {
-        try { return getAIService().DEFAULTS || {}; }
-        catch (e) { return {}; }
-    });
-
-    ipcMain.handle('save-ai-settings', async (_, settings) => {
-        try {
-            await FinanceModel.saveAISettings(settings);
-            await syncAIService();
-            return true;
-        } catch (e) { return false; }
-    });
-
-    ipcMain.handle('get-ai-models', async (_, url) => {
-        try {
-            const ai = getAIService();
-            if (url) ai.baseUrl = url;
-            return await ai.getInstalledModels();
-        } catch (e) { return []; }
-    });
-
-    ipcMain.handle('check-ai-connection', async () => {
-        try { return await getAIService().checkConnection(); }
-        catch (e) { return false; }
-    });
-
-    ipcMain.handle('parse-transaction-ai', async (_, { text, categories, accounts }) => {
-        try { return await getAIService().parseTransactionFromText(text, categories || [], accounts || []); }
-        catch (e) { return null; }
-    });
-
-    ipcMain.handle('get-ai-insight', async (_, summary) => {
-        try { return await getAIService().getFinancialInsight(summary); }
-        catch (e) { return "Keep tracking your spending to stay on top of your goals!"; }
-    });
-
     ipcMain.handle('chat-sandbox', async (event, { text, context }) => {
         try {
-            return await getAIService().chatSandbox(text, context, null, (chunk) => {
-                event.sender.send('chat-sandbox-chunk', chunk);
-            });
-        } catch (e) { return "I'm having trouble connecting to the AI engine."; }
-    });
+            // Safely handle streaming - event may be null when called via HTTP
+            const streamCallback = (event?.sender)
+                ? (chunk) => event.sender.send('chat-sandbox-chunk', chunk)
+                : null; // No streaming for HTTP calls
 
-    // ==========================================================================
-    // FORECAST HANDLER
-    // ==========================================================================
-
-    ipcMain.handle('calculate-forecast', async (_, data) => {
-        try {
-            const ForecastEngine = require('../../utils/forecast');
-            const engine = new ForecastEngine(
-                data.transactions || [],
-                data.accounts || [],
-                data.settings || {}
-            );
-            return engine.generateForecast(data.months || 6);
+            return await getAIService().chatSandbox(text, context, null, streamCallback);
         } catch (e) {
-            console.error('Forecast error:', e);
-            return { timeline: [], summary: {}, insights: [] };
+            console.warn('[IPC] chat-sandbox failed:', e.message);
+            if (e.message.includes('timed out')) return "The AI is taking too long to respond.";
+            return "I'm having trouble connecting to the AI engine.";
         }
     });
 
-    // ==========================================================================
-    // CURRENCY SYNC HANDLER
-    // ==========================================================================
+    // Note: calculate-forecast is now in SIMPLE_ROUTES
 
-    ipcMain.handle('sync-exchange-rates', async (_, { provider, baseCurrency, customUrl }) => {
-        try {
-            const CurrencyService = require('../../services/currencyService');
-            const rates = await CurrencyService.fetchRates(provider, baseCurrency, customUrl);
-            const usedCurrencies = await FinanceModel.getUsedCurrencies();
-            usedCurrencies.push(baseCurrency);
-            const relevantRates = CurrencyService.filterRelevantRates(rates, usedCurrencies);
-            await FinanceModel.setExchangeRatesBulk(relevantRates, 'api');
-            await FinanceModel.updateSetting('currency_last_sync', new Date().toISOString());
-            return { success: true, message: `Synced ${relevantRates.length} exchange rates`, ratesUpdated: relevantRates.length };
-        } catch (err) {
-            return { success: false, message: err.message };
-        }
-    });
-
-    ipcMain.handle('test-currency-api', async (_, { provider, baseCurrency, customUrl }) => {
-        try {
-            const CurrencyService = require('../../services/currencyService');
-            return await CurrencyService.testConnection(provider, baseCurrency, customUrl);
-        } catch (err) {
-            return { success: false, message: err.message };
-        }
-    });
-
-    ipcMain.handle('get-currency-providers', async () => {
-        return require('../../services/currencyService').getProviders();
-    });
-
-    // ==========================================================================
-    // BACKUP HANDLERS
-    // ==========================================================================
+    // Note: sync-exchange-rates, test-currency-api, get-currency-providers are now in SIMPLE_ROUTES
 
     ipcMain.handle('pick-backup-directory', async () => {
         const { filePaths, canceled } = await dialog.showOpenDialog({
@@ -374,49 +437,35 @@ function registerIpcHandlers() {
         try {
             const settings = await FinanceModel.getAllSettings();
             const backupDir = settings.auto_backup_directory;
-
-            if (!backupDir) return { success: false, message: 'No backup directory configured' };
-            if (!fs.existsSync(backupDir)) return { success: false, message: 'Backup directory does not exist' };
+            if (!backupDir || !fs.existsSync(backupDir)) return { success: false, message: 'Invalid backup directory' };
 
             const data = await FinanceModel.exportData();
             const timestamp = new Date().toISOString().replace(/[:.]/g, '-').split('T')[0];
-            const filename = `bofo-backup-${timestamp}.json`;
-            fs.writeFileSync(path.join(backupDir, filename), JSON.stringify(data, null, 2));
+            fs.writeFileSync(path.join(backupDir, `bofo-backup-${timestamp}.json`), JSON.stringify(data, null, 2));
             await FinanceModel.updateSetting('auto_backup_last', new Date().toISOString());
-
-            return { success: true, message: `Backup saved to ${filename}` };
+            return { success: true, message: 'Backup saved' };
         } catch (err) {
             return { success: false, message: err.message };
         }
     });
 }
 
-// =============================================================================
-// AUTO-BACKUP ON APP CLOSE
-// =============================================================================
-
 async function performAutoBackup() {
     try {
         const settings = await FinanceModel.getAllSettings();
         if (settings.auto_backup_enabled !== 'true' || !settings.auto_backup_directory) return;
+        if (!fs.existsSync(settings.auto_backup_directory)) return;
 
-        const backupDir = settings.auto_backup_directory;
-        if (!fs.existsSync(backupDir)) return;
-
-        // Check if already backed up today
         const lastBackup = settings.auto_backup_last;
         if (lastBackup && new Date(lastBackup).toDateString() === new Date().toDateString()) return;
 
         const data = await FinanceModel.exportData();
         const timestamp = new Date().toISOString().replace(/[:.]/g, '-').split('T')[0];
-        const filepath = path.join(backupDir, `bofo-backup-${timestamp}.json`);
-        fs.writeFileSync(filepath, JSON.stringify(data, null, 2));
+        fs.writeFileSync(path.join(settings.auto_backup_directory, `bofo-backup-${timestamp}.json`), JSON.stringify(data, null, 2));
         await FinanceModel.updateSetting('auto_backup_last', new Date().toISOString());
-
-        console.log('Auto-backup completed:', filepath);
     } catch (err) {
         console.error('Auto-backup failed:', err);
     }
 }
 
-module.exports = { registerIpcHandlers, performAutoBackup };
+module.exports = { registerIpcHandlers, performAutoBackup, SIMPLE_ROUTES };

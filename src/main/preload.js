@@ -78,7 +78,9 @@ contextBridge.exposeInMainWorld('api', {
     getAIDefaults: () => ipcRenderer.invoke('get-ai-defaults'),
     saveAISettings: (settings) => ipcRenderer.invoke('save-ai-settings', settings),
     getAIModels: (url) => ipcRenderer.invoke('get-ai-models', url),
+    getOllamaModels: (url) => ipcRenderer.invoke('get-ai-models', url), // Alias for compatibility
     checkAIConnection: () => ipcRenderer.invoke('check-ai-connection'),
+    getAIHealth: () => ipcRenderer.invoke('get-ai-health'),
     parseTransactionAI: (text) => ipcRenderer.invoke('parse-transaction-ai', text),
     getAIInsight: (summary) => ipcRenderer.invoke('get-ai-insight', summary),
     chatSandbox: (text, context) => ipcRenderer.invoke('chat-sandbox', { text, context }),
@@ -109,4 +111,8 @@ contextBridge.exposeInMainWorld('api', {
     testCurrencyAPI: (provider, baseCurrency, customUrl) =>
         ipcRenderer.invoke('test-currency-api', { provider, baseCurrency, customUrl }),
     getCurrencyProviders: () => ipcRenderer.invoke('get-currency-providers'),
+
+    // Remote Access
+    getHostInfo: () => ipcRenderer.invoke('get-host-info'),
+    restartWebServer: () => ipcRenderer.send('restart-web-server'),
 });

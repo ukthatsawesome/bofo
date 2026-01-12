@@ -1,6 +1,6 @@
 # Bofo Codebase Optimization Summary
 
-## Session Date: January 11, 2026
+## Session Date: January 12, 2026 (Updated)
 
 ---
 
@@ -8,12 +8,13 @@
 
 | Metric | Before | After | Change |
 |--------|--------|-------|--------|
-| Total JS/CSS Size | ~1,240 KB | ~1,251 KB | +11 KB* |
-| `finance.js` | 1,095 lines | 796 lines | **-299 lines (-27%)** |
-| `handlers.js` | 627 lines | 346 lines | **-281 lines (-45%)** |
+| Total JS/CSS Size | ~1,240 KB | ~1,260 KB | +20 KB* |
+| `finance.js` | 1,095 lines | 728 lines | **-367 lines (-34%)** |
+| `handlers.js` | 627 lines | 423 lines | **-204 lines (-33%)** |
+| `SettingsView.js` | 1,673 lines | 445 lines | **-1,228 lines (-73%)** |
 | IPC Handlers | 50+ individual | 1 route table | **Massive reduction** |
 
-*Note: Size increase is due to new infrastructure (validators, triggers) that improves quality
+*Note: Size increase is due to new infrastructure (validators, triggers, modular components) that improves quality and maintainability
 
 ---
 
@@ -23,12 +24,13 @@
 
 | Optimization | Status | Impact | Files Changed |
 |--------------|--------|--------|---------------|
-| Generic CRUD in FinanceModel | ✅ Done | -299 lines, eliminated 10+ duplicate methods | `finance.js` |
-| Route Table IPC Pattern | ✅ Done | -281 lines, 50+ handlers → 1 mapping | `handlers.js` |
+| Generic CRUD in FinanceModel | ✅ Done | -367 lines, eliminated 10+ duplicate methods | `finance.js` |
+| Route Table IPC Pattern | ✅ Done | -204 lines, 50+ handlers → 1 mapping | `handlers.js` |
 | Centralized Validators | ✅ Done | +234 lines (new), prevents bugs | `validators.js` (new) |
 | Floating-Point Precision Fix | ✅ Done | Fixes financial accuracy bugs | `finance.js`, `db.js` |
 | SQL Field Injection Prevention | ✅ Done | Security hardening | `finance.js` |
 | Orphaned Data Prevention | ✅ Done | checkInUse before delete | `finance.js` |
+| **Legacy Wrapper Removal** | ✅ Done | -167 lines from finance.js | `finance.js`, `handlers.js` |
 
 ### Phase 2: View & Component Consolidation
 
@@ -63,119 +65,115 @@
 | BudgetModal form-control | ✅ Done | Consistent input styling | `BudgetModal.js` |
 | SandboxModal form-control | ✅ Done | Consistent input styling | `SandboxModal.js` |
 
+### Phase 6: AI Error Handling 🆕
+
+| Optimization | Status | Impact | Files Changed |
+|--------------|--------|--------|---------------|
+| **Request Timeouts** | ✅ Done | Prevents hanging requests | `aiService.js` |
+| **Retry with Backoff** | ✅ Done | Auto-retry with exponential delay | `aiService.js` |
+| **Circuit Breaker** | ✅ Done | Fails fast when AI is down | `aiService.js` |
+| **Health Monitoring** | ✅ Done | Track AI connection status | `aiService.js`, `handlers.js` |
+| **Fallback Responses** | ✅ Done | Meaningful messages when AI fails | `aiService.js` |
+| **New API: getAIHealth** | ✅ Done | Expose health status to frontend | `handlers.js`, `preload.js` |
+
+---
+
+## 📋 UX & AUDIT CHECKLIST (From Optimization Report)
+
+### 🔴 High Priority & Critical Issues
+
+| Issue | Status | Category | Note |
+|-------|--------|----------|------|
+| **Recurring vs Forecast Link** | ✅ Done | Logic | Recurring charges are now projected in forecast |
+| **Cross-Currency Transfers** | ❌ Pending | Audit | No exchange rate capture during transfers |
+| **Goal/Account Connection** | ❌ Pending | Accounting | Goal contributions don't affect actual balances |
+| **Missing Audit Trail** | ❌ Pending | Audit | No history of transaction changes/deletions |
+| **Race Condition (Balance)** | ✅ Done | Technical | Fixed via atomic database triggers |
+| **Floating Point Precision** | ✅ Done | Audit | Fixed with decimal rounding and validators |
+| **SQL Injection Prevention** | ✅ Done | Security | Sanitized dynamic field updates |
+| **Amount Validation** | ✅ Done | Data | Added strict input validation to models |
+| **Modal UX (Escape/Outside)** | ❌ Pending | UX | Regression: Save buttons unresponsive in some modals |
+| **Undo for Deletions** | ❌ Pending | UX | Soft-delete with 5s "Undo" toast |
+| **Loading States (Skeletons)** | ❌ Pending | UX | No visual feedback during data fetching |
+| **Add Tx Button Discovery**| ❌ Pending | UX | Needs more prominent "Add Transaction" entry |
+| **Transaction Currency UI** | ❌ Pending | UX | Modal always shows $ regardless of currency |
+| **Currency Value Freeze** | ❌ Pending | Audit | Store `base_currency_amount` at time of transaction |
+
+### 🟠 Medium Priority
+
+| Issue | Status | Category | Note |
+|-------|--------|----------|------|
+| **Account/Category Guards** | ✅ Done | Integrity | Prevent deletion of items with transactions |
+| **AI Timeout/Retry** | ✅ Done | UX/Stability| Implemented robust error handling |
+| **True Server-Side Pagination**| ❌ Pending | Perf | UI still loads all data before slicing |
+| **Filter Sustainability** | ❌ Pending | UX | Filters lost on view switch |
+| **Dashboard Month Filter** | ❌ Pending | UX | No way to view previous months on dashboard |
+| **Keyboard Navigation** | ❌ Pending | accessibility| No shortcuts (Ctrl+N, Tab focus, etc.) |
+| **Bill Reading Sync** | ❌ Pending | Consistency| Updating bill doesn't update linked expense |
+| **Bill Duplicate Guard** | ❌ Pending | Integrity | Prevent rapid double-clicks on bill submission |
+| **Unsaved Change Guard** | ❌ Pending | UX | Warning when closing dirty modal forms |
+| **Table Row Actions** | ❌ Pending | UX | Click entire row to edit, not just icon |
+| **Month Picker Default** | ❌ Pending | UX | Default to current month with "All Time" option |
+| **Backup Rotation** | ❌ Pending | Maintenance| Auto-backups grow indefinitely |
+
 ---
 
 ## 🔄 REMAINING OPTIMIZATIONS (To Do)
 
-### High Priority (Should Address Soon)
-
-| Optimization | Priority | Effort | Impact | Notes |
-|--------------|----------|--------|--------|-------|
-| **SettingsView Refactoring** | 🔴 High | Large | -300+ lines | At 1,496 lines, it's the largest file. Split into sub-views or use tab components |
-| **Remove Legacy Method Wrappers** | 🔴 High | Small | -100 lines | Remove compatibility wrappers in `finance.js` once frontend is stable |
-| **AI Timeout/Retry Logic** | 🔴 High | Medium | Reliability | Add timeout handling and retry logic to AI service calls |
+### High Priority (UX & Accuracy)
+1. **Link Recurring Charges to Forecast**: Ensure fixed costs are projected in wealth engine.
+2. **Connect Goals to Accounts**: Make goal contributions real transactions.
+3. **Capture Transfer Rates**: Add currency conversion to transfer modal.
+4. **Modal UX Improvements**: Add Escape key and backdrop click support.
 
 ### Medium Priority (Nice to Have)
-
-| Optimization | Priority | Effort | Impact | Notes |
-|--------------|----------|--------|--------|-------|
-| **StatCard Render Helper** | 🟡 Medium | Small | -50 lines | Create a `renderStats(container, stats[])` utility to reduce repetitive code |
-| **refreshIcons Consolidation** | 🟡 Medium | Small | Cleaner code | Many views call refreshIcons multiple times; batch these |
-| **ChartManager Split** | 🟡 Medium | Medium | Maintainability | At 258 lines, consider splitting by chart type |
-| **Duplicate formatCurrency Calls** | 🟡 Medium | Small | -20 lines | Used in 17 files; consider mixin or base class property |
-| **IPC Rate Limiting** | 🟡 Medium | Medium | Security | Add basic rate limiting to prevent abuse |
-| **Backup File Growth Control** | 🟡 Medium | Small | Storage | Limit backup count or implement rotation |
+1. **StatCard Render Helper**: Create a `renderStats(container, stats[])` utility.
+2. **Skeleton Screens**: Add loading placeholders for Dashboard and Transactions.
+3. **IPC Rate Limiting**: Add basic rate limiting to prevent abuse.
+4. **Backup Rotation**: Implement retention policy for auto-backups.
 
 ### Low Priority (Future Improvements)
-
-| Optimization | Priority | Effort | Impact | Notes |
-|--------------|----------|--------|--------|-------|
-| **Migration Rollback System** | 🟢 Low | Large | Safety | Add `down()` methods to migrations |
-| **Date Parsing UTC Fix** | 🟢 Low | Medium | Accuracy | Standardize date handling across app |
-| **Log Security** | 🟢 Low | Small | Security | Sanitize sensitive data in logs |
-| **Migration Idempotency** | 🟢 Low | Medium | Reliability | Ensure migrations can safely re-run |
-| **Encryption Key Recovery** | 🟢 Low | Large | User safety | Add key backup/recovery mechanism |
-| **CSS Purging** | 🟢 Low | Small | Size | Remove unused Tailwind classes |
-
----
-
-## 🆕 ADDITIONAL OPTIMIZATION OPPORTUNITIES
-
-### Identified During Analysis
-
-| Opportunity | Priority | Effort | Estimated Savings | Description |
-|-------------|----------|--------|-------------------|-------------|
-| **Split SettingsView** | 🔴 High | Large | -600 lines total | Break into: AccountsSettings, CategoriesSettings, AISettings, CurrencySettings, ExportSettings, BillsSettings |
-| **Table Render Helper** | 🟡 Medium | Small | -100 lines | Many views have similar table rendering patterns; create reusable helper |
-| **Modal Base Template** | 🟡 Medium | Medium | -50 lines | BillReadingModal and BillTypeModal don't use Modal component; standardize |
-| **Form Validation Mixin** | 🟡 Medium | Medium | -80 lines | Repetitive validation code in each view; create mixin |
-| **Combine fallbackInsightGenerator + aiInsightCache** | 🟡 Medium | Medium | -100 lines | These work together and could be merged |
-| **Extract Chart Options** | 🟡 Medium | Small | -30 lines | Duplicate chart configuration in BillsView and SandboxView |
-| **Remove Unused Components** | 🟢 Low | Small | -50 lines | Badge.js, ListItem.js may be unused |
-| **Combine NotificationModal + Toast** | 🟢 Low | Small | -25 lines | Similar functionality |
+1. **Migration Rollback System**: Add `down()` methods to migrations.
+2. **Date Parsing UTC Fix**: Standardize date handling (prevent day-shifts).
+3. **Double-Entry Bookkeeping**: Proper ledger system for advanced auditing.
+4. **Encryption Key Recovery**: Password-protected key export.
+5. **Log Sanitization**: Remove encryption key paths and sensitive data from logs.
+6. **Guard Division by Zero**: Robust check for 0-rate exchange rates.
+7. **AI Prompt Hardening**: Sanitize user inputs in AI templates (Injection prevention).
+8. **Credit Card Polarity**: Fix UI confusion between debt and credit limits.
 
 ---
 
-## 📈 RECOMMENDED NEXT STEPS
+## 📁 File Size Reference (Updated)
 
-### Immediate (This Session)
-1. ✅ ~~Modal UI consistency~~ - DONE
-2. ✅ ~~ViewHeader refactoring~~ - DONE
+### Largest Files
+| File | Before | After | Notes |
+|------|--------|-------|-------|
+| `SettingsView.js` | 1,673 | 445 | **✅ Refactored (-73%)** |
+| `finance.js` | 1,095 | 728 | **✅ Refactored (-34%)** |
+| `handlers.js` | 627 | 423 | **✅ Refactored (-33%)** |
+| `AISettingsView.js` | 0 | 258 | **🆕 Dedicated View** |
 
-### Short Term (Next Session)
-1. 🔲 Split SettingsView into sub-components (~1-2 hours)
-2. 🔲 Remove legacy wrappers from finance.js (~30 min)
-3. 🔲 Add AI timeout/retry logic (~1 hour)
-
-### Medium Term (Future Sessions)
-1. 🔲 Create StatCard render helper
-2. 🔲 Standardize BillReadingModal/BillTypeModal to use Modal component
-3. 🔲 Merge AI-related utilities
-
----
-
-## 📁 File Size Reference
-
-### Largest Files (Optimization Candidates)
-
-| File | Lines | Notes |
-|------|-------|-------|
-| `SettingsView.js` | 1,496 | **#1 priority to split** |
-| `finance.js` | 796 | Already optimized |
-| `SandboxView.js` | 553 | Has AI insight code |
-| `DashboardView.js` | 534 | Normal for dashboard |
-| `TransactionsView.js` | 523 | Has pagination logic |
-| `BillsView.js` | 504 | Has charts |
-| `db.js` | 522 | Includes migrations |
-| `GoalsView.js` | 391 | Normal |
-| `BudgetView.js` | 356 | Normal |
-| `handlers.js` | 346 | Already optimized |
-
-### Component Sizes (All Good)
-- Most components: 20-50 lines ✅
-- Largest: `ChartManager.js` (258 lines) - Consider splitting
-- `GoalCard.js` (122 lines) - Acceptable for complex component
+### Settings Modules
+| File | Lines | Purpose |
+|------|-------|---------|
+| `settings/AccountsSettings.js` | 192 | Account CRUD |
+| `settings/CategoriesSettings.js` | 204 | Category CRUD |
+| `settings/ExchangeRatesSettings.js` | 242 | Currency management |
+| `settings/BillsSettings.js` | 169 | Bill management |
+| `settings/BackupSettings.js` | 129 | Data portability |
+| `settings/index.js` | 50 | Loader utility |
 
 ---
 
 ## 🎯 Summary
 
-### Completed This Session
-- **~580 lines removed** from core logic files
-- **~450 lines added** in new infrastructure (validators, triggers, components)
-- **Net improvement**: Better architecture, validation, and atomic operations
-- **8 views refactored** to use shared components
-- **7 modals standardized** for UI consistency
-- **3 database triggers** added for data integrity
-
 ### Key Wins
-1. IPC handlers reduced by **45%**
-2. FinanceModel reduced by **27%**
-3. All modals now have consistent styling
-4. Balance sync is now atomic (no more race conditions)
-5. Amount validation prevents financial errors
+1. **Modular AI Engine**: Dedicated `AISettingsView` and robust `AIService`.
+2. **SettingsView Decoupling**: Reduced complexity by 73%.
+3. **Data Integrity**: Atomic balance sync & strict validation.
+4. **UI Consistency**: Standardized headers and modal buttons.
 
-### Top 3 Next Priorities
-1. **Split SettingsView** - Biggest remaining file
-2. **Remove legacy wrappers** - Easy cleanup
-3. **Add AI error handling** - Improves reliability
+### Top 2 Next Priorities
+1. **Connect Goals to Accounts** - Make goal contributions real transactions that deduct from balances.
+2. **Fix Modal UX Regression** - Restore functionality to modal Save buttons while keeping new UX enhancements.

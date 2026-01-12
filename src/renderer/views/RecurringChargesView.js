@@ -252,11 +252,11 @@ export class RecurringChargesView extends BaseView {
             form?.reset();
             $('#recurring-id').value = '';
         }
-        modal?.classList.remove('hidden');
+        UIUtils.setHidden('#recurring-charge-modal', false);
     }
 
     closeRecurringChargeModal() {
-        $('#recurring-charge-modal')?.classList.add('hidden');
+        UIUtils.setHidden('#recurring-charge-modal', true);
     }
 
     async save() {

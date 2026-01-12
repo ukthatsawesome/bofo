@@ -154,6 +154,7 @@ export class ForecastView extends BaseView {
         return window.api.calculateForecast({
             transactions: this.app.state.transactions,
             accounts: this.app.state.accounts,
+            recurringCharges: this.app.state.recurringCharges,
             months
         });
     }
