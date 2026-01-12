@@ -80,13 +80,14 @@ npm run dist:linux
 
 ## 📁 Project Structure
 
-- `src/main`: Electron main process (OS integration, IPC handlers)
-- `src/renderer`: Frontend code (Views, Components, Core logic)
-- `src/models`: Database models and data operations
-- `src/database`: Schema, migrations, and TypeScript database helpers
-- `src/services`: External integrations (AI & Currency TypeScript Services)
-- `src/shared`: Shared TypeScript constants and definitions
-- `src/utils`: Mathematical and logic utilities in TypeScript
+- `src/main/`: Electron main process & Backend Logic
+    - `database/`: Schema, migrations, and database helpers
+    - `models/`: Data access objects (DAO) and business logic
+    - `services/`: External integrations (AI, Currency)
+    - `ipc/`: IPC Handlers and routing
+    - `utils/`: Backend utilities
+- `src/renderer/`: Frontend UI (Views, Components)
+- `src/shared/`: Shared TypeScript types and constants
 
 ---
 

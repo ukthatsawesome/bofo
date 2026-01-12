@@ -25,6 +25,20 @@ export const CURRENCIES: Currency[] = [
     { code: 'CNY', name: 'Chinese Yuan', symbol: '¥' },
     { code: 'INR', name: 'Indian Rupee', symbol: '₹' },
     { code: 'SGD', name: 'Singapore Dollar', symbol: 'S$' },
+    { code: 'HKD', name: 'Hong Kong Dollar', symbol: 'HK$' },
+    { code: 'NZD', name: 'New Zealand Dollar', symbol: 'NZ$' },
+    { code: 'SEK', name: 'Swedish Krona', symbol: 'kr' },
+    { code: 'NOK', name: 'Norwegian Krone', symbol: 'kr' },
+    { code: 'DKK', name: 'Danish Krone', symbol: 'kr' },
+    { code: 'MXN', name: 'Mexican Peso', symbol: '$' },
+    { code: 'BRL', name: 'Brazilian Real', symbol: 'R$' },
+    { code: 'ZAR', name: 'South African Rand', symbol: 'R' },
+    { code: 'TRY', name: 'Turkish Lira', symbol: '₺' },
+    { code: 'RUB', name: 'Russian Ruble', symbol: '₽' },
+    { code: 'PLN', name: 'Polish Zloty', symbol: 'zł' },
+    { code: 'SAR', name: 'Saudi Riyal', symbol: '﷼' },
+    { code: 'AED', name: 'UAE Dirham', symbol: 'dh' },
+    { code: 'ILS', name: 'Israeli Shekel', symbol: '₪' },
     { code: 'NPR', name: 'Nepalese Rupee', symbol: 'रू' },
     { code: 'KRW', name: 'South Korean Won', symbol: '₩' },
     { code: 'THB', name: 'Thai Baht', symbol: '฿' },
@@ -37,6 +51,7 @@ export const CURRENCIES: Currency[] = [
     { code: 'LKR', name: 'Sri Lankan Rupee', symbol: 'Rs' }
 ];
 
+// Predefined open-source currency API providers
 export const CURRENCY_API_PROVIDERS: CurrencyApiProvider[] = [
     {
         id: 'frankfurter',
@@ -67,6 +82,7 @@ export const CURRENCY_API_PROVIDERS: CurrencyApiProvider[] = [
     }
 ];
 
+// Helper functions
 export function getCurrencyByCode(code: string): Currency | undefined {
     return CURRENCIES.find(c => c.code === code);
 }

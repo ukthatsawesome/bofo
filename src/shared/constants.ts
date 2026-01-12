@@ -10,15 +10,11 @@ export const VIEW_IDS = {
     SETTINGS: 'settings'
 } as const;
 
-export type ViewId = typeof VIEW_IDS[keyof typeof VIEW_IDS];
-
 export const TRANSACTION_TYPES = {
     INCOME: 'income',
     EXPENSE: 'expense',
     TRANSFER: 'transfer'
 } as const;
-
-export type TransactionType = typeof TRANSACTION_TYPES[keyof typeof TRANSACTION_TYPES];
 
 export const ACCOUNT_TYPES = {
     BANK: 'bank',
@@ -27,5 +23,3 @@ export const ACCOUNT_TYPES = {
     LOAN: 'loan',
     INVESTMENT: 'investment'
 } as const;
-
-export type AccountType = typeof ACCOUNT_TYPES[keyof typeof ACCOUNT_TYPES];
