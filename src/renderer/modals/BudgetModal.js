@@ -7,40 +7,42 @@ export const BudgetModal = ({ categories }) => {
         title: 'Create Budget',
         content: `
             ${FormGroup({
-                label: 'Category',
-                content: `
-                    <select id="budget-category">
+            label: 'Category',
+            content: `
+                    <select id="budget-category" class="form-control">
                         ${categories.map(c => `<option value="${c.name}">${c.name}</option>`).join('')}
                     </select>
                 `
-            })}
+        })}
             ${FormGroup({
-                label: 'Monthly Limit',
-                content: '<input type="number" id="budget-limit" step="0.01" placeholder="0.00">'
-            })}
+            label: 'Budget Limit',
+            content: '<input type="number" id="budget-limit" class="form-control" step="0.01" placeholder="0.00">'
+        })}
             ${FormGroup({
-                label: 'Period',
-                content: `
-                    <select id="budget-period">
+            label: 'Period',
+            content: `
+                    <select id="budget-period" class="form-control">
                         <option value="monthly">Monthly</option>
                         <option value="weekly">Weekly</option>
                         <option value="yearly">Yearly</option>
                     </select>
                 `
-            })}
-            <div class="flex-row gap-4">
+        })}
+            <div class="grid grid-cols-2 gap-4">
                 ${FormGroup({
-                    label: 'Start Date',
-                    content: '<input type="date" id="budget-start">'
-                })}
+            label: 'Start Date',
+            className: 'mb-0',
+            content: '<input type="date" id="budget-start" class="form-control">'
+        })}
                 ${FormGroup({
-                    label: 'End Date',
-                    content: '<input type="date" id="budget-end">'
-                })}
+            label: 'End Date',
+            className: 'mb-0',
+            content: '<input type="date" id="budget-end" class="form-control">'
+        })}
             </div>
         `,
         actions: `
-            <button class="btn" id="cancel-budget">Cancel</button>
+            <button class="btn secondary" id="cancel-budget">Cancel</button>
             <button class="btn primary" id="save-budget">Save Budget</button>
         `
     });

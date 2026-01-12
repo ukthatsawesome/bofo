@@ -4,6 +4,7 @@ import { StatCard } from '../components/common/StatCard.js';
 import { SegmentedControl } from '../components/common/SegmentedControl.js';
 import { EmptyState } from '../components/common/EmptyState.js';
 import { InsightCard } from '../components/common/InsightCard.js';
+import { ViewHeader } from '../components/common/ViewHeader.js';
 
 export class SandboxView extends BaseView {
     constructor(app) {
@@ -26,15 +27,11 @@ export class SandboxView extends BaseView {
 
     renderBaseTemplate() {
         this.element.innerHTML = `
-            <div class="view-header">
-                <div class="header-main">
-                    <h1>Financial Planner</h1>
-                    <p class="text-muted">Plan future expenses and see how they affect your finances</p>
-                </div>
-                <div class="header-actions">
-                    <div id="planner-range-container"></div>
-                </div>
-            </div>
+            ${ViewHeader({
+            title: 'Financial Planner',
+            subtitle: 'Plan future expenses and see how they affect your finances',
+            actions: `<div id="planner-range-container"></div>`
+        })}
 
             <div id="planner-stats-container" class="stats-grid mb-6"></div>
 

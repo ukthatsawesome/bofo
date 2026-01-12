@@ -3,8 +3,9 @@ import { $, UIUtils } from '../core/dom.js';
 import { StatCard } from '../components/common/StatCard.js';
 import { ProgressBar } from '../components/common/ProgressBar.js';
 import { InsightCard } from '../components/common/InsightCard.js';
-import { GridCard } from '../components/common/GridCard.js';
+import { Card } from '../components/common/Card.js';
 import { ListItem } from '../components/common/ListItem.js';
+import { ViewHeader } from '../components/common/ViewHeader.js';
 
 export class DashboardView extends BaseView {
     constructor(app) {
@@ -26,15 +27,10 @@ export class DashboardView extends BaseView {
 
     renderBaseTemplate() {
         this.element.innerHTML = `
-            <div class="view-header">
-                <div class="header-main">
-                    <h1>Financial Dashboard</h1>
-                    <p class="text-muted">Welcome back, here's your financial overview</p>
-                </div>
-                <div class="header-actions">
-                    <!-- Global Actions Removed -->
-                </div>
-            </div>
+            ${ViewHeader({
+            title: 'Financial Dashboard',
+            subtitle: "Welcome back, here's your financial overview"
+        })}
 
             <div id="dashboard-stats-container" class="stats-grid mb-6"></div>
 
@@ -42,16 +38,18 @@ export class DashboardView extends BaseView {
 
             <div class="dashboard-grid">
                 <div class="dashboard-main-col">
-                    <div class="card h-full flex flex-col">
-                        <div class="card-header">
-                            <h3><i data-lucide="line-chart"></i> Net Worth & Cash Flow</h3>
-                        </div>
-                        <div class="card-body flex-1 flex flex-col pt-0">
+                    ${Card({
+            title: 'Net Worth & Cash Flow',
+            icon: 'line-chart',
+            variant: 'default',
+            className: 'h-full flex flex-col',
+            bodyClass: 'flex-1 flex flex-col pt-0',
+            content: `
                             <div class="chart-container flex-1 relative min-h-[350px]">
                                 <canvas id="mainChart"></canvas>
                             </div>
-                        </div>
-                    </div>
+                        `
+        })}
                 </div>
                 <div class="dashboard-side-col">
                     <div id="quick-transaction-widget"></div>
@@ -248,19 +246,22 @@ export class DashboardView extends BaseView {
         const gridContainer = $('#dashboard-insights-grid');
         if (gridContainer) {
             gridContainer.innerHTML = `
-                ${GridCard({
+                ${Card({
                 title: 'Growth Highlights',
                 icon: 'trending-up',
+                variant: 'panel',
                 content: '<div id="growth-list" class="flex flex-col gap-4"></div>'
             })}
-                ${GridCard({
+                ${Card({
                 title: 'Top Categories',
                 icon: 'pie-chart',
+                variant: 'panel',
                 content: '<div id="category-distribution" class="flex flex-col gap-4"></div>'
             })}
-                ${GridCard({
+                ${Card({
                 title: 'Current Budget',
                 icon: 'target',
+                variant: 'panel',
                 content: '<div id="dashboard-budget-content" class="flex flex-col gap-4 min-h-[120px] justify-center"></div>'
             })}
             `;

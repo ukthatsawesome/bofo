@@ -7,6 +7,7 @@ import { EmptyState } from '../components/common/EmptyState.js';
 import { ProgressBar } from '../components/common/ProgressBar.js';
 import { InsightCard } from '../components/common/InsightCard.js';
 import { StatCard } from '../components/common/StatCard.js';
+import { ViewHeader } from '../components/common/ViewHeader.js';
 
 export class TransactionsView extends BaseView {
     constructor(app) {
@@ -30,18 +31,16 @@ export class TransactionsView extends BaseView {
 
     renderBaseTemplate() {
         this.element.innerHTML = `
-            <div class="view-header">
-                <div class="header-main">
-                    <h1>Transactions</h1>
-                    <p class="text-muted">Manage your income, expenses, and transfers</p>
-                </div>
-                <div class="header-actions">
+            ${ViewHeader({
+            title: 'Transactions',
+            subtitle: 'Manage your income, expenses, and transfers',
+            actions: `
                     <div class="filter-group">
                         <label>Month</label>
                         <input type="month" id="tx-month-filter" class="form-control sm">
                     </div>
-                </div>
-            </div>
+                `
+        })}
 
             <!-- Transaction Stats -->
             <div id="tx-stats-container" class="stats-grid mb-6"></div>

@@ -14,6 +14,7 @@ Bofo/
 ├── src/
 │   ├── database/                    # Database layer
 │   │   ├── db.js                    # SQLCipher connection & encryption
+│   │   ├── helpers.ts               # Type-safe database helpers
 │   │   ├── encryption.js            # Key management & cryptography
 │   │   └── schema.sql               # Database schema
 │   │
@@ -26,17 +27,17 @@ Bofo/
 │   ├── models/                      # Data Models / Business Logic
 │   │   └── finance.js               # Finance CRUD operations
 │   │
-│   ├── services/                    # Backend Services
-│   │   ├── aiService.js             # Ollama AI integration
-│   │   ├── currencyService.js       # Exchange rate API integration
+│   ├── services/                    # Backend Services (TypeScript)
+│   │   ├── aiService.ts             # Ollama AI integration
+│   │   ├── currencyService.ts       # Exchange rate API integration
 │   │   └── financeService.js        # Finance calculations
 │   │
-│   ├── shared/                      # Shared between main/renderer
-│   │   ├── constants.js             # App-wide constants
-│   │   └── currencies.js            # Currency definitions
+│   ├── shared/                      # Shared between main/renderer (TypeScript)
+│   │   ├── constants.ts             # App-wide constants
+│   │   └── currencies.ts            # Currency definitions
 │   │
-│   ├── utils/                       # Backend Utilities
-│   │   └── forecast.js              # Forecasting algorithms
+│   ├── utils/                       # Backend Utilities (TypeScript)
+│   │   └── forecast.ts              # Forecasting algorithms
 │   │
 │   └── renderer/                    # Electron Renderer Process (UI)
 │       ├── index.html               # App shell (~77 lines)
@@ -159,10 +160,11 @@ Apply with: `document.documentElement.setAttribute('data-theme', 'light')`
 
 ## Architecture Overview
 
-### Main Process (Node.js)
+### Main Process (TypeScript/Node.js)
 - **main.js**: Creates browser window, registers IPC handlers
 - **preload.js**: Exposes safe APIs to renderer via contextBridge
 - **ipc/handlers.js**: Centralizes all IPC handler registration
+- **Core Logic**: TypeScript-powered services and utilities for type-safety
 
 ### Renderer Process (UI)
 - **core/**: Application foundation (state, routing, events)

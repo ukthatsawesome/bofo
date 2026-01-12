@@ -2,7 +2,20 @@
  * BOFO - Personal Finance Manager
  * Main Entry Point
  */
+import './tailwind-input.css';
+import { createIcons, icons } from 'lucide';
+import Chart from 'chart.js/auto';
 import { App } from './core/app.js';
+
+// Expose globals for compatibility
+window.Chart = Chart;
+window.lucide = { createIcons, icons };
+
+// Patch createIcons to default to using all icons if not specified
+const originalCreateIcons = createIcons;
+window.lucide.createIcons = (options) => {
+    return originalCreateIcons({ icons, ...options });
+};
 
 let app;
 

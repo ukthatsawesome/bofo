@@ -21,8 +21,8 @@ Bofo is a sleek, modern, and powerful personal finance application built with **
 
 ## 🛠️ Technology Stack
 
-- **Frontend**: Vanilla JavaScript (ESM), Tailwind CSS, Lucide Icons
-- **Backend**: Electron (Main/Renderer IPC Architecture)
+- **Frontend**: TypeScript / JavaScript (ESM), Tailwind CSS, Lucide Icons
+- **Backend**: Electron (Main/Renderer IPC Architecture) with TypeScript logic
 - **Database**: SQLCipher (AES-256 encrypted SQLite)
 - **Visualization**: Chart.js
 - **AI Integration**: Ollama (REST API)
@@ -83,8 +83,10 @@ npm run dist:linux
 - `src/main`: Electron main process (OS integration, IPC handlers)
 - `src/renderer`: Frontend code (Views, Components, Core logic)
 - `src/models`: Database models and data operations
-- `src/database`: Schema, migrations, and connection logic
-- `src/services`: External integrations (AI Service)
+- `src/database`: Schema, migrations, and TypeScript database helpers
+- `src/services`: External integrations (AI & Currency TypeScript Services)
+- `src/shared`: Shared TypeScript constants and definitions
+- `src/utils`: Mathematical and logic utilities in TypeScript
 
 ---
 

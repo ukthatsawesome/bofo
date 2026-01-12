@@ -338,6 +338,128 @@ const MIGRATIONS = [
 
             console.log('Performance indexes created successfully.');
         }
+    },
+    {
+        id: 8,
+        name: 'Add Balance Sync Triggers',
+        up: async () => {
+            // Drop existing triggers if any (for idempotency)
+            await run(`DROP TRIGGER IF EXISTS trg_balance_after_insert`);
+            await run(`DROP TRIGGER IF EXISTS trg_balance_after_update`);
+            await run(`DROP TRIGGER IF EXISTS trg_balance_after_delete`);
+
+            // Trigger after INSERT: Recalculate balance for affected accounts
+            await run(`
+                CREATE TRIGGER trg_balance_after_insert
+                AFTER INSERT ON transactions
+                WHEN NEW.is_active = 1
+                BEGIN
+                    -- Update source account balance
+                    UPDATE accounts SET balance = (
+                        SELECT COALESCE(initial_balance, 0) +
+                        COALESCE((SELECT SUM(CASE 
+                            WHEN type = 'income' AND account_id = accounts.id THEN ROUND(amount * 100) / 100
+                            WHEN type = 'transfer' AND to_account_id = accounts.id THEN ROUND(amount * 100) / 100
+                            ELSE 0 
+                        END) FROM transactions WHERE (account_id = accounts.id OR to_account_id = accounts.id) AND is_active = 1), 0) -
+                        COALESCE((SELECT SUM(CASE 
+                            WHEN type = 'expense' AND account_id = accounts.id THEN ROUND(amount * 100) / 100
+                            WHEN type = 'transfer' AND account_id = accounts.id THEN ROUND(amount * 100) / 100
+                            ELSE 0 
+                        END) FROM transactions WHERE (account_id = accounts.id OR to_account_id = accounts.id) AND is_active = 1), 0)
+                    ) WHERE id = NEW.account_id;
+                    
+                    -- Update destination account balance (for transfers)
+                    UPDATE accounts SET balance = (
+                        SELECT COALESCE(initial_balance, 0) +
+                        COALESCE((SELECT SUM(CASE 
+                            WHEN type = 'income' AND account_id = accounts.id THEN ROUND(amount * 100) / 100
+                            WHEN type = 'transfer' AND to_account_id = accounts.id THEN ROUND(amount * 100) / 100
+                            ELSE 0 
+                        END) FROM transactions WHERE (account_id = accounts.id OR to_account_id = accounts.id) AND is_active = 1), 0) -
+                        COALESCE((SELECT SUM(CASE 
+                            WHEN type = 'expense' AND account_id = accounts.id THEN ROUND(amount * 100) / 100
+                            WHEN type = 'transfer' AND account_id = accounts.id THEN ROUND(amount * 100) / 100
+                            ELSE 0 
+                        END) FROM transactions WHERE (account_id = accounts.id OR to_account_id = accounts.id) AND is_active = 1), 0)
+                    ) WHERE id = NEW.to_account_id AND NEW.to_account_id IS NOT NULL;
+                END
+            `);
+
+            // Trigger after UPDATE: Handle is_active changes and account changes
+            await run(`
+                CREATE TRIGGER trg_balance_after_update
+                AFTER UPDATE ON transactions
+                BEGIN
+                    -- Update OLD source account
+                    UPDATE accounts SET balance = (
+                        SELECT COALESCE(initial_balance, 0) +
+                        COALESCE((SELECT SUM(CASE 
+                            WHEN type = 'income' AND account_id = accounts.id THEN ROUND(amount * 100) / 100
+                            WHEN type = 'transfer' AND to_account_id = accounts.id THEN ROUND(amount * 100) / 100
+                            ELSE 0 
+                        END) FROM transactions WHERE (account_id = accounts.id OR to_account_id = accounts.id) AND is_active = 1), 0) -
+                        COALESCE((SELECT SUM(CASE 
+                            WHEN type = 'expense' AND account_id = accounts.id THEN ROUND(amount * 100) / 100
+                            WHEN type = 'transfer' AND account_id = accounts.id THEN ROUND(amount * 100) / 100
+                            ELSE 0 
+                        END) FROM transactions WHERE (account_id = accounts.id OR to_account_id = accounts.id) AND is_active = 1), 0)
+                    ) WHERE id IN (OLD.account_id, NEW.account_id) AND id IS NOT NULL;
+                    
+                    -- Update destination accounts (old and new)
+                    UPDATE accounts SET balance = (
+                        SELECT COALESCE(initial_balance, 0) +
+                        COALESCE((SELECT SUM(CASE 
+                            WHEN type = 'income' AND account_id = accounts.id THEN ROUND(amount * 100) / 100
+                            WHEN type = 'transfer' AND to_account_id = accounts.id THEN ROUND(amount * 100) / 100
+                            ELSE 0 
+                        END) FROM transactions WHERE (account_id = accounts.id OR to_account_id = accounts.id) AND is_active = 1), 0) -
+                        COALESCE((SELECT SUM(CASE 
+                            WHEN type = 'expense' AND account_id = accounts.id THEN ROUND(amount * 100) / 100
+                            WHEN type = 'transfer' AND account_id = accounts.id THEN ROUND(amount * 100) / 100
+                            ELSE 0 
+                        END) FROM transactions WHERE (account_id = accounts.id OR to_account_id = accounts.id) AND is_active = 1), 0)
+                    ) WHERE id IN (OLD.to_account_id, NEW.to_account_id) AND id IS NOT NULL;
+                END
+            `);
+
+            // Trigger after DELETE
+            await run(`
+                CREATE TRIGGER trg_balance_after_delete
+                AFTER DELETE ON transactions
+                BEGIN
+                    UPDATE accounts SET balance = (
+                        SELECT COALESCE(initial_balance, 0) +
+                        COALESCE((SELECT SUM(CASE 
+                            WHEN type = 'income' AND account_id = accounts.id THEN ROUND(amount * 100) / 100
+                            WHEN type = 'transfer' AND to_account_id = accounts.id THEN ROUND(amount * 100) / 100
+                            ELSE 0 
+                        END) FROM transactions WHERE (account_id = accounts.id OR to_account_id = accounts.id) AND is_active = 1), 0) -
+                        COALESCE((SELECT SUM(CASE 
+                            WHEN type = 'expense' AND account_id = accounts.id THEN ROUND(amount * 100) / 100
+                            WHEN type = 'transfer' AND account_id = accounts.id THEN ROUND(amount * 100) / 100
+                            ELSE 0 
+                        END) FROM transactions WHERE (account_id = accounts.id OR to_account_id = accounts.id) AND is_active = 1), 0)
+                    ) WHERE id = OLD.account_id;
+                    
+                    UPDATE accounts SET balance = (
+                        SELECT COALESCE(initial_balance, 0) +
+                        COALESCE((SELECT SUM(CASE 
+                            WHEN type = 'income' AND account_id = accounts.id THEN ROUND(amount * 100) / 100
+                            WHEN type = 'transfer' AND to_account_id = accounts.id THEN ROUND(amount * 100) / 100
+                            ELSE 0 
+                        END) FROM transactions WHERE (account_id = accounts.id OR to_account_id = accounts.id) AND is_active = 1), 0) -
+                        COALESCE((SELECT SUM(CASE 
+                            WHEN type = 'expense' AND account_id = accounts.id THEN ROUND(amount * 100) / 100
+                            WHEN type = 'transfer' AND account_id = accounts.id THEN ROUND(amount * 100) / 100
+                            ELSE 0 
+                        END) FROM transactions WHERE (account_id = accounts.id OR to_account_id = accounts.id) AND is_active = 1), 0)
+                    ) WHERE id = OLD.to_account_id AND OLD.to_account_id IS NOT NULL;
+                END
+            `);
+
+            console.log('Balance sync triggers created successfully.');
+        }
     }
 ];
 

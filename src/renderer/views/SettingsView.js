@@ -742,11 +742,11 @@ export class SettingsView extends BaseView {
         if (thead) {
             thead.innerHTML = `
                 <tr>
-                    ${SortableHeader('Name', 'name', field, direction, 'app.views.settings.sortAccounts')}
-                    ${SortableHeader('Type', 'type', field, direction, 'app.views.settings.sortAccounts')}
-                    ${SortableHeader('Starting', 'initial_balance', field, direction, 'app.views.settings.sortAccounts')}
-                    ${SortableHeader('Current Balance', 'balance', field, direction, 'app.views.settings.sortAccounts')}
-                    ${SortableHeader('Status', 'status', field, direction, 'app.views.settings.sortAccounts')}
+                    ${SortableHeader({ label: 'Name', field: 'name', currentSort: field, direction, onclick: 'app.views.settings.sortAccounts' })}
+                    ${SortableHeader({ label: 'Type', field: 'type', currentSort: field, direction, onclick: 'app.views.settings.sortAccounts' })}
+                    ${SortableHeader({ label: 'Starting', field: 'initial_balance', currentSort: field, direction, onclick: 'app.views.settings.sortAccounts' })}
+                    ${SortableHeader({ label: 'Balance', field: 'balance', currentSort: field, direction, onclick: 'app.views.settings.sortAccounts' })}
+                    ${SortableHeader({ label: 'Status', field: 'status', currentSort: field, direction, onclick: 'app.views.settings.sortAccounts' })}
                     <th class="px-5 py-4 text-right text-xs font-bold uppercase tracking-wider text-text-secondary">Actions</th>
                 </tr>
             `;
@@ -1047,9 +1047,9 @@ export class SettingsView extends BaseView {
         if (thead) {
             thead.innerHTML = `
                 <tr>
-                    ${SortableHeader('Name', 'name', field, direction, 'app.views.settings.sortCategories')}
-                    ${SortableHeader('Type', 'type', field, direction, 'app.views.settings.sortCategories')}
-                    ${SortableHeader('Status', 'status', field, direction, 'app.views.settings.sortCategories')}
+                    ${SortableHeader({ label: 'Name', field: 'name', currentSort: field, direction, onclick: 'app.views.settings.sortCategories' })}
+                    ${SortableHeader({ label: 'Type', field: 'type', currentSort: field, direction, onclick: 'app.views.settings.sortCategories' })}
+                    ${SortableHeader({ label: 'Status', field: 'status', currentSort: field, direction, onclick: 'app.views.settings.sortCategories' })}
                     <th class="px-5 py-4 text-right text-xs font-bold uppercase tracking-wider text-text-secondary">Actions</th>
                 </tr>
             `;

@@ -5,6 +5,7 @@ import { ProgressBar } from '../components/common/ProgressBar.js';
 import { SortableHeader } from '../components/tables/SortableHeader.js';
 import { EmptyState } from '../components/common/EmptyState.js';
 import { SegmentedControl } from '../components/common/SegmentedControl.js';
+import { ViewHeader } from '../components/common/ViewHeader.js';
 
 export class BudgetView extends BaseView {
     constructor(app) {
@@ -34,20 +35,18 @@ export class BudgetView extends BaseView {
 
     renderBaseTemplate() {
         this.element.innerHTML = `
-            <div class="view-header">
-                <div class="header-main">
-                    <h1>Budget Management</h1>
-                    <p class="text-muted">Set limits and track your spending across categories</p>
-                </div>
-                <div class="header-actions">
+            ${ViewHeader({
+            title: 'Budget Management',
+            subtitle: 'Set limits and track your spending across categories',
+            actions: `
                     <div id="budget-month-filter-container" class="filter-group">
                         <input type="month" id="budget-month-filter" class="form-control sm">
                     </div>
                     <button class="btn primary" id="btn-add-budget">
                         <i data-lucide="plus"></i> New Budget
                     </button>
-                </div>
-            </div>
+                `
+        })}
 
             <div id="budget-summary-container" class="stats-grid mb-6"></div>
 

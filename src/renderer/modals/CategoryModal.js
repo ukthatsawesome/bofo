@@ -21,7 +21,7 @@ export const CategoryModal = () => {
         })}
         `,
         actions: `
-            <button class="btn" id="cancel-category">Cancel</button>
+            <button class="btn secondary" id="cancel-category">Cancel</button>
             <button class="btn primary" id="save-category">Create Category</button>
         `
     });

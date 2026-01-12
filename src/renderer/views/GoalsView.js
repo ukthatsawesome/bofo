@@ -4,6 +4,7 @@ import { StatCard } from '../components/common/StatCard.js';
 import { GoalCard } from '../components/common/GoalCard.js';
 import { SegmentedControl } from '../components/common/SegmentedControl.js';
 import { EmptyState } from '../components/common/EmptyState.js';
+import { ViewHeader } from '../components/common/ViewHeader.js';
 
 export class GoalsView extends BaseView {
     constructor(app) {
@@ -30,19 +31,17 @@ export class GoalsView extends BaseView {
 
     renderBaseTemplate() {
         this.element.innerHTML = `
-            <div class="view-header">
-                <div class="header-main">
-                    <h1>Savings Goals</h1>
-                    <p class="text-muted">Track your progress towards financial milestones</p>
-                </div>
-                <div class="header-actions flex gap-3">
+            ${ViewHeader({
+            title: 'Savings Goals',
+            subtitle: 'Track your progress towards financial milestones',
+            actions: `
                     <div id="goals-filter-container"></div>
-                    <button class="btn-primary" id="btn-add-goal">
+                    <button class="btn primary" id="btn-add-goal">
                         <i data-lucide="plus"></i>
                         New Goal
                     </button>
-                </div>
-            </div>
+                `
+        })}
 
             <div id="goals-stats-container" class="stats-grid mb-6"></div>
 
@@ -111,8 +110,8 @@ export class GoalsView extends BaseView {
                         </div>
 
                         <div class="flex justify-end gap-3 mt-6">
-                            <button type="button" class="btn-secondary" id="cancel-goal">Cancel</button>
-                            <button type="submit" class="btn-primary">Save Goal</button>
+                            <button type="button" class="btn secondary" id="cancel-goal">Cancel</button>
+                            <button type="submit" class="btn primary">Save Goal</button>
                         </div>
                     </form>
                 </div>
@@ -144,8 +143,8 @@ export class GoalsView extends BaseView {
                         </div>
 
                         <div class="flex justify-end gap-3 mt-6">
-                            <button type="button" class="btn-secondary" id="cancel-contribute">Cancel</button>
-                            <button type="submit" class="btn-primary">Add Contribution</button>
+                            <button type="button" class="btn secondary" id="cancel-contribute">Cancel</button>
+                            <button type="submit" class="btn primary">Add Contribution</button>
                         </div>
                     </form>
                 </div>

@@ -9,12 +9,14 @@ export const Card = ({
     className = '',
     footer = '',
     icon = '',
-    variant = 'glass'
+    variant = 'glass',
+    bodyClass = ''
 }) => {
     // Card variants using Tailwind classes
     const variants = {
         glass: 'card-glass', // from tailwind-input.css
         panel: 'card-panel', // from tailwind-input.css
+        default: 'card',
         flat: 'bg-surface-card border border-border rounded-lg p-6'
     };
 
@@ -30,7 +32,7 @@ export const Card = ({
                 </h3>
             </div>
         ` : ''}
-        <div class="card-body">
+        <div class="card-body ${bodyClass}">
             ${content}
         </div>
         ${footer ? `

@@ -32,7 +32,7 @@ export const AccountModal = () => {
         })}
         `,
         actions: `
-            <button class="btn" id="cancel-account">Cancel</button>
+            <button class="btn secondary" id="cancel-account">Cancel</button>
             <button class="btn primary" id="save-account">Create Account</button>
         `
     });

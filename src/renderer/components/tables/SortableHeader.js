@@ -1,31 +1,23 @@
 /**
  * SortableHeader Component
- * Table header with sort indicators
- * Supports both positional arguments and object argument
+ * Table header with sort indicators - Object syntax only
+ * 
+ * @param {Object} props
+ * @param {string} props.label - Column display label
+ * @param {string} props.field - Sort field name
+ * @param {string} props.currentSort - Currently active sort field
+ * @param {string} props.direction - Sort direction ('asc' or 'desc')
+ * @param {string} props.onclick - Click handler function path
  */
-export const SortableHeader = (labelOrObj, field, currentField, direction, onclick) => {
-    let label = labelOrObj;
-    let currentSort = currentField;
-    let sortField = field;
-    let sortDirection = direction;
-    let clickHandler = onclick;
-
-    if (typeof labelOrObj === 'object' && labelOrObj !== null) {
-        label = labelOrObj.label;
-        sortField = labelOrObj.field;
-        currentSort = labelOrObj.currentSort || labelOrObj.currentField;
-        sortDirection = labelOrObj.direction;
-        clickHandler = labelOrObj.onclick;
-    }
-
-    const isActive = sortField === currentSort;
-    const icon = isActive ? (sortDirection === 'asc' ? 'arrow-up' : 'arrow-down') : 'arrow-up-down';
+export const SortableHeader = ({ label, field, currentSort, direction, onclick }) => {
+    const isActive = field === currentSort;
+    const icon = isActive ? (direction === 'asc' ? 'arrow-up' : 'arrow-down') : 'arrow-up-down';
 
     return `
         <th 
             class="px-5 py-4 text-left cursor-pointer select-none transition-colors hover:bg-brand-primary/10
                    ${isActive ? 'text-brand-primary' : 'text-text-secondary'}" 
-            onclick="${clickHandler}('${sortField}')"
+            onclick="${onclick}('${field}')"
         >
             <div class="flex items-center gap-2 text-xs font-bold uppercase tracking-wider">
                 <span>${label}</span>

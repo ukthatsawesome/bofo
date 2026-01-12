@@ -2,6 +2,7 @@ import { BaseView } from './BaseView.js';
 import { $, UIUtils } from '../core/dom.js';
 import { StatusBadge } from '../components/common/StatusBadge.js';
 import { SortableHeader } from '../components/tables/SortableHeader.js';
+import { ViewHeader } from '../components/common/ViewHeader.js';
 
 export class RecurringChargesView extends BaseView {
     constructor(app) {
@@ -19,17 +20,15 @@ export class RecurringChargesView extends BaseView {
 
     renderBaseTemplate() {
         this.element.innerHTML = `
-            <div class="view-header">
-                <div class="header-main">
-                    <h1>Recurring Charges</h1>
-                    <p class="text-muted">Manage fixed monthly expenses, subscriptions, and regular bills</p>
-                </div>
-                <div class="header-actions">
+            ${ViewHeader({
+            title: 'Recurring Charges',
+            subtitle: 'Manage fixed monthly expenses, subscriptions, and regular bills',
+            actions: `
                     <button class="btn primary" onclick="app.views.recurring.openRecurringChargeModal()">
                         <i data-lucide="plus"></i> Add Charge
                     </button>
-                </div>
-            </div>
+                `
+        })}
 
             <div id="recurring-summary-card" class="mb-6"></div>
 

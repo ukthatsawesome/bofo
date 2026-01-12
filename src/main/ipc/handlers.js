@@ -1,15 +1,23 @@
+/**
+ * IPC Handlers - Streamlined with Generic CRUD Pattern
+ * 
+ * This module registers all IPC handlers for the Electron main process.
+ * Uses a routing table pattern to reduce code duplication.
+ */
+
 const { ipcMain, dialog, app } = require('electron');
 const fs = require('fs');
 const path = require('path');
 const XLSX = require('xlsx');
 const FinanceModel = require('../../models/finance');
 
-// AI Service (lazy loaded)
+// =============================================================================
+// AI SERVICE (Lazy Loaded)
+// =============================================================================
+
 let aiService = null;
 function getAIService() {
-    if (!aiService) {
-        aiService = require('../../services/aiService');
-    }
+    if (!aiService) aiService = require('../../services/aiService');
     return aiService;
 }
 
@@ -24,207 +32,159 @@ async function syncAIService() {
     return settings;
 }
 
-function registerIpcHandlers() {
-    // Transaction Handlers
-    ipcMain.handle('get-transactions', async () => {
-        return await FinanceModel.getAllTransactions();
-    });
+// =============================================================================
+// HANDLER ROUTE TABLE - Maps IPC channels to model methods
+// =============================================================================
 
-    ipcMain.handle('add-transaction', async (event, data) => {
-        return await FinanceModel.createTransaction(data);
-    });
-
-    ipcMain.handle('update-transaction', async (event, { id, data }) => {
-        return await FinanceModel.updateTransaction(id, data);
-    });
-
-    ipcMain.handle('delete-transaction', async (event, id) => {
-        return await FinanceModel.deleteTransaction(id);
-    });
-
-    // Paginated Transactions Handler
-    ipcMain.handle('get-transactions-paginated', async (event, options) => {
-        return await FinanceModel.getTransactionsPaginated(options);
-    });
-
-    ipcMain.handle('get-transaction-count', async (event, options) => {
-        return await FinanceModel.getTransactionCount(options);
-    });
-
-    // Category Handlers
-    ipcMain.handle('get-categories', async () => {
-        return await FinanceModel.getAllCategories();
-    });
-
-    ipcMain.handle('add-category', async (event, { type, name }) => {
-        return await FinanceModel.addCategory(type, name);
-    });
-
-    ipcMain.handle('delete-category', async (event, id) => {
-        return await FinanceModel.deleteCategory(id);
-    });
-
-    ipcMain.handle('update-category', async (event, { id, data }) => {
-        return await FinanceModel.updateCategory(id, data);
-    });
-
-    ipcMain.handle('archive-category', async (event, id) => {
-        return await FinanceModel.archiveCategory(id);
-    });
-
-    ipcMain.handle('unarchive-category', async (event, id) => {
-        return await FinanceModel.unarchiveCategory(id);
-    });
-
-    ipcMain.handle('is-category-in-use', async (event, name) => {
-        return await FinanceModel.isCategoryInUse(name);
-    });
-
-    // Account Handlers
-    ipcMain.handle('get-accounts', async () => {
-        return await FinanceModel.getAllAccounts();
-    });
-
-    ipcMain.handle('add-account', async (event, data) => {
-        return await FinanceModel.addAccount(data);
-    });
-
-    ipcMain.handle('update-account', async (event, data) => {
-        return await FinanceModel.updateAccount(data.id, data);
-    });
-
-    ipcMain.handle('delete-account', async (event, id) => {
-        return await FinanceModel.deleteAccount(id);
-    });
-
-    ipcMain.handle('archive-account', async (event, id) => {
-        return await FinanceModel.archiveAccount(id);
-    });
-
-    ipcMain.handle('unarchive-account', async (event, id) => {
-        return await FinanceModel.unarchiveAccount(id);
-    });
-
-    ipcMain.handle('is-account-in-use', async (event, id) => {
-        return await FinanceModel.isAccountInUse(id);
-    });
-
-    // Settings Handlers
-    ipcMain.handle('get-settings', async () => {
-        return await FinanceModel.getAllSettings();
-    });
-
-    ipcMain.handle('update-setting', async (event, { key, value }) => {
-        return await FinanceModel.updateSetting(key, value);
-    });
-
-    ipcMain.handle('save-settings', async (event, settings) => {
-        return await FinanceModel.saveSettings(settings);
-    });
-
-    // Budget Handlers
-    ipcMain.handle('get-budgets', async () => {
-        return await FinanceModel.getAllBudgets();
-    });
-
-    ipcMain.handle('set-budget', async (event, { category, amount, period, startDate, endDate }) => {
-        return await FinanceModel.setBudget(category, amount, period, startDate, endDate);
-    });
-
-    ipcMain.handle('update-budget', async (event, { id, category, amount, period, startDate, endDate }) => {
-        return await FinanceModel.updateBudget(id, category, amount, period, startDate, endDate);
-    });
-
-    ipcMain.handle('delete-budget', async (event, id) => {
-        return await FinanceModel.deleteBudget(id);
-    });
-
-    // ==================== GOALS HANDLERS ====================
-
-    ipcMain.handle('get-goals', async () => {
-        return await FinanceModel.getAllGoals();
-    });
-
-    ipcMain.handle('get-active-goals', async () => {
-        return await FinanceModel.getActiveGoals();
-    });
-
-    ipcMain.handle('get-goal', async (event, id) => {
-        return await FinanceModel.getGoalById(id);
-    });
-
-    ipcMain.handle('create-goal', async (event, data) => {
-        return await FinanceModel.createGoal(data);
-    });
-
-    ipcMain.handle('update-goal', async (event, { id, data }) => {
-        return await FinanceModel.updateGoal(id, data);
-    });
-
-    ipcMain.handle('delete-goal', async (event, id) => {
-        return await FinanceModel.deleteGoal(id);
-    });
-
-    ipcMain.handle('contribute-to-goal', async (event, { goalId, amount, source, notes }) => {
-        return await FinanceModel.contributeToGoal(goalId, amount, source, notes);
-    });
-
-    ipcMain.handle('get-goal-contributions', async (event, goalId) => {
-        return await FinanceModel.getGoalContributions(goalId);
-    });
-
-    ipcMain.handle('get-goals-summary', async () => {
-        return await FinanceModel.getGoalsSummary();
-    });
-
-    // ==================== RECURRING CHARGES HANDLERS ====================
-
-    ipcMain.handle('get-recurring-charges', async () => {
-        return await FinanceModel.getAllRecurringCharges();
-    });
-
-    ipcMain.handle('get-active-recurring-charges', async () => {
-        return await FinanceModel.getActiveRecurringCharges();
-    });
-
-    ipcMain.handle('create-recurring-charge', async (event, data) => {
-        return await FinanceModel.createRecurringCharge(data);
-    });
-
-    ipcMain.handle('update-recurring-charge', async (event, { id, data }) => {
-        return await FinanceModel.updateRecurringCharge(id, data);
-    });
-
-    ipcMain.handle('delete-recurring-charge', async (event, id) => {
-        return await FinanceModel.deleteRecurringCharge(id);
-    });
-
-    ipcMain.handle('get-monthly-recurring-total', async () => {
-        return await FinanceModel.getMonthlyRecurringTotal();
-    });
-
-    // ==================== FINANCIAL SUMMARY ====================
-
-    ipcMain.handle('get-available-for-goals', async () => {
-        return await FinanceModel.getAvailableForGoals();
-    });
-
-    // Data Import/Export
-    ipcMain.handle('export-data', async () => {
-        const data = await FinanceModel.exportData();
-        const { filePath } = await dialog.showSaveDialog({
-            buttonLabel: 'Export Data',
-            defaultPath: `bofo-export-${new Date().toISOString().split('T')[0]}.json`,
-            filters: [{ name: 'JSON', extensions: ['json'] }]
-        });
-
-        if (filePath) {
-            fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
-            return true;
+const SIMPLE_ROUTES = {
+    // Transactions (using generic CRUD)
+    'get-transactions': () => FinanceModel.getAll('transaction', { orderBy: 'start_date DESC' }),
+    'add-transaction': (_, data) => FinanceModel.create('transaction', data),
+    'update-transaction': (_, { id, data }) => FinanceModel.update('transaction', id, data),
+    'delete-transaction': async (_, id) => {
+        const tx = await FinanceModel.getById('transaction', id);
+        const result = await FinanceModel.delete('transaction', id, true);
+        // Sync balances after delete (triggers handle insert/update)
+        if (tx) {
+            if (tx.account_id) await FinanceModel.syncAccountBalance(tx.account_id);
+            if (tx.to_account_id) await FinanceModel.syncAccountBalance(tx.to_account_id);
         }
-        return false;
+        return result;
+    },
+    'get-transactions-paginated': (_, options) => FinanceModel.getTransactionsPaginated(options),
+    'get-transaction-count': (_, options) => FinanceModel.getTransactionCount(options),
+
+    // Accounts (using generic CRUD)
+    'get-accounts': () => FinanceModel.getAll('account'),
+    'add-account': (_, data) => FinanceModel.create('account', { ...data, initial_balance: data.balance || 0 }),
+    'update-account': (_, data) => FinanceModel.update('account', data.id, data),
+    'delete-account': (_, id) => FinanceModel.delete('account', id),
+    'archive-account': (_, id) => FinanceModel.archive('account', id),
+    'unarchive-account': (_, id) => FinanceModel.unarchive('account', id),
+    'is-account-in-use': async (_, id) => {
+        const row = await FinanceModel.getById('account', id);
+        if (!row) return false;
+        const result = await FinanceModel.getAll('transaction', { where: { account_id: id } });
+        return result.length > 0;
+    },
+
+    // Categories (using generic CRUD)
+    'get-categories': () => FinanceModel.getAll('category'),
+    'add-category': (_, { type, name }) => FinanceModel.create('category', { type, name }),
+    'update-category': (_, { id, data }) => FinanceModel.update('category', id, data),
+    'delete-category': (_, id) => FinanceModel.delete('category', id),
+    'archive-category': (_, id) => FinanceModel.archive('category', id),
+    'unarchive-category': (_, id) => FinanceModel.unarchive('category', id),
+    'is-category-in-use': (_, name) => FinanceModel.isCategoryInUse(name),
+
+    // Settings
+    'get-settings': () => FinanceModel.getAllSettings(),
+    'update-setting': (_, { key, value }) => FinanceModel.updateSetting(key, value),
+    'save-settings': (_, settings) => FinanceModel.saveSettings(settings),
+
+    // Budgets (using generic CRUD)
+    'get-budgets': () => FinanceModel.getAll('budget'),
+    'set-budget': (_, { category, amount, period, startDate, endDate }) =>
+        FinanceModel.create('budget', { category, amount, period, start_date: startDate, end_date: endDate }),
+    'update-budget': (_, { id, category, amount, period, startDate, endDate }) =>
+        FinanceModel.update('budget', id, { category, amount, period, start_date: startDate, end_date: endDate }),
+    'delete-budget': (_, id) => FinanceModel.delete('budget', id, true),
+
+    // Goals (using generic CRUD + specialized methods)
+    'get-goals': () => FinanceModel.getAll('goal'),
+    'get-active-goals': () => FinanceModel.getAll('goal', { where: { status: 'active' } }),
+    'get-goal': (_, id) => FinanceModel.getById('goal', id),
+    'create-goal': (_, data) => FinanceModel.create('goal', data),
+    'update-goal': async (_, { id, data }) => {
+        // Auto-complete if target reached
+        if (data.current_amount !== undefined && data.target_amount !== undefined) {
+            if (data.current_amount >= data.target_amount && data.status !== 'completed') {
+                data.status = 'completed';
+                data.completed_at = new Date().toISOString();
+            }
+        }
+        return await FinanceModel.update('goal', id, data);
+    },
+    'delete-goal': (_, id) => FinanceModel.deleteGoal(id),
+    'contribute-to-goal': (_, { goalId, amount, source, notes }) =>
+        FinanceModel.contributeToGoal(goalId, amount, source, notes),
+    'get-goal-contributions': (_, goalId) => FinanceModel.getGoalContributions(goalId),
+    'get-goals-summary': () => FinanceModel.getGoalsSummary(),
+    'get-available-for-goals': () => FinanceModel.getAvailableForGoals(),
+
+    // Recurring Charges (using generic CRUD)
+    'get-recurring-charges': () => FinanceModel.getAll('recurringCharge'),
+    'get-active-recurring-charges': () => FinanceModel.getAll('recurringCharge', { where: { is_active: 1 } }),
+    'create-recurring-charge': (_, data) => FinanceModel.create('recurringCharge', data),
+    'update-recurring-charge': (_, { id, data }) => FinanceModel.update('recurringCharge', id, data),
+    'delete-recurring-charge': (_, id) => FinanceModel.delete('recurringCharge', id, true),
+    'get-monthly-recurring-total': () => FinanceModel.getMonthlyRecurringTotal(),
+
+    // Bills (using generic CRUD)
+    'get-bill-types': () => FinanceModel.getBillTypes(),
+    'add-bill-type': (_, data) => FinanceModel.create('billType', data),
+    'update-bill-type': (_, { id, data }) => FinanceModel.update('billType', id, data),
+    'delete-bill-type': (_, id) => FinanceModel.delete('billType', id, true),
+    'get-bill-readings': (_, filters) => FinanceModel.getBillReadings(filters),
+    'get-bill-readings-paginated': (_, options) => FinanceModel.getBillReadingsPaginated(options),
+    'add-bill-reading': (_, data) => FinanceModel.create('billReading', data),
+    'update-bill-reading': (_, { id, data }) => FinanceModel.update('billReading', id, data),
+    'delete-bill-reading': (_, id) => FinanceModel.delete('billReading', id, true),
+    'get-bill-projections': () => FinanceModel.getBillProjections(),
+
+    // Exchange Rates (using generic CRUD where applicable)
+    'get-exchange-rates': () => FinanceModel.getExchangeRates(),
+    'get-exchange-rate': (_, { from, to }) => FinanceModel.getExchangeRate(from, to),
+    'set-exchange-rate': (_, { from, to, rate, source }) =>
+        FinanceModel.setExchangeRate(from, to, rate, source || 'manual'),
+    'delete-exchange-rate': (_, id) => FinanceModel.delete('exchangeRate', id, true),
+    'convert-currency': (_, { amount, from, to }) => FinanceModel.convertCurrency(amount, from, to),
+    'get-used-currencies': () => FinanceModel.getUsedCurrencies(),
+    'get-accounts-converted': (_, baseCurrency) => FinanceModel.getAccountsWithConvertedBalances(baseCurrency),
+};
+
+// =============================================================================
+// REGISTER HANDLERS
+// =============================================================================
+
+function registerIpcHandlers() {
+    // Register all simple routes
+    for (const [channel, handler] of Object.entries(SIMPLE_ROUTES)) {
+        ipcMain.handle(channel, async (event, data) => {
+            try {
+                return await handler(event, data);
+            } catch (error) {
+                console.error(`[IPC] ${channel} error:`, error.message);
+                throw error;
+            }
+        });
+    }
+
+    // ==========================================================================
+    // COMPLEX HANDLERS (require special logic)
+    // ==========================================================================
+
+    // Export Data (with dialog)
+    ipcMain.handle('export-data', async () => {
+        try {
+            const data = await FinanceModel.exportData();
+            const { filePath } = await dialog.showSaveDialog({
+                buttonLabel: 'Export Data',
+                defaultPath: `bofo-export-${new Date().toISOString().split('T')[0]}.json`,
+                filters: [{ name: 'JSON', extensions: ['json'] }]
+            });
+            if (filePath) {
+                fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
+                return true;
+            }
+            return false;
+        } catch (err) {
+            console.error('Export error:', err);
+            return false;
+        }
     });
 
+    // Import Data (with dialog)
     ipcMain.handle('import-data', async () => {
         const { filePaths, canceled } = await dialog.showOpenDialog({
             title: 'Import Backup',
@@ -233,19 +193,15 @@ function registerIpcHandlers() {
             properties: ['openFile']
         });
 
-        if (canceled || !filePaths || filePaths.length === 0) {
+        if (canceled || !filePaths?.length) {
             return { success: false, message: 'Import cancelled' };
         }
 
         try {
-            const fileContent = fs.readFileSync(filePaths[0], 'utf8');
-            const data = JSON.parse(fileContent);
-
-            // Validate it looks like a Bofo backup
+            const data = JSON.parse(fs.readFileSync(filePaths[0], 'utf8'));
             if (!data.accounts && !data.transactions) {
                 return { success: false, message: 'Invalid backup file format' };
             }
-
             await FinanceModel.importData(data);
             return { success: true, message: 'Data imported successfully!' };
         } catch (err) {
@@ -254,54 +210,34 @@ function registerIpcHandlers() {
         }
     });
 
+    // Export Excel
     ipcMain.handle('export-excel', async () => {
         try {
             const workbook = XLSX.utils.book_new();
-
-            // Helper to add sheet
             const addSheet = (data, name, headers) => {
-                if (!data || data.length === 0) {
-                    // Add empty sheet with headers only
-                    const ws = XLSX.utils.aoa_to_sheet([headers]);
-                    XLSX.utils.book_append_sheet(workbook, ws, name);
-                    return;
-                }
-                const sheetData = data.map(row => headers.map(h => row[h] ?? ''));
+                const sheetData = data?.length
+                    ? data.map(row => headers.map(h => row[h] ?? ''))
+                    : [];
                 const ws = XLSX.utils.aoa_to_sheet([headers, ...sheetData]);
                 XLSX.utils.book_append_sheet(workbook, ws, name);
             };
 
-            // Accounts
-            const accounts = await FinanceModel.getAllAccounts();
-            addSheet(accounts, 'Accounts', ['id', 'name', 'type', 'balance', 'initial_balance', 'currency', 'status']);
-
-            // Transactions
-            const transactions = await FinanceModel.getAllTransactions();
-            addSheet(transactions, 'Transactions', ['id', 'start_date', 'type', 'category', 'amount', 'currency', 'account_id', 'to_account_id', 'description', 'frequency', 'is_active']);
-
-            // Categories
-            const categories = await FinanceModel.getAllCategories();
-            addSheet(categories, 'Categories', ['id', 'type', 'name', 'status', 'is_default', 'color', 'icon']);
-
-            // Budgets
-            const budgets = await FinanceModel.getAllBudgets();
-            addSheet(budgets, 'Budgets', ['id', 'category', 'amount', 'period', 'start_date', 'end_date', 'created_at']);
-
-            // Goals
-            const goals = await FinanceModel.getAllGoals();
-            addSheet(goals, 'Goals', ['id', 'name', 'description', 'target_amount', 'current_amount', 'monthly_contribution', 'target_date', 'status', 'priority']);
-
-            // Recurring Charges
-            const recurring = await FinanceModel.getAllRecurringCharges();
-            addSheet(recurring, 'Recurring Charges', ['id', 'category', 'name', 'amount', 'frequency', 'due_day', 'next_due_date', 'is_active', 'notes']);
-
-            // Bill Types
-            const billTypes = await FinanceModel.getBillTypes();
-            addSheet(billTypes, 'Bill Types', ['id', 'name', 'unit_name', 'cost_per_unit', 'category_name', 'account_id', 'auto_transaction']);
-
-            // Bill Readings
-            const billReadings = await FinanceModel.getBillReadings({});
-            addSheet(billReadings, 'Bill Readings', ['id', 'bill_type_id', 'date', 'units_used', 'total_cost', 'notes']);
+            addSheet(await FinanceModel.getAllAccounts(), 'Accounts',
+                ['id', 'name', 'type', 'balance', 'initial_balance', 'currency', 'status']);
+            addSheet(await FinanceModel.getAllTransactions(), 'Transactions',
+                ['id', 'start_date', 'type', 'category', 'amount', 'currency', 'account_id', 'to_account_id', 'description', 'frequency', 'is_active']);
+            addSheet(await FinanceModel.getAllCategories(), 'Categories',
+                ['id', 'type', 'name', 'status', 'is_default', 'color', 'icon']);
+            addSheet(await FinanceModel.getAllBudgets(), 'Budgets',
+                ['id', 'category', 'amount', 'period', 'start_date', 'end_date', 'created_at']);
+            addSheet(await FinanceModel.getAllGoals(), 'Goals',
+                ['id', 'name', 'description', 'target_amount', 'current_amount', 'monthly_contribution', 'target_date', 'status', 'priority']);
+            addSheet(await FinanceModel.getAllRecurringCharges(), 'Recurring Charges',
+                ['id', 'category', 'name', 'amount', 'frequency', 'due_day', 'next_due_date', 'is_active', 'notes']);
+            addSheet(await FinanceModel.getBillTypes(), 'Bill Types',
+                ['id', 'name', 'unit_name', 'cost_per_unit', 'category_name', 'account_id', 'auto_transaction']);
+            addSheet(await FinanceModel.getBillReadings({}), 'Bill Readings',
+                ['id', 'bill_type_id', 'date', 'units_used', 'total_cost', 'notes']);
 
             const { filePath, canceled } = await dialog.showSaveDialog({
                 buttonLabel: 'Export Excel',
@@ -310,7 +246,6 @@ function registerIpcHandlers() {
             });
 
             if (canceled || !filePath) return false;
-
             XLSX.writeFile(workbook, filePath);
             return true;
         } catch (err) {
@@ -319,93 +254,64 @@ function registerIpcHandlers() {
         }
     });
 
-    // AI Handlers
+    // ==========================================================================
+    // AI HANDLERS
+    // ==========================================================================
+
     ipcMain.handle('get-ai-settings', async () => {
-        try {
-            return await syncAIService();
-        } catch (e) {
-            console.error('Failed to get AI settings:', e.message);
-            return { enabled: false, url: 'http://127.0.0.1:11434', model: 'gemma3:4b' };
-        }
+        try { return await syncAIService(); }
+        catch (e) { return { enabled: false, url: 'http://127.0.0.1:11434', model: 'gemma3:4b' }; }
     });
 
     ipcMain.handle('get-ai-defaults', async () => {
-        try {
-            const ai = getAIService();
-            return ai.DEFAULTS || {};
-        } catch (e) {
-            console.error('Failed to get AI defaults:', e.message);
-            return {};
-        }
+        try { return getAIService().DEFAULTS || {}; }
+        catch (e) { return {}; }
     });
 
-    ipcMain.handle('save-ai-settings', async (event, settings) => {
+    ipcMain.handle('save-ai-settings', async (_, settings) => {
         try {
             await FinanceModel.saveAISettings(settings);
             await syncAIService();
             return true;
-        } catch (e) {
-            console.error('Failed to save AI settings:', e.message);
-            return false;
-        }
+        } catch (e) { return false; }
     });
 
-    ipcMain.handle('get-ai-models', async (event, url) => {
+    ipcMain.handle('get-ai-models', async (_, url) => {
         try {
             const ai = getAIService();
             if (url) ai.baseUrl = url;
             return await ai.getInstalledModels();
-        } catch (e) {
-            console.error('Failed to get AI models:', e.message);
-            return [];
-        }
+        } catch (e) { return []; }
     });
 
     ipcMain.handle('check-ai-connection', async () => {
-        try {
-            const ai = getAIService();
-            return await ai.checkConnection();
-        } catch (e) {
-            console.error('AI connection check failed:', e.message);
-            return false;
-        }
+        try { return await getAIService().checkConnection(); }
+        catch (e) { return false; }
     });
 
-    ipcMain.handle('parse-transaction-ai', async (event, { text, categories, accounts }) => {
-        try {
-            const ai = getAIService();
-            return await ai.parseTransactionFromText(text, categories || [], accounts || []);
-        } catch (e) {
-            console.error('AI transaction parsing failed:', e.message);
-            return null;
-        }
+    ipcMain.handle('parse-transaction-ai', async (_, { text, categories, accounts }) => {
+        try { return await getAIService().parseTransactionFromText(text, categories || [], accounts || []); }
+        catch (e) { return null; }
     });
 
-    ipcMain.handle('get-ai-insight', async (event, summary) => {
-        try {
-            const ai = getAIService();
-            return await ai.getFinancialInsight(summary);
-        } catch (e) {
-            console.error('Failed to get AI insight:', e.message);
-            return "Keep tracking your spending to stay on top of your goals!";
-        }
+    ipcMain.handle('get-ai-insight', async (_, summary) => {
+        try { return await getAIService().getFinancialInsight(summary); }
+        catch (e) { return "Keep tracking your spending to stay on top of your goals!"; }
     });
 
     ipcMain.handle('chat-sandbox', async (event, { text, context }) => {
         try {
-            const ai = getAIService();
-            // For streaming, we need to handle it differently
-            return await ai.chatSandbox(text, context, null, (chunk) => {
+            return await getAIService().chatSandbox(text, context, null, (chunk) => {
                 event.sender.send('chat-sandbox-chunk', chunk);
             });
-        } catch (e) {
-            console.error('Chat sandbox error:', e.message);
-            return "I'm having trouble connecting to the AI engine.";
-        }
+        } catch (e) { return "I'm having trouble connecting to the AI engine."; }
     });
 
-    // Forecast (uses ForecastEngine class)
-    ipcMain.handle('calculate-forecast', async (event, data) => {
+    // ==========================================================================
+    // FORECAST HANDLER
+    // ==========================================================================
+
+    ipcMain.handle('calculate-forecast', async (_, data) => {
         try {
             const ForecastEngine = require('../../utils/forecast');
             const engine = new ForecastEngine(
@@ -415,160 +321,31 @@ function registerIpcHandlers() {
             );
             return engine.generateForecast(data.months || 6);
         } catch (e) {
-            console.error('Forecast calculation error:', e);
+            console.error('Forecast error:', e);
             return { timeline: [], summary: {}, insights: [] };
         }
     });
 
-    // ==================== BILLS HANDLERS ====================
+    // ==========================================================================
+    // CURRENCY SYNC HANDLER
+    // ==========================================================================
 
-    ipcMain.handle('get-bill-types', async () => {
-        return await FinanceModel.getBillTypes();
-    });
-
-    ipcMain.handle('add-bill-type', async (event, data) => {
-        return await FinanceModel.addBillType(data);
-    });
-
-    ipcMain.handle('update-bill-type', async (event, { id, data }) => {
-        return await FinanceModel.updateBillType(id, data);
-    });
-
-    ipcMain.handle('delete-bill-type', async (event, id) => {
-        return await FinanceModel.deleteBillType(id);
-    });
-
-    ipcMain.handle('get-bill-readings', async (event, filters) => {
-        return await FinanceModel.getBillReadings(filters);
-    });
-
-    ipcMain.handle('get-bill-readings-paginated', async (event, options) => {
-        return await FinanceModel.getBillReadingsPaginated(options);
-    });
-
-    ipcMain.handle('add-bill-reading', async (event, data) => {
-        return await FinanceModel.addBillReading(data);
-    });
-
-    ipcMain.handle('update-bill-reading', async (event, { id, data }) => {
-        return await FinanceModel.updateBillReading(id, data);
-    });
-
-    ipcMain.handle('get-bill-projections', async (event, months) => {
-        return await FinanceModel.getBillProjections(months);
-    });
-
-    ipcMain.handle('delete-bill-reading', async (event, id) => {
-        return await FinanceModel.deleteBillReading(id);
-    });
-
-    // ==================== AUTO-BACKUP HANDLERS ====================
-
-    ipcMain.handle('pick-backup-directory', async () => {
-        const { filePaths, canceled } = await dialog.showOpenDialog({
-            title: 'Select Backup Directory',
-            properties: ['openDirectory', 'createDirectory']
-        });
-
-        if (canceled || !filePaths || filePaths.length === 0) {
-            return null;
-        }
-        return filePaths[0];
-    });
-
-    ipcMain.handle('run-backup-now', async () => {
-        try {
-            const settings = await FinanceModel.getAllSettings();
-            const backupDir = settings.auto_backup_directory;
-
-            if (!backupDir) {
-                return { success: false, message: 'No backup directory configured' };
-            }
-
-            // Check if directory exists
-            if (!fs.existsSync(backupDir)) {
-                return { success: false, message: 'Backup directory does not exist' };
-            }
-
-            const data = await FinanceModel.exportData();
-            const timestamp = new Date().toISOString().replace(/[:.]/g, '-').split('T')[0];
-            const filename = `bofo-backup-${timestamp}.json`;
-            const filepath = path.join(backupDir, filename);
-
-            fs.writeFileSync(filepath, JSON.stringify(data, null, 2));
-
-            // Update last backup time
-            await FinanceModel.updateSetting('auto_backup_last', new Date().toISOString());
-
-            return { success: true, message: `Backup saved to ${filename}` };
-        } catch (err) {
-            console.error('Backup error:', err);
-            return { success: false, message: err.message };
-        }
-    });
-
-    // ==================== EXCHANGE RATES HANDLERS ====================
-
-    ipcMain.handle('get-exchange-rates', async () => {
-        return await FinanceModel.getExchangeRates();
-    });
-
-    ipcMain.handle('get-exchange-rate', async (event, { from, to }) => {
-        return await FinanceModel.getExchangeRate(from, to);
-    });
-
-    ipcMain.handle('set-exchange-rate', async (event, { from, to, rate, source }) => {
-        return await FinanceModel.setExchangeRate(from, to, rate, source || 'manual');
-    });
-
-    ipcMain.handle('delete-exchange-rate', async (event, id) => {
-        return await FinanceModel.deleteExchangeRate(id);
-    });
-
-    ipcMain.handle('convert-currency', async (event, { amount, from, to }) => {
-        return await FinanceModel.convertCurrency(amount, from, to);
-    });
-
-    ipcMain.handle('get-used-currencies', async () => {
-        return await FinanceModel.getUsedCurrencies();
-    });
-
-    ipcMain.handle('get-accounts-converted', async (event, baseCurrency) => {
-        return await FinanceModel.getAccountsWithConvertedBalances(baseCurrency);
-    });
-
-    ipcMain.handle('sync-exchange-rates', async (event, { provider, baseCurrency, customUrl }) => {
+    ipcMain.handle('sync-exchange-rates', async (_, { provider, baseCurrency, customUrl }) => {
         try {
             const CurrencyService = require('../../services/currencyService');
-
-            // Fetch rates from API
             const rates = await CurrencyService.fetchRates(provider, baseCurrency, customUrl);
-
-            // Get currencies used in accounts to filter relevant rates
             const usedCurrencies = await FinanceModel.getUsedCurrencies();
-            usedCurrencies.push(baseCurrency); // Include base currency
-
-            // Filter to only relevant rates
+            usedCurrencies.push(baseCurrency);
             const relevantRates = CurrencyService.filterRelevantRates(rates, usedCurrencies);
-
-            // Save to database
             await FinanceModel.setExchangeRatesBulk(relevantRates, 'api');
-
-            // Update last sync time
             await FinanceModel.updateSetting('currency_last_sync', new Date().toISOString());
-
-            return {
-                success: true,
-                message: `Synced ${relevantRates.length} exchange rates`,
-                ratesUpdated: relevantRates.length
-            };
+            return { success: true, message: `Synced ${relevantRates.length} exchange rates`, ratesUpdated: relevantRates.length };
         } catch (err) {
-            console.error('Exchange rate sync failed:', err);
             return { success: false, message: err.message };
         }
     });
 
-    ipcMain.handle('test-currency-api', async (event, { provider, baseCurrency, customUrl }) => {
+    ipcMain.handle('test-currency-api', async (_, { provider, baseCurrency, customUrl }) => {
         try {
             const CurrencyService = require('../../services/currencyService');
             return await CurrencyService.testConnection(provider, baseCurrency, customUrl);
@@ -578,42 +355,61 @@ function registerIpcHandlers() {
     });
 
     ipcMain.handle('get-currency-providers', async () => {
-        const CurrencyService = require('../../services/currencyService');
-        return CurrencyService.getProviders();
+        return require('../../services/currencyService').getProviders();
+    });
+
+    // ==========================================================================
+    // BACKUP HANDLERS
+    // ==========================================================================
+
+    ipcMain.handle('pick-backup-directory', async () => {
+        const { filePaths, canceled } = await dialog.showOpenDialog({
+            title: 'Select Backup Directory',
+            properties: ['openDirectory', 'createDirectory']
+        });
+        return canceled || !filePaths?.length ? null : filePaths[0];
+    });
+
+    ipcMain.handle('run-backup-now', async () => {
+        try {
+            const settings = await FinanceModel.getAllSettings();
+            const backupDir = settings.auto_backup_directory;
+
+            if (!backupDir) return { success: false, message: 'No backup directory configured' };
+            if (!fs.existsSync(backupDir)) return { success: false, message: 'Backup directory does not exist' };
+
+            const data = await FinanceModel.exportData();
+            const timestamp = new Date().toISOString().replace(/[:.]/g, '-').split('T')[0];
+            const filename = `bofo-backup-${timestamp}.json`;
+            fs.writeFileSync(path.join(backupDir, filename), JSON.stringify(data, null, 2));
+            await FinanceModel.updateSetting('auto_backup_last', new Date().toISOString());
+
+            return { success: true, message: `Backup saved to ${filename}` };
+        } catch (err) {
+            return { success: false, message: err.message };
+        }
     });
 }
 
-// Auto-backup on app close (called from main.js)
+// =============================================================================
+// AUTO-BACKUP ON APP CLOSE
+// =============================================================================
+
 async function performAutoBackup() {
     try {
         const settings = await FinanceModel.getAllSettings();
-
-        if (settings.auto_backup_enabled !== 'true' || !settings.auto_backup_directory) {
-            return;
-        }
+        if (settings.auto_backup_enabled !== 'true' || !settings.auto_backup_directory) return;
 
         const backupDir = settings.auto_backup_directory;
-        if (!fs.existsSync(backupDir)) {
-            console.warn('Auto-backup directory does not exist:', backupDir);
-            return;
-        }
+        if (!fs.existsSync(backupDir)) return;
 
-        // Check if we already backed up today
+        // Check if already backed up today
         const lastBackup = settings.auto_backup_last;
-        if (lastBackup) {
-            const lastDate = new Date(lastBackup).toDateString();
-            const today = new Date().toDateString();
-            if (lastDate === today) {
-                console.log('Already backed up today, skipping...');
-                return;
-            }
-        }
+        if (lastBackup && new Date(lastBackup).toDateString() === new Date().toDateString()) return;
 
         const data = await FinanceModel.exportData();
         const timestamp = new Date().toISOString().replace(/[:.]/g, '-').split('T')[0];
-        const filename = `bofo-backup-${timestamp}.json`;
-        const filepath = path.join(backupDir, filename);
-
+        const filepath = path.join(backupDir, `bofo-backup-${timestamp}.json`);
         fs.writeFileSync(filepath, JSON.stringify(data, null, 2));
         await FinanceModel.updateSetting('auto_backup_last', new Date().toISOString());
 

@@ -42,7 +42,7 @@ export const BillReadingModal = ({ billTypes }) => {
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button class="btn" id="cancel-bill-reading">Cancel</button>
+                    <button class="btn secondary" id="cancel-bill-reading">Cancel</button>
                     <button class="btn primary" id="save-reading">Save Reading</button>
                 </div>
             </div>

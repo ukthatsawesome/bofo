@@ -2,6 +2,7 @@ import { BaseView } from './BaseView.js';
 import { $, UIUtils } from '../core/dom.js';
 import { Card } from '../components/common/Card.js';
 import { StatusBadge } from '../components/common/StatusBadge.js';
+import { ViewHeader } from '../components/common/ViewHeader.js';
 
 export class BillsView extends BaseView {
     constructor(app, elementId) {
@@ -26,17 +27,15 @@ export class BillsView extends BaseView {
 
     renderBaseTemplate() {
         this.element.innerHTML = `
-            <div class="view-header">
-                <div class="header-main">
-                    <h1>Bills Tracking</h1>
-                    <p class="text-muted">Monitor consumption and projected expenses</p>
-                </div>
-                <div class="header-actions">
+            ${ViewHeader({
+            title: 'Bills Tracking',
+            subtitle: 'Monitor consumption and projected expenses',
+            actions: `
                     <button class="btn primary" onclick="app.views.bills.handleNewReading()">
                         <i data-lucide="plus"></i> New Reading
                     </button>
-                </div>
-            </div>
+                `
+        })}
 
             <div id="bills-summary-row" class="stats-grid mb-6"></div>
 

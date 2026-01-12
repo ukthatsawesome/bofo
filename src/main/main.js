@@ -58,7 +58,20 @@ function createWindow() {
         }
     });
 
-    win.loadFile(path.join(__dirname, '../renderer/index.html'));
+
+
+    // DEVELOPMENT: Load Vite Dev Server
+    if (process.env.VITE_DEV_SERVER_URL) {
+        win.loadURL(process.env.VITE_DEV_SERVER_URL);
+        console.log('[Main] Loading Vite Dev Server:', process.env.VITE_DEV_SERVER_URL);
+    }
+    // PRODUCTION / PREVIEW: Load built file
+    else {
+        // Point to the built index.html in dist/renderer
+        const indexPath = path.join(__dirname, '../../dist/renderer/index.html');
+        win.loadFile(indexPath);
+        console.log('[Main] Loading built file:', indexPath);
+    }
 
     // Hide menu bar by default, toggled with Alt
     win.setAutoHideMenuBar(true);

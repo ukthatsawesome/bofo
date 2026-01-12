@@ -2,6 +2,8 @@
  * BudgetCard Component - Tailwind version
  * Displays budget progress with spending info
  */
+import { ProgressBar } from './ProgressBar.js';
+
 export const BudgetCard = ({
     category,
     period,
@@ -17,13 +19,11 @@ export const BudgetCard = ({
     const isOver = spent > limit;
     const remaining = limit - spent;
 
-    // Progress bar color based on percentage
-    const getProgressColor = (pct) => {
-        if (pct > 100) return 'bg-danger';
-        if (pct > 85) return 'bg-warning';
-        if (pct > 60) return 'bg-brand-primary';
-        return 'bg-success';
-    };
+    // Determine color
+    let barColor = 'bg-success';
+    if (percent > 100) barColor = 'bg-danger';
+    else if (percent > 85) barColor = 'bg-warning';
+    else if (percent > 60) barColor = 'bg-brand-primary';
 
     return `
         <div class="card-panel ${isOver ? 'border-danger/50' : ''}">
@@ -54,21 +54,14 @@ export const BudgetCard = ({
                 </div>
             </div>
             
-            <div class="flex items-baseline gap-2 mb-3">
-                <span class="text-xl font-bold ${isOver ? 'text-danger' : 'text-text-main'}">
-                    ${formatter.formatCurrency(spent)}
-                </span>
-                <span class="text-sm text-text-muted">
-                    of ${formatter.formatCurrency(limit)}
-                </span>
-            </div>
-            
-            <div class="h-2 bg-surface-input rounded-full overflow-hidden mb-3">
-                <div 
-                    class="h-full ${getProgressColor(percent)} rounded-full transition-all duration-500"
-                    style="width: ${percent}%"
-                ></div>
-            </div>
+            ${ProgressBar({
+        label: 'Spending',
+        value: `${formatter.formatCurrency(spent)} of ${formatter.formatCurrency(limit)}`,
+        percent: percent,
+        color: barColor,
+        showPercent: false,
+        size: 'sm'
+    })}
             
             <div class="text-sm font-medium ${remaining < 0 ? 'text-danger' : 'text-success'}">
                 ${remaining < 0 ? 'Over by' : 'Remaining:'} ${formatter.formatCurrency(Math.abs(remaining))}

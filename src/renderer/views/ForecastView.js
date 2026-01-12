@@ -5,6 +5,7 @@ import { FeedbackItem } from '../components/common/FeedbackItem.js';
 import { ProgressBar } from '../components/common/ProgressBar.js';
 import { SegmentedControl } from '../components/common/SegmentedControl.js';
 import { InsightCard } from '../components/common/InsightCard.js';
+import { ViewHeader } from '../components/common/ViewHeader.js';
 
 export class ForecastView extends BaseView {
     constructor(app) {
@@ -23,15 +24,11 @@ export class ForecastView extends BaseView {
 
     renderBaseTemplate() {
         this.element.innerHTML = `
-            <div class="view-header">
-                <div class="header-main">
-                    <h1>Financial Forecast</h1>
-                    <p class="text-muted">Analyze your future wealth based on historical patterns</p>
-                </div>
-                <div class="header-actions">
-                    <div id="forecast-range-container"></div>
-                </div>
-            </div>
+            ${ViewHeader({
+            title: 'Financial Forecast',
+            subtitle: 'Analyze your future wealth based on historical patterns',
+            actions: `<div id="forecast-range-container"></div>`
+        })}
 
             <div id="forecast-custom-dates" class="card mb-6 hidden">
                 <div class="card-body flex-row gap-4 align-center">
