@@ -12,13 +12,16 @@ Bofo uses a **Main-Renderer** architecture typical of Electron apps, but with a 
   - Uses `window.api` (via ContextBridge) to communicate with the backend.
   - **State Management**: Simple observable state in `src/renderer/core/state.ts`.
   - **Routing**: Hashtag-based router in `src/renderer/core/router.ts`.
+  - **View Architecture**:
+    - `BaseView`: Abstract base class for all pages.
+    - **Mixins**: Complex views (like `SettingsView`) use Mixins (`src/renderer/views/settings/`) to separate logic into manageable chunks.
 
 - **Backend (Main Process)**:
   - Located in `src/main/`
   - **Node.js Environment**: Full access to file system, database, and OS APIs.
   - **Database**: SQLCipher (SQLite with encryption) via `src/main/database/`.
   - **IPC**: Handlers in `src/main/ipc/` receive requests from the frontend.
-  - **Services**: `aiService` and `currencyService` encapsulate complex business logic.
+  - **Services**: `aiService`, `currencyService`, and `financeService` encapsulate complex business logic.
 
 - **Shared**:
   - `src/shared/`: Types and constants shared between both processes.
@@ -73,8 +76,9 @@ Expose your data to the frontend:
 
 ### 4. Build the UI
 1.  Create a View in `src/renderer/views/` (e.g., `MyNewView.ts`) inheriting from `BaseView`.
-2.  Add HTML template and logic.
-3.  Register the route in `src/renderer/core/router.ts`.
+2.  **Complexity Management**: If the view is complex, split logic into Mixins or sub-components (see `SettingsView` pattern).
+3.  Add HTML template and logic.
+4.  Register the route in `src/renderer/core/router.ts`.
 
 ## 🧪 Testing
 - Run `npm run typecheck` to verify TypeScript types.

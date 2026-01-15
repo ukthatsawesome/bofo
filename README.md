@@ -8,14 +8,15 @@ Bofo is a sleek, modern, and powerful personal finance application built with **
 
 ## ✨ Features
 
-- **🚀 AI Categorization**: Automatically categorize your transactions using local AI (via Ollama).
-- **📊 Interactive Dashboards**: Beautiful charts (powered by Chart.js) to visualize your spending and income.
-- **🔮 Wealth Forecasting**: Project your future net worth based on your spending habits and financial goals.
-- **🎯 Smart Budgets & Goals**: Set category budgets and track progress toward your financial dreams.
-- **💵 Bill Tracking**: Manage utilities and recurring bills with cost-per-unit tracking.
-- **🔄 Recurring Charges**: Keep track of subscriptions and automatic payments.
-- **💾 Data Control**: Export all your data to **JSON** or **Multi-sheet Excel Workbook**, with automatic daily backups.
-- **🌓 Modern UI**: Sleek dark/light mode with glassmorphism aesthetics.
+- **🚀 AI Insights & Categorization**: Local AI (Ollama) automatically categorizes transactions and provides personalized financial advice tailored to your spending habits.
+- **🧪 Financial Sandbox**: Simulate future scenarios (e.g., "Buying a car", "Salary hike") to see how they impact your net worth over time.
+- **📊 Interactive Dashboard**: A reimagined dashboard with AI-driven summaries, quick transaction entry, and real-time spending breakdowns.
+- **🧾 Advanced Bill Tracking**: Dedicated tracking for utility bills with usage history, cost-per-unit analysis, and payment reminders.
+- **🔮 Wealth Forecasting**: Projection engine that visualizes your financial future based on current trends and recurring expenses.
+- **🎯 Smart Goals**: Set specific savings targets and track progress visually.
+- **🔄 Recurring Subscriptions**: Manage fixed monthly commitments and spot creeping costs.
+- **💾 Data Control**: Full export/import capabilities (JSON/Excel) with specialized settings for backup management.
+- **🌓 Modern Aesthetics**: A polished Glassmorphism UI with comprehensive dark/light mode support.
 
 ---
 

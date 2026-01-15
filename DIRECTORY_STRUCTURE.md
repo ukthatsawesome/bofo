@@ -41,9 +41,15 @@ The "Frontend" of the application, running in a Chromium environment.
 - `components/`: Reusable UI components (Buttons, Cards, Charts, etc.).
 - `core/`: Core application logic (Router, State Management, API bridge).
 - `fonts/`: Local font files for offline usage.
-- `modals/`: Interactive modal dialogs.
+- `modals/`: Interactive modal dialogs (BillType, Transaction, Budget, etc.).
 - `services/`: Frontend-specific service logic.
-- `views/`: Main page-level components (Dashboard, Transactions, Settings, etc.).
+- `views/`: Main page-level components.
+  - `settings/`: Modular settings pages (Accounts, Backup, Bills, Remote, etc.).
+  - `DashboardView.ts`: Main hub with AI insights.
+  - `SandboxView.ts`: Financial scenario planning.
+  - `BillsView.ts`: Utility bill tracking.
+  - `AISettingsView.ts`: AI model configuration.
+  - `ForecastView.ts`, `GoalsView.ts`, etc.
 - `index.html`: Main entry point for the UI.
 - `renderer.ts`: Main entry point for renderer logic.
 - `tailwind-input.css`: Global styles and Tailwind composition.

@@ -200,7 +200,11 @@ export class AISettingsView extends BaseView {
         try {
             refreshBtn?.querySelector('i')?.classList.add('animate-spin');
 
-            const models: OllamaModel[] = await window.api.getOllamaModels(url);
+            const rawModels = await window.api.getOllamaModels(url) as OllamaModel[] | string[];
+            // Normalize: API returns OllamaModel[] but handle string[] fallback
+            const models: OllamaModel[] = rawModels.map((m: OllamaModel | string) =>
+                typeof m === 'string' ? { name: m } : m
+            );
 
             if (models && models.length > 0) {
                 modelSelect.innerHTML = models.map(m =>

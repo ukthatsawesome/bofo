@@ -104,8 +104,29 @@ The safeStorage API uses the operating system's native secure credential storage
 3. **Fallback Protection**: On systems where safeStorage is unavailable, keys are encrypted with a machine-specific salt (hostname + username + AES-256-GCM)
 
 4. **Unique Per Installation**: Each installation generates its own random encryption key
-
 5. **No Network Transmission**: Keys are never sent over the network
+
+---
+
+## 📡 Remote Access Security (Beta)
+
+Bofo includes an optional feature to view your financial dashboard from other devices on your local network.
+
+### Security Architecture
+
+1.  **Local Network Only**: The server binds to your local IP address. It is **not** exposed to the public internet unless you manually port-forward (which is **strongly discouraged**).
+2.  **Access Key Authentication**: A user-defined Access Key (password) is required to view any data.
+    - The key is stored in the encrypted settings database.
+    - All requests must include this key in the Authorization header or query parameter.
+3.  **Read-Only Mode**: By default, remote sessions are read-only to prevent unauthorized data modification.
+
+### Risks & Mitigations
+
+| Risk | Mitigation |
+|------|------------|
+| **Man-in-the-Middle** | The local server runs on HTTP. **Only enable this on trusted private networks (Home LAN).** Do not use on public Wi-Fi. |
+| **Brute Force** | The server implements rate-limiting to prevent password guessing attacks. |
+| **Exposure** | The feature is **disabled by default**. You must explicitly turn it on in Settings. |
 
 ---
 
