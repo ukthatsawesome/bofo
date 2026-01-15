@@ -103,15 +103,18 @@ contextBridge.exposeInMainWorld('api', {
     // Exchange Rates
     getExchangeRates: () => ipcRenderer.invoke('get-exchange-rates'),
     getExchangeRate: (from: string, to: string) => ipcRenderer.invoke('get-exchange-rate', { from, to }),
-    setExchangeRate: (from: string, to: string, rate: number, source: string) => ipcRenderer.invoke('set-exchange-rate', { from, to, rate, source }),
+    setExchangeRate: (data: { from: string; to: string; rate: number; source?: string }) =>
+        ipcRenderer.invoke('set-exchange-rate', data),
     deleteExchangeRate: (id: number) => ipcRenderer.invoke('delete-exchange-rate', id),
     convertCurrency: (amount: number, from: string, to: string) => ipcRenderer.invoke('convert-currency', { amount, from, to }),
     getUsedCurrencies: () => ipcRenderer.invoke('get-used-currencies'),
     getAccountsConverted: (baseCurrency: string) => ipcRenderer.invoke('get-accounts-converted', baseCurrency),
-    syncExchangeRates: (provider: string, baseCurrency: string, customUrl: string) =>
-        ipcRenderer.invoke('sync-exchange-rates', { provider, baseCurrency, customUrl }),
-    testCurrencyAPI: (provider: string, baseCurrency: string, customUrl: string) =>
-        ipcRenderer.invoke('test-currency-api', { provider, baseCurrency, customUrl }),
+    getRateSyncStatus: () => ipcRenderer.invoke('get-rate-sync-status'),
+    getTotalBalance: (baseCurrency: string) => ipcRenderer.invoke('get-total-balance', baseCurrency),
+    syncExchangeRates: (data: { provider: string; baseCurrency: string; customUrl?: string }) =>
+        ipcRenderer.invoke('sync-exchange-rates', data),
+    testCurrencyAPI: (data: { provider: string; baseCurrency?: string; customUrl?: string }) =>
+        ipcRenderer.invoke('test-currency-api', data),
     getCurrencyProviders: () => ipcRenderer.invoke('get-currency-providers'),
 
     // Remote Access

@@ -9,6 +9,8 @@ export class HttpApiProvider {
     host: string;
     key: string;
     private _promptLock: Promise<boolean> | null = null;
+    private _authRetryCount = 0;
+    private static MAX_AUTH_RETRIES = 2;
 
     constructor() {
         // Defaults for Dev environment
@@ -85,6 +87,15 @@ export class HttpApiProvider {
             if (response.status === 401) {
                 // Key is invalid. Force a re-config.
                 console.warn('[HttpApi] 401 Unauthorized. Prompting for new key...');
+
+                // Prevent infinite retry loops
+                if (this._authRetryCount >= HttpApiProvider.MAX_AUTH_RETRIES) {
+                    console.error('[HttpApi] Max auth retries reached. Giving up.');
+                    this._authRetryCount = 0;
+                    return null;
+                }
+                this._authRetryCount++;
+
                 const success = await this.ensureConfig(true);
                 if (success) {
                     // Retry once with new credentials
@@ -97,6 +108,8 @@ export class HttpApiProvider {
                 throw new Error(`HTTP Error: ${response.status} ${response.statusText}`);
             }
 
+            // Reset retry counter on successful response
+            this._authRetryCount = 0;
             return await response.json();
         } catch (err: any) {
             console.error(`[HttpApi] Error calling ${channel}:`, err);

@@ -114,7 +114,51 @@ export class App {
         } catch (error) {
             console.error('App initialization failed:', error);
             this.setLoading(false);
+            this.showInitError(error as Error);
         }
+    }
+
+    /**
+     * Show user-friendly error UI when app fails to initialize
+     */
+    showInitError(error: Error) {
+        const main = document.getElementById('main-content');
+        if (main) {
+            main.innerHTML = `
+                <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; padding: 2rem; text-align: center;">
+                    <div style="background: var(--card-bg, #fff); border-radius: 16px; padding: 2rem 3rem; box-shadow: 0 4px 24px rgba(0,0,0,0.1); max-width: 480px;">
+                        <div style="font-size: 3rem; margin-bottom: 1rem;">⚠️</div>
+                        <h2 style="margin: 0 0 0.5rem; color: var(--text-primary, #1a1a2e);">Connection Failed</h2>
+                        <p style="color: var(--text-secondary, #666); margin-bottom: 1.5rem;">
+                            Could not connect to the backend server.<br>
+                            <small style="opacity: 0.7;">${error.message || 'Unknown error'}</small>
+                        </p>
+                        <div style="display: flex; gap: 0.75rem; justify-content: center;">
+                            <button onclick="window.location.reload()" style="padding: 0.75rem 1.5rem; border-radius: 8px; border: none; background: var(--primary, #4f46e5); color: white; cursor: pointer; font-weight: 500;">
+                                Retry Connection
+                            </button>
+                            <button onclick="localStorage.removeItem('bofo_remote_host'); localStorage.removeItem('bofo_remote_key'); window.location.reload();" style="padding: 0.75rem 1.5rem; border-radius: 8px; border: 1px solid var(--border, #e5e7eb); background: transparent; cursor: pointer; font-weight: 500;">
+                                Reset Config
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+    }
+
+    /**
+     * Reload all state data from the backend
+     */
+    async loadData(): Promise<void> {
+        await Promise.all([
+            this.state.loadSettings(),
+            this.state.loadAccounts(),
+            this.state.loadCategories(),
+            this.state.loadTransactions(),
+            this.state.loadBudgets(),
+            this.state.loadRecurringCharges()
+        ]);
     }
 
     /**
@@ -248,7 +292,7 @@ export class App {
 
     setupModalActions() {
         // --- Cross-Currency Logic ---
-        const checkCurrencies = () => {
+        const checkCurrencies = async () => {
             const fromSelect = $('#modal-tx-account') as HTMLSelectElement;
             const toSelect = $('#modal-tx-to-account') as HTMLSelectElement;
             const activeSegment = document.querySelector('#transaction-modal .segment.active') as HTMLElement;
@@ -267,12 +311,35 @@ export class App {
             const rateInput = $('#modal-tx-exchange-rate') as HTMLInputElement;
             const toAmountInput = $('#modal-tx-to-amount') as HTMLInputElement;
             const rateGroup = $('#modal-tx-rate-group');
+            const rateSourceHint = $('#modal-tx-rate-source');
 
             if (isMultiCurrency) {
                 if (rateGroup) rateGroup.classList.remove('hidden');
                 if (rateInput) rateInput.disabled = false;
                 if (toAmountInput) toAmountInput.disabled = false;
-                if (rateInput && !rateInput.value) rateInput.value = '1';
+
+                // Auto-fetch stored exchange rate
+                try {
+                    const storedRate = await window.api.getExchangeRate(fromCurrency, toCurrency);
+                    if (storedRate !== null && rateInput) {
+                        rateInput.value = storedRate.toFixed(6);
+                        if (rateSourceHint) {
+                            rateSourceHint.textContent = '(from saved rates)';
+                            rateSourceHint.classList.remove('text-warning');
+                            rateSourceHint.classList.add('text-success');
+                        }
+                    } else if (rateInput && !rateInput.value) {
+                        rateInput.value = '1';
+                        if (rateSourceHint) {
+                            rateSourceHint.textContent = '(no rate found - enter manually)';
+                            rateSourceHint.classList.remove('text-success');
+                            rateSourceHint.classList.add('text-warning');
+                        }
+                    }
+                } catch {
+                    if (rateInput && !rateInput.value) rateInput.value = '1';
+                }
+
                 // Trigger calc
                 updateCalculations('amount');
             } else {
@@ -347,13 +414,21 @@ export class App {
                         return this.notifications.toast('Error', 'Source and destination must be different', 'error');
                     }
 
-                    // Capture cross-currency fields if active
+                    // Always set exchange rate and to_amount for transfers
                     const rateInput = $('#modal-tx-exchange-rate') as HTMLInputElement;
                     const toAmountInput = $('#modal-tx-to-amount') as HTMLInputElement;
-                    if (rateInput && !rateInput.disabled) {
-                        tx.exchange_rate = parseFloat(rateInput.value);
-                        tx.to_amount = parseFloat(toAmountInput.value);
+
+                    // Check if cross-currency (rate input is enabled)
+                    if (rateInput && !rateInput.disabled && rateInput.value) {
+                        tx.exchange_rate = parseFloat(rateInput.value) || 1;
+                        tx.to_amount = parseFloat(toAmountInput?.value) || (amount * tx.exchange_rate);
+                    } else {
+                        // Same currency transfer - rate is 1:1
+                        tx.exchange_rate = 1;
+                        tx.to_amount = amount;
                     }
+
+                    console.log('[Transfer] exchange_rate:', tx.exchange_rate, 'to_amount:', tx.to_amount);
                 }
 
                 try {
@@ -408,7 +483,7 @@ export class App {
                 if (!name) return this.notifications.toast('Error', 'Name is required', 'error');
 
                 try {
-                    await window.api.addCategory(type, name);
+                    await window.api.addCategory({ type, name });
                     this.notifications.toast('Success', 'Category saved');
                     UIUtils.setHidden('#category-modal', true);
                     await this.state.loadCategories();

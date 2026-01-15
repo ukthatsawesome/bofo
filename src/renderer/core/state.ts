@@ -76,8 +76,10 @@ export class StateManager {
     }
 
     async loadSettings(): Promise<void> {
-        this.settings = await window.api.getSettings();
-        this.aiSettings = await window.api.getAISettings();
+        const settings = await window.api.getSettings();
+        this.settings = settings && typeof settings === 'object' ? settings : {};
+        const aiSettings = await window.api.getAISettings();
+        this.aiSettings = aiSettings && typeof aiSettings === 'object' ? aiSettings : {};
         this.applyTheme(this.settings.theme || 'dark');
         await this.loadBillTypes();
         await this.loadExchangeRates();
@@ -94,36 +96,25 @@ export class StateManager {
     }
 
     async loadAccounts(): Promise<void> {
-        this.accounts = await window.api.getAccounts();
+        const data = await window.api.getAccounts();
+        this.accounts = Array.isArray(data) ? data : [];
     }
 
     async loadCategories(): Promise<void> {
-        this.categories = await window.api.getCategories();
+        const data = await window.api.getCategories();
+        this.categories = Array.isArray(data) ? data : [];
     }
 
     async loadTransactions(): Promise<void> {
         const data = await window.api.getTransactions();
-        this.transactions = data.sort((a, b) => new Date(b.start_date).getTime() - new Date(a.start_date).getTime());
+        this.transactions = (Array.isArray(data) ? data : []).sort((a, b) =>
+            new Date(b.start_date).getTime() - new Date(a.start_date).getTime()
+        );
     }
 
     applyTheme(theme: string): void {
-        // Store theme preference
-        localStorage.setItem('bofo-theme', theme);
-
-        // Resolve system theme
-        let resolvedTheme = theme;
-        if (theme === 'system') {
-            resolvedTheme = window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
-        }
-
-        // Apply to HTML element
-        document.documentElement.setAttribute('data-theme', resolvedTheme);
-
-        // Update meta theme-color for browser
-        const metaTheme = document.querySelector('meta[name="theme-color"]') as HTMLMetaElement;
-        if (metaTheme) {
-            metaTheme.content = resolvedTheme === 'light' ? '#f8fafc' : '#09090b';
-        }
+        // Light mode only for now (dark mode deferred)
+        document.documentElement.setAttribute('data-theme', 'light');
     }
 
     getCurrencyPrecision(): number {
@@ -135,23 +126,28 @@ export class StateManager {
     }
 
     async loadBudgets(): Promise<void> {
-        this.budgets = await window.api.getBudgets();
+        const data = await window.api.getBudgets();
+        this.budgets = Array.isArray(data) ? data : [];
     }
 
     async loadBillTypes(): Promise<void> {
         // @ts-ignore - mismatch in expected structure? Types say BillType[], but API returns BillType including account_name
-        this.billTypes = await window.api.getBillTypes();
+        const data = await window.api.getBillTypes();
+        this.billTypes = Array.isArray(data) ? data : [];
     }
 
     async loadBillReadings(filters: any = null): Promise<void> {
         // @ts-ignore
-        this.billReadings = await window.api.getBillReadings(filters || this.billHistoryFilter);
+        const readings = await window.api.getBillReadings(filters || this.billHistoryFilter);
+        this.billReadings = Array.isArray(readings) ? readings : [];
         // @ts-ignore
-        this.allBillReadings = await window.api.getBillReadings({}); // All time
+        const allReadings = await window.api.getBillReadings({}); // All time
+        this.allBillReadings = Array.isArray(allReadings) ? allReadings : [];
     }
 
     async loadRecurringCharges(): Promise<void> {
-        this.recurringCharges = await window.api.getRecurringCharges();
+        const data = await window.api.getRecurringCharges();
+        this.recurringCharges = Array.isArray(data) ? data : [];
     }
 }
 

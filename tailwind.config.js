@@ -1,7 +1,7 @@
 /** @type {import('tailwindcss').Config} */
 module.exports = {
   content: [
-    "./src/renderer/**/*.{html,js}",
+    "./src/renderer/**/*.{html,js,ts}",
     "./src/renderer/index.html"
   ],
   darkMode: ['class', '[data-theme="dark"]'],
@@ -63,11 +63,6 @@ module.exports = {
         'sm': 'var(--shadow-sm)',
         'md': 'var(--shadow-md)',
         'lg': 'var(--shadow-lg)',
-        'glow': 'var(--shadow-glow)',
-      },
-      backdropBlur: {
-        'glass': '20px',
-        'soft': '12px',
       },
       transitionTimingFunction: {
         'smooth': 'var(--ease-smooth)',

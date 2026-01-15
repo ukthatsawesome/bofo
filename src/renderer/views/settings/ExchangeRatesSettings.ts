@@ -41,8 +41,65 @@ export const ExchangeRatesSettingsMixin = {
             ($('#currency-custom-url') as HTMLInputElement).value = settings.currency_custom_url || '';
         }
 
+        // Auto-sync toggle state
+        const autoSyncToggle = $('#exchange-rate-auto-sync') as HTMLInputElement;
+        if (autoSyncToggle) {
+            autoSyncToggle.checked = settings.exchange_rate_sync_on_startup === 'true';
+        }
+
+        // Display sync status with staleness warning
+        await this.renderSyncStatus();
         await this.renderExchangeRatesTable();
         this.refreshIcons();
+    },
+
+    async handleAutoSyncToggle(this: SettingsView) {
+        const toggle = $('#exchange-rate-auto-sync') as HTMLInputElement;
+        const enabled = toggle?.checked ? 'true' : 'false';
+
+        await window.api.updateSetting({ key: 'exchange_rate_sync_on_startup', value: enabled });
+        this.app.notifications.toast(
+            toggle?.checked ? 'Enabled' : 'Disabled',
+            toggle?.checked ? 'Rates will sync on startup when stale' : 'Auto-sync on startup disabled',
+            'success'
+        );
+    },
+
+    async renderSyncStatus(this: SettingsView) {
+        const statusDiv = $('#exchange-rate-sync-status');
+        if (!statusDiv) return;
+
+        try {
+            const syncStatus = await window.api.getRateSyncStatus();
+            const lastSyncDate = syncStatus.lastSync
+                ? new Date(syncStatus.lastSync).toLocaleString()
+                : 'Never';
+
+            if (syncStatus.isStale) {
+                statusDiv.innerHTML = `
+                    <div class="flex-row align-center gap-2 p-3 rounded-lg bg-warning/10">
+                        <i data-lucide="alert-triangle" class="w-4 h-4 text-warning"></i>
+                        <div class="flex-1">
+                            <span class="text-warning font-medium">Exchange rates are stale</span>
+                            <div class="text-muted text-sm">Last sync: ${lastSyncDate} (${Math.round(syncStatus.hoursSinceSync)}h ago)</div>
+                        </div>
+                    </div>
+                `;
+            } else {
+                statusDiv.innerHTML = `
+                    <div class="flex-row align-center gap-2 p-3 rounded-lg bg-success/10">
+                        <i data-lucide="check-circle" class="w-4 h-4 text-success"></i>
+                        <div class="flex-1">
+                            <span class="text-success">Rates are up to date</span>
+                            <div class="text-muted text-sm">Last sync: ${lastSyncDate} · ${syncStatus.rateCount} rates</div>
+                        </div>
+                    </div>
+                `;
+            }
+            this.refreshIcons();
+        } catch (error) {
+            console.error('Failed to get sync status:', error);
+        }
     },
 
     async renderExchangeRatesTable(this: SettingsView) {
@@ -126,20 +183,17 @@ export const ExchangeRatesSettingsMixin = {
         }
 
         try {
-            const result = await window.api.syncExchangeRates({ provider, customUrl });
+            const settings = await window.api.getSettings();
+            const baseCurrency = settings.currency_base || 'USD';
+            const result = await window.api.syncExchangeRates({ provider, baseCurrency, customUrl });
 
-            if (statusDiv) {
-                statusDiv.innerHTML = `
-                    <div class="flex-row align-center gap-2 p-3 rounded-lg bg-success/10">
-                        <i data-lucide="check-circle" class="w-4 h-4 text-success"></i>
-                        <span class="text-success">Synced ${result.count || 0} exchange rates</span>
-                    </div>
-                `;
-                this.refreshIcons();
+            if (result.success) {
+                await this.renderSyncStatus();
+                await this.renderExchangeRatesTable();
+                notifications.toast('Synced', `Updated ${result.ratesUpdated || 0} exchange rates`, 'success');
+            } else {
+                throw new Error(result.message || 'Sync failed');
             }
-
-            await this.renderExchangeRatesTable();
-            notifications.toast('Synced', `Updated ${result.count || 0} exchange rates`, 'success');
         } catch (error: any) {
             console.error('Sync failed:', error);
             if (statusDiv) {
@@ -175,7 +229,10 @@ export const ExchangeRatesSettingsMixin = {
         }
 
         try {
-            await window.api.testCurrencyAPI({ provider, customUrl });
+            const settings = await window.api.getSettings();
+            const baseCurrency = settings.currency_base || 'USD';
+            const result = await window.api.testCurrencyAPI({ provider, baseCurrency, customUrl });
+            if (!result.success) throw new Error(result.message);
 
             if (statusDiv) {
                 statusDiv.innerHTML = `

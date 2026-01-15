@@ -91,7 +91,7 @@ export class SettingsView extends BaseView {
                     </nav>
 
                     <div class="version-info mt-auto p-4 text-center text-xs text-muted">
-                        <p>Bofo Finance v${window.api.version || '1.0.0'}</p>
+                        <p>Bofo Finance v${typeof window.api.version === 'string' ? window.api.version : '1.0.0'}</p>
                         <p class="mt-1 opacity-50">Local-first & Encrypted</p>
                     </div>
                 </div>
@@ -228,6 +228,17 @@ export class SettingsView extends BaseView {
                                         <label>Custom API URL</label>
                                         <input type="text" id="currency-custom-url" class="form-control" placeholder="https://api.example.com/latest">
                                     </div>
+                                </div>
+                                
+                                <div class="form-group mt-4">
+                                    <label class="toggle-row">
+                                        <span class="text-sm font-medium">Sync rates on app startup (when stale)</span>
+                                        <div class="toggle-switch">
+                                            <input type="checkbox" id="exchange-rate-auto-sync" onchange="app.views.settings.handleAutoSyncToggle()">
+                                            <span class="toggle-slider"></span>
+                                        </div>
+                                    </label>
+                                    <small class="text-muted">Automatically fetch latest rates when app opens (if >24 hours old)</small>
                                 </div>
                             </div>
                         </div>

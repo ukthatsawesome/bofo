@@ -628,13 +628,80 @@ export const FinanceModel = {
         return await all<ExchangeRate>(`SELECT * FROM exchange_rates ORDER BY from_currency, to_currency`);
     },
 
-    getExchangeRate: async (fromCurrency: string, toCurrency: string) => {
+    /**
+     * Get exchange rate with fallback to triangulated rate via USD
+     */
+    getExchangeRate: async (fromCurrency: string, toCurrency: string): Promise<number | null> => {
         if (fromCurrency === toCurrency) return 1;
+
+        // Try direct rate
         const direct = await get<ExchangeRate>(`SELECT rate FROM exchange_rates WHERE from_currency = ? AND to_currency = ?`, [fromCurrency, toCurrency]);
         if (direct) return direct.rate;
+
+        // Try inverse rate
         const inverse = await get<ExchangeRate>(`SELECT rate FROM exchange_rates WHERE from_currency = ? AND to_currency = ?`, [toCurrency, fromCurrency]);
         if (inverse && inverse.rate > 0) return 1 / inverse.rate;
-        return null; // Return null if not found (don't return undefined)
+
+        // Try triangulated rate via USD (common base currency)
+        if (fromCurrency !== 'USD' && toCurrency !== 'USD') {
+            const fromToUsd = await FinanceModel.getExchangeRate(fromCurrency, 'USD');
+            const usdToTo = await FinanceModel.getExchangeRate('USD', toCurrency);
+            if (fromToUsd !== null && usdToTo !== null) {
+                return Math.round(fromToUsd * usdToTo * 1000000) / 1000000;
+            }
+        }
+
+        return null;
+    },
+
+    /**
+     * Get rate sync status for display in UI
+     */
+    getRateSyncStatus: async (): Promise<{
+        lastSync: string | null;
+        isStale: boolean;
+        hoursSinceSync: number;
+        rateCount: number;
+    }> => {
+        const settings = await FinanceModel.getAllSettings();
+        const lastSync = settings.currency_last_sync || null;
+        const stalenessHours = parseInt(settings.exchange_rate_staleness_hours || '24', 10);
+
+        let hoursSinceSync = Infinity;
+        if (lastSync) {
+            hoursSinceSync = (Date.now() - new Date(lastSync).getTime()) / (1000 * 60 * 60);
+        }
+
+        const countResult = await get<{ count: number }>(`SELECT COUNT(*) as count FROM exchange_rates`);
+
+        return {
+            lastSync,
+            isStale: !lastSync || hoursSinceSync >= stalenessHours,
+            hoursSinceSync: Math.round(hoursSinceSync * 10) / 10,
+            rateCount: countResult?.count || 0
+        };
+    },
+
+    /**
+     * Get rates for multiple currency pairs at once
+     */
+    getRatesForCurrencies: async (currencies: string[]): Promise<Map<string, Map<string, number>>> => {
+        const rateMap = new Map<string, Map<string, number>>();
+
+        for (const from of currencies) {
+            const fromMap = new Map<string, number>();
+            for (const to of currencies) {
+                if (from !== to) {
+                    const rate = await FinanceModel.getExchangeRate(from, to);
+                    if (rate !== null) {
+                        fromMap.set(to, rate);
+                    }
+                }
+            }
+            rateMap.set(from, fromMap);
+        }
+
+        return rateMap;
     },
 
     setExchangeRate: async (fromCurrency: string, toCurrency: string, rate: number, source: string = 'manual') => {
@@ -679,7 +746,6 @@ export const FinanceModel = {
         const result = [];
         for (const acc of accounts) {
             const convertedBalance = await FinanceModel.convertCurrency(acc.balance, acc.currency, baseCurrency);
-            // Result adds extra fields
             result.push({
                 ...acc,
                 converted_balance: convertedBalance,
@@ -688,6 +754,47 @@ export const FinanceModel = {
             });
         }
         return result;
+    },
+
+    /**
+     * Get total balance across all accounts in base currency
+     */
+    getTotalBalanceInBaseCurrency: async (baseCurrency: string): Promise<{
+        total: number;
+        convertedCount: number;
+        unconvertedCount: number;
+        breakdown: { currency: string; balance: number; converted: number | null }[];
+    }> => {
+        const accounts = await FinanceModel.getAllAccounts();
+        let total = 0;
+        let convertedCount = 0;
+        let unconvertedCount = 0;
+        const currencyTotals = new Map<string, number>();
+
+        // Aggregate by currency
+        for (const acc of accounts) {
+            if (acc.status === 'active') {
+                const isAsset = ['bank', 'wallet', 'investment'].includes(acc.type);
+                const effectiveBalance = isAsset ? acc.balance : -acc.balance;
+                currencyTotals.set(acc.currency, (currencyTotals.get(acc.currency) || 0) + effectiveBalance);
+            }
+        }
+
+        const breakdown: { currency: string; balance: number; converted: number | null }[] = [];
+
+        for (const [currency, balance] of currencyTotals) {
+            const converted = await FinanceModel.convertCurrency(balance, currency, baseCurrency);
+            breakdown.push({ currency, balance, converted });
+
+            if (converted !== null) {
+                total += converted;
+                convertedCount++;
+            } else {
+                unconvertedCount++;
+            }
+        }
+
+        return { total: Math.round(total * 100) / 100, convertedCount, unconvertedCount, breakdown };
     },
 
     // Import/Export

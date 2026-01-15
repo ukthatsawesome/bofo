@@ -25,18 +25,32 @@ Bofo uses a **Main-Renderer** architecture typical of Electron apps, but with a 
 
 ## 🎨 CSS Architecture
 
-The project uses **Tailwind CSS** with a single custom input file: `src/renderer/tailwind-input.css`.
+The project uses **Tailwind CSS** with a **Soft UI** design system in `src/renderer/tailwind-input.css`.
 
-| Section | Description |
-|---------|-------------|
-| **CSS Variables** | Theme tokens (colors, shadows, radii) for dark/light modes |
-| **Components** | Custom classes like `.btn-primary`, `.card`, `.badge` composed with `@apply` |
-| **Utilities** | Standard Tailwind utilities (`flex`, `p-4`, `text-center`) |
+| Layer | Description |
+|-------|-------------|
+| **Design Tokens** | CSS variables in `:root` for colors, shadows, spacing, radii |
+| **Components** | Reusable classes: `.btn-*`, `.card`, `.badge-*`, `.stat-card` |
+| **Bento Grid** | Layout system: `.bento-grid`, `.bento-1` to `.bento-12` |
+| **Utilities** | Standard Tailwind utilities |
+
+### Design Principles
+- **Soft UI**: Clean white/gray surfaces with subtle shadows
+- **High Contrast**: WCAG AA compliant text/background ratios
+- **Bento Layouts**: CSS Grid-based responsive layouts
+- **Light Mode Only**: Dark mode deferred for future
+
+### Component Variants
+| Component | Variants |
+|-----------|----------|
+| Card | `default`, `panel`, `flat` |
+| Button | `primary`, `secondary`, `danger`, `text` |
+| Badge | `success`, `danger`, `warning`, `info` |
 
 ### Usage
 - Edit `tailwind-input.css` for global styles or reusable components.
 - Use Tailwind utility classes directly in your HTML/TypeScript files.
-- **Theming**: Handled via CSS variables (e.g., `--bg-dark`) that switch based on `data-theme="light|dark"`.
+- **Theming**: CSS variables in `:root` define the light theme.
 
 ## 🔌 Adding a New Feature
 
@@ -67,6 +81,20 @@ Expose your data to the frontend:
 - Run `npm run build` to ensure the build pipeline succeeds.
 
 ## 🤝 Contribution Guidelines
+
+### Coding Standards
+- **Clean Code**: Follow industry best practices. Create minimal, efficient, and readable code.
 - **Type Safety**: Avoid `any`. Define interfaces in `src/shared/types.ts` or local files.
+- **Modular Design**: Prefer small, single-responsibility files (Mixins, Components, Dedicated Views) over monolithic structures.
 - **Async/Await**: Use async/await for all asynchronous operations.
 - **Comments**: Document complex logic, especially in the AI and Calculation engines.
+
+### UI/UX Standards
+- **Soft UI Design**: Maintain clean, light surfaces with subtle shadows.
+- **Performance**: Ensure smooth animations (60fps) and minimal main-thread blocking.
+- **Accessibility**: Use semantic HTML and ensure high contrast ratios.
+
+## 📖 Related Documents
+- [README.md](README.md)
+- [DIRECTORY_STRUCTURE.md](DIRECTORY_STRUCTURE.md)
+- [SECURITY.md](SECURITY.md)

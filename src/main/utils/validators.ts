@@ -185,6 +185,7 @@ export const EntityValidators: {
             validateRequired(data as Record<string, unknown>, ['type', 'name']);
         }
         if (data.type) {
+            data.type = String(data.type).toLowerCase() as any;
             validateEnum(data.type, ['income', 'expense', 'asset', 'liability', 'transfer'], 'type');
         }
         return data;

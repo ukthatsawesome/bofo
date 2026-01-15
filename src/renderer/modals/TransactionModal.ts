@@ -61,7 +61,13 @@ export const TransactionModal = ({ accounts, categories }: TransactionModalProps
                 <div id="modal-tx-rate-group" class="hidden">
                      ${FormGroup({
             label: 'Exchange Rate',
-            content: '<input type="number" id="modal-tx-exchange-rate" class="form-control" step="0.0001" placeholder="1.0000" disabled>'
+            content: `
+                <div class="flex-row gap-2 align-center">
+                    <input type="number" id="modal-tx-exchange-rate" class="form-control flex-1" step="0.0001" placeholder="1.0000" disabled>
+                    <span id="modal-tx-rate-source" class="text-xs text-muted"></span>
+                </div>
+                <small class="text-muted">1 [From] = [Rate] × [To]</small>
+            `
         })}
                 </div>
                 ${FormGroup({

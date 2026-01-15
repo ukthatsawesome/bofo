@@ -128,12 +128,56 @@ app.whenReady().then(async () => {
     // Start web server if enabled in settings
     startWebServer();
 
+    // Optional: Sync exchange rates on startup if enabled and stale
+    performStartupRateSync();
+
     app.on('activate', () => {
         if (BrowserWindow.getAllWindows().length === 0) {
             createWindow();
         }
     });
 });
+
+/**
+ * Sync exchange rates on startup if auto-sync is enabled and rates are stale
+ */
+async function performStartupRateSync(): Promise<void> {
+    try {
+        const { FinanceModel } = require('./models/finance');
+        const settings = await FinanceModel.getAllSettings();
+
+        // Check if auto-sync on startup is enabled (opt-in)
+        if (settings.exchange_rate_sync_on_startup !== 'true') {
+            return;
+        }
+
+        // Check if rates are stale
+        const syncStatus = await FinanceModel.getRateSyncStatus();
+        if (!syncStatus.isStale) {
+            console.log('[Main] Exchange rates are up to date, skipping startup sync');
+            return;
+        }
+
+        console.log('[Main] Exchange rates are stale, performing startup sync...');
+
+        const CurrencyService = require('./services/currencyService').CurrencyService;
+        const provider = settings.currency_api_provider || 'frankfurter';
+        const baseCurrency = settings.currency_base || 'USD';
+        const customUrl = settings.currency_custom_url || null;
+
+        const rates = await CurrencyService.fetchRates(provider, baseCurrency, customUrl, false);
+        const usedCurrencies = await FinanceModel.getUsedCurrencies();
+        usedCurrencies.push(baseCurrency);
+
+        const relevantRates = CurrencyService.filterRelevantRates(rates, usedCurrencies);
+        await FinanceModel.setExchangeRatesBulk(relevantRates, 'api');
+        await FinanceModel.updateSetting('currency_last_sync', new Date().toISOString());
+
+        console.log(`[Main] Synced ${relevantRates.length} exchange rates on startup`);
+    } catch (err) {
+        console.warn('[Main] Startup rate sync failed:', (err as Error).message);
+    }
+}
 
 app.on('window-all-closed', async () => {
     await performAutoBackup();

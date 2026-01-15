@@ -281,8 +281,32 @@ export class TransactionsView extends BaseView {
 
         if (t.type === 'transfer') {
             ($('#modal-tx-to-account') as HTMLSelectElement).value = t.to_account_id?.toString() || '';
-            if (t.exchange_rate) ($('#modal-tx-exchange-rate') as HTMLInputElement).value = t.exchange_rate.toString();
-            if (t.to_amount) ($('#modal-tx-to-amount') as HTMLInputElement).value = t.to_amount.toString();
+
+            // Get currencies to check if cross-currency
+            const fromAccount = this.state.accounts.find(a => a.id === t.account_id);
+            const toAccount = this.state.accounts.find(a => a.id === t.to_account_id);
+            const isMultiCurrency = fromAccount && toAccount && fromAccount.currency !== toAccount.currency;
+
+            // Show/hide and enable/disable rate group based on currencies
+            const rateGroup = $('#modal-tx-rate-group');
+            const rateInput = $('#modal-tx-exchange-rate') as HTMLInputElement;
+            const toAmountInput = $('#modal-tx-to-amount') as HTMLInputElement;
+
+            if (isMultiCurrency) {
+                if (rateGroup) rateGroup.classList.remove('hidden');
+                if (rateInput) {
+                    rateInput.disabled = false;
+                    rateInput.value = (t.exchange_rate || 1).toString();
+                }
+                if (toAmountInput) {
+                    toAmountInput.disabled = false;
+                    toAmountInput.value = (t.to_amount || t.amount).toString();
+                }
+            } else {
+                if (rateGroup) rateGroup.classList.add('hidden');
+                if (rateInput) rateInput.disabled = true;
+                if (toAmountInput) toAmountInput.disabled = true;
+            }
         }
 
         // Set type toggle
@@ -297,6 +321,7 @@ export class TransactionsView extends BaseView {
 
         UIUtils.setHidden('#transaction-modal', false);
         this.refreshIcons();
+        // Trigger change event to sync any remaining state
         $('#modal-tx-account')?.dispatchEvent(new Event('change'));
     }
 
@@ -345,6 +370,24 @@ export class TransactionsView extends BaseView {
                 description: ($('#modal-tx-desc') as HTMLInputElement).value,
                 start_date: ($('#modal-tx-date') as HTMLInputElement).value
             };
+
+            // Handle exchange rate and to_amount for transfers
+            if (type === 'transfer') {
+                const rateInput = $('#modal-tx-exchange-rate') as HTMLInputElement;
+                const toAmountInput = $('#modal-tx-to-amount') as HTMLInputElement;
+
+                // Check if cross-currency (rate input is enabled)
+                if (rateInput && !rateInput.disabled && rateInput.value) {
+                    data.exchange_rate = parseFloat(rateInput.value) || 1;
+                    data.to_amount = parseFloat(toAmountInput?.value) || (amount * data.exchange_rate);
+                } else {
+                    // Same currency transfer - rate is 1:1
+                    data.exchange_rate = 1;
+                    data.to_amount = amount;
+                }
+
+                console.log('[Transfer Update] exchange_rate:', data.exchange_rate, 'to_amount:', data.to_amount);
+            }
 
             await window.api.updateTransaction(id, data);
             UIUtils.setHidden('#transaction-modal', true);

@@ -80,14 +80,22 @@ npm run dist:linux
 
 ## 📁 Project Structure
 
-- `src/main/`: Electron main process & Backend Logic
-    - `database/`: Schema, migrations, and database helpers
-    - `models/`: Data access objects (DAO) and business logic
-    - `services/`: External integrations (AI, Currency)
-    - `ipc/`: IPC Handlers and routing
-    - `utils/`: Backend utilities
-- `src/renderer/`: Frontend UI (Views, Components)
-- `src/shared/`: Shared TypeScript types and constants
+Bofo follows a strict separation between the **Main** (Backend) and **Renderer** (Frontend) processes.
+
+- `src/main/`: Electron main process, Database, AI services, and IPC handlers.
+- `src/renderer/`: Frontend UI built with Vanilla TS + Tailwind CSS.
+- `src/shared/`: Common types and constants shared across processes.
+
+For a detailed breakdown, see [DIRECTORY_STRUCTURE.md](DIRECTORY_STRUCTURE.md).
+
+---
+
+## 📚 Documentation
+
+- [Developer Guide](DEVELOPER_GUIDE.md) - Architecture and contribution rules.
+- [Security Guide](SECURITY.md) - How we protect your data.
+- [Directory Structure](DIRECTORY_STRUCTURE.md) - Detailed file layout.
+- [Fix Report](FIX_REPORT.md) - History of important bug fixes.
 
 ---
 

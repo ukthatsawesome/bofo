@@ -41,21 +41,18 @@ export class ChartManager {
     /* ==================== THEME ==================== */
 
     private _getThemeStyles(): ThemeStyles {
-        const isLight = document.documentElement.getAttribute('data-theme') === 'light';
-
+        // Light mode only for now
         return {
-            isLight,
-            brandPrimary: isLight ? '#6c5ce7' : '#a29bfe',
-            brandSecondary: isLight ? '#00cec9' : '#81ecec',
-            brandSuccess: '#55efc4',
-            brandDanger: '#ff7675',
-            gridColor: isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.05)',
-            textColor: isLight ? '#636e72' : '#9494b8',
-            tooltipBg: isLight ? '#ffffff' : '#1a1a2e',
-            tooltipTitle: isLight ? '#2d3436' : '#f0f0f5',
-            chartAreaBg: isLight
-                ? 'rgba(108, 92, 231, 0.05)'
-                : 'rgba(162, 155, 254, 0.1)'
+            isLight: true,
+            brandPrimary: '#6366f1',
+            brandSecondary: '#0ea5e9',
+            brandSuccess: '#16a34a',
+            brandDanger: '#dc2626',
+            gridColor: 'rgba(0,0,0,0.05)',
+            textColor: '#475569',
+            tooltipBg: '#ffffff',
+            tooltipTitle: '#0f172a',
+            chartAreaBg: 'rgba(99, 102, 241, 0.08)'
         };
     }
 

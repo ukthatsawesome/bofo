@@ -216,10 +216,10 @@ For developers and security reviewers:
 
 | File | Purpose |
 |------|---------|
-| `src/database/db.js` | Database connection with encryption |
-| `src/database/encryption.js` | Key management and cryptography |
-| `src/database/schema.sql` | Database schema definition |
-| `src/main/preload.js` | Secure IPC bridge |
+| `src/main/database/db.ts` | Database connection with SQLCipher encryption |
+| `src/main/preload.ts` | Secure IPC bridge / Context Bridge |
+| `src/main/main.ts` | Main process entry and security configurations |
+| `src/renderer/core/api.ts` | Frontend API consumer |
 
 ---
 

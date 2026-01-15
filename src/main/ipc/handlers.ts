@@ -18,7 +18,10 @@ import { FinanceModel } from '../models/finance';
 let aiService: any = null;
 function getAIService() {
     // using require for lazy load in Node process
-    if (!aiService) aiService = require('../services/aiService');
+    if (!aiService) {
+        const module = require('../services/aiService');
+        aiService = module.aiService;
+    }
     return aiService;
 }
 
@@ -74,8 +77,26 @@ export const SIMPLE_ROUTES: Record<string, HandlerFunction> = {
 
     // Categories (using generic CRUD)
     'get-categories': () => FinanceModel.getAllCategories(),
-    'add-category': (_, { type, name }) => FinanceModel.create('category', { type, name }),
-    'update-category': (_, { id, data }) => FinanceModel.update('category', id, data),
+    'add-category': async (_, { type, name }) => {
+        try {
+            return await FinanceModel.create('category', { type, name });
+        } catch (err: any) {
+            if (err.code === 'SQLITE_CONSTRAINT' || err.message.includes('UNIQUE constraint')) {
+                throw new Error('A category with this name already exists.');
+            }
+            throw err;
+        }
+    },
+    'update-category': async (_, { id, data }) => {
+        try {
+            return await FinanceModel.update('category', id, data);
+        } catch (err: any) {
+            if (err.code === 'SQLITE_CONSTRAINT' || err.message.includes('UNIQUE constraint')) {
+                throw new Error('A category with this name already exists.');
+            }
+            throw err;
+        }
+    },
     'delete-category': (_, id) => FinanceModel.delete('category', id),
     'archive-category': (_, id) => FinanceModel.archive('category', id),
     'unarchive-category': (_, id) => FinanceModel.unarchive('category', id),
@@ -148,6 +169,8 @@ export const SIMPLE_ROUTES: Record<string, HandlerFunction> = {
     'convert-currency': (_, { amount, from, to }) => FinanceModel.convertCurrency(amount, from, to),
     'get-used-currencies': () => FinanceModel.getUsedCurrencies(),
     'get-accounts-converted': (_, baseCurrency) => FinanceModel.getAccountsWithConvertedBalances(baseCurrency),
+    'get-rate-sync-status': () => FinanceModel.getRateSyncStatus(),
+    'get-total-balance': (_, baseCurrency) => FinanceModel.getTotalBalanceInBaseCurrency(baseCurrency),
 
     // AI Handlers (Mirrored from complex handlers for easy routing)
     'get-ai-settings': async () => {
@@ -269,7 +292,7 @@ export const SIMPLE_ROUTES: Record<string, HandlerFunction> = {
 
     'sync-exchange-rates': async (_, { provider, baseCurrency, customUrl }) => {
         try {
-            const CurrencyService = require('../services/currencyService');
+            const { CurrencyService } = require('../services/currencyService');
             const rates = await CurrencyService.fetchRates(provider, baseCurrency, customUrl);
             const usedCurrencies = await FinanceModel.getUsedCurrencies();
             usedCurrencies.push(baseCurrency);
@@ -284,7 +307,7 @@ export const SIMPLE_ROUTES: Record<string, HandlerFunction> = {
 
     'test-currency-api': async (_, { provider, baseCurrency, customUrl }) => {
         try {
-            const CurrencyService = require('../../services/currencyService');
+            const { CurrencyService } = require('../services/currencyService');
             return await CurrencyService.testConnection(provider, baseCurrency, customUrl);
         } catch (err: any) {
             return { success: false, message: err.message };
@@ -292,7 +315,8 @@ export const SIMPLE_ROUTES: Record<string, HandlerFunction> = {
     },
 
     'get-currency-providers': () => {
-        return require('../services/currencyService').getProviders();
+        const { CurrencyService } = require('../services/currencyService');
+        return CurrencyService.getProviders();
     }
 };
 

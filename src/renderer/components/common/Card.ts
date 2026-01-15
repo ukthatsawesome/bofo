@@ -21,7 +21,7 @@ export const Card = ({
     className = '',
     footer = '',
     icon = '',
-    variant = 'glass',
+    variant = 'default',
     bodyClass = ''
 }: CardProps): string => {
     // Card variants using Tailwind classes

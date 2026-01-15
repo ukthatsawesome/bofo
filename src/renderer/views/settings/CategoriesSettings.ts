@@ -155,13 +155,13 @@ export const CategoriesSettingsMixin = {
 
                 try {
                     if (isEdit) {
-                        await window.api.updateCategory({ id: category.id, data: { name, icon } });
+                        await window.api.updateCategory(category.id, { name, icon });
                     } else {
                         await window.api.addCategory({ type, name });
                         // Update icon after creation
-                        const created = (await window.api.getCategories()).find(c => c.name === name);
+                        const created = (await window.api.getCategories()).find((c: any) => c.name === name);
                         if (created) {
-                            await window.api.updateCategory({ id: created.id, data: { icon } });
+                            await window.api.updateCategory(created.id, { icon });
                         }
                     }
                     await this.app.loadData();
@@ -189,7 +189,7 @@ export const CategoriesSettingsMixin = {
         if (await notifications.confirm('Delete Category', `Delete "${category.name}"? This cannot be undone.`)) {
             try {
                 await window.api.deleteCategory(id);
-                await this.app.loadData();
+                await this.app.state.loadCategories();
                 this.renderCategoryTable();
                 notifications.toast('Deleted', 'Category removed', 'success');
             } catch (error: any) {
@@ -201,7 +201,7 @@ export const CategoriesSettingsMixin = {
     async handleArchiveCategory(this: SettingsView, id: number) {
         try {
             await window.api.archiveCategory(id);
-            await this.app.loadData();
+            await this.app.state.loadCategories();
             this.renderCategoryTable();
             this.app.notifications.toast('Archived', 'Category archived', 'success');
         } catch (error: any) {
@@ -212,7 +212,7 @@ export const CategoriesSettingsMixin = {
     async handleUnarchiveCategory(this: SettingsView, id: number) {
         try {
             await window.api.unarchiveCategory(id);
-            await this.app.loadData();
+            await this.app.state.loadCategories();
             this.renderCategoryTable();
             this.app.notifications.toast('Restored', 'Category restored', 'success');
         } catch (error: any) {

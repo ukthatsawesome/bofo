@@ -103,13 +103,15 @@ export interface API {
     // Exchange Rates
     getExchangeRates: () => Promise<ExchangeRate[]>;
     getExchangeRate: (from: string, to: string) => Promise<number | null>;
-    setExchangeRate: (from: string, to: string, rate: number, source: string) => Promise<any>;
+    setExchangeRate: (data: { from: string; to: string; rate: number; source?: string }) => Promise<any>;
     deleteExchangeRate: (id: number) => Promise<any>;
     convertCurrency: (amount: number, from: string, to: string) => Promise<number | null>;
     getUsedCurrencies: () => Promise<string[]>;
     getAccountsConverted: (baseCurrency: string) => Promise<any[]>;
-    syncExchangeRates: (provider: string, baseCurrency: string, customUrl: string) => Promise<any>;
-    testCurrencyAPI: (provider: string, baseCurrency: string, customUrl: string) => Promise<any>;
+    getRateSyncStatus: () => Promise<{ lastSync: string | null; isStale: boolean; hoursSinceSync: number; rateCount: number }>;
+    getTotalBalance: (baseCurrency: string) => Promise<{ total: number; convertedCount: number; unconvertedCount: number; breakdown: any[] }>;
+    syncExchangeRates: (data: { provider: string; baseCurrency: string; customUrl?: string }) => Promise<{ success: boolean; message?: string; ratesUpdated?: number }>;
+    testCurrencyAPI: (data: { provider: string; baseCurrency?: string; customUrl?: string }) => Promise<{ success: boolean; message: string }>;
     getCurrencyProviders: () => Promise<any[]>;
 
     // Remote Access
