@@ -44,7 +44,7 @@ interface DefaultPrompts {
 class AIService {
     private baseUrl: string;
     private model: string;
-    private readonly DEFAULTS: DefaultPrompts;
+    public readonly DEFAULTS: DefaultPrompts;
 
     public promptTx: string | null;
     public promptInsight: string | null;

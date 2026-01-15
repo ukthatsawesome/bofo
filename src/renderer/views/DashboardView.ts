@@ -61,6 +61,8 @@ export class DashboardView extends BaseView {
             </div>
 
             <div id="dashboard-insights-grid" class="dashboard-insights-grid mt-6"></div>
+
+            <div id="dashboard-accounts-container" class="mt-6"></div>
         `;
         this.refreshIcons();
     }
@@ -275,6 +277,7 @@ export class DashboardView extends BaseView {
         this.renderCategoryDistribution();
         this.renderBudgetSummary();
         this.renderQuickTransaction();
+        this.renderAccountsOverview();
 
         this.chartManager.renderDashboardChart('mainChart', this.prepareChartData(6));
         // Targeted refresh after sub-renders
@@ -361,8 +364,8 @@ export class DashboardView extends BaseView {
         const { state } = this.app;
         const currentType = this.quickTxType || 'expense';
 
-        // Account dropdowns
-        const accHtml = state.accounts.map(a => `<option value="${a.id}">${a.name}</option>`).join('');
+        // Account dropdowns - include currency for exchange rate detection
+        const accHtml = state.accounts.map(a => `<option value="${a.id}" data-currency="${a.currency}">${a.name} (${a.currency})</option>`).join('');
         const accSelect = $('#quick-tx-account');
         const toAccSelect = $('#quick-tx-to-account');
         if (accSelect) accSelect.innerHTML = accHtml;
@@ -446,6 +449,21 @@ export class DashboardView extends BaseView {
                 this.app.notifications.toast('Error', 'Source and destination accounts must be different', 'error');
                 return { tx: null, valid: false };
             }
+
+            // Get currencies from selected accounts
+            const fromCurrency = accInput.options[accInput.selectedIndex]?.dataset?.currency;
+            const toCurrency = toAccInput.options[toAccInput.selectedIndex]?.dataset?.currency;
+
+            if (fromCurrency && toCurrency && fromCurrency !== toCurrency) {
+                // Cross-currency transfer - mark for async handling
+                tx._needsExchangeRate = true;
+                tx._fromCurrency = fromCurrency;
+                tx._toCurrency = toCurrency;
+            } else {
+                // Same currency - 1:1 transfer
+                tx.exchange_rate = 1;
+                tx.to_amount = amount;
+            }
         }
 
         return { tx, valid: true };
@@ -460,6 +478,34 @@ export class DashboardView extends BaseView {
         const type = this.quickTxType || 'expense';
         const { tx, valid: txValid } = this._buildQuickTransaction(amount, type);
         if (!txValid) return;
+
+        // Handle cross-currency transfers - fetch exchange rate
+        if (tx._needsExchangeRate) {
+            try {
+                const rate = await window.api.getExchangeRate(tx._fromCurrency, tx._toCurrency);
+                if (rate !== null && rate > 0) {
+                    tx.exchange_rate = rate;
+                    tx.to_amount = amount * rate;
+                } else {
+                    // No rate found - prompt user or use 1:1
+                    this.app.notifications.toast(
+                        'Exchange Rate Missing',
+                        `No rate found for ${tx._fromCurrency}→${tx._toCurrency}. Using 1:1. Configure rates in Settings → Currency.`,
+                        'warning'
+                    );
+                    tx.exchange_rate = 1;
+                    tx.to_amount = amount;
+                }
+            } catch (err) {
+                console.error('Failed to fetch exchange rate:', err);
+                tx.exchange_rate = 1;
+                tx.to_amount = amount;
+            }
+            // Clean up temp properties
+            delete tx._needsExchangeRate;
+            delete tx._fromCurrency;
+            delete tx._toCurrency;
+        }
 
         // Save and refresh
         try {
@@ -611,7 +657,7 @@ export class DashboardView extends BaseView {
         if (!el) return;
 
         if (totalBudget === 0) {
-            el.innerHTML = '<p class="text-muted" style="margin-top: 10px;">No active budgets. <a href="#" onclick="app.switchView(\'budget\'); return false;" style="color: var(--accent);">Set one</a></p>';
+            el.innerHTML = '<p class="text-muted" style="margin-top: 10px;">No active budgets. <a href="#" onclick="app.router.navigate(\'budget\'); return false;" style="color: var(--accent);">Set one</a></p>';
             return;
         }
 
@@ -622,5 +668,93 @@ export class DashboardView extends BaseView {
             percent: Math.min(share, 100),
             color: share > 100 ? 'var(--expense)' : (share > 85 ? 'var(--warning)' : 'var(--income)')
         });
+    }
+
+    renderAccountsOverview(): void {
+        const container = $('#dashboard-accounts-container');
+        if (!container) return;
+
+        const { state, formatter } = this.app;
+        const accounts = state.accounts.filter(a => a.status !== 'archived');
+
+        const typeLabels: Record<string, string> = {
+            bank: 'Bank',
+            wallet: 'Wallet',
+            credit_card: 'Credit Card',
+            loan: 'Loan',
+            investment: 'Investment',
+            other: 'Other'
+        };
+
+        const typeColors: Record<string, string> = {
+            bank: 'bg-info/15 text-info border-info/20',
+            wallet: 'bg-brand-primary/15 text-brand-primary border-brand-primary/20',
+            credit_card: 'bg-warning/15 text-warning border-warning/20',
+            loan: 'bg-danger/15 text-danger border-danger/20',
+            investment: 'bg-success/15 text-success border-success/20',
+            other: 'bg-surface-input text-text-muted border-border'
+        };
+
+        const accountsHtml = accounts.length > 0 ? accounts.map(acc => {
+            const typeClass = typeColors[acc.type] || typeColors.other;
+            const balanceClass = acc.balance >= 0 ? 'text-success' : 'text-danger';
+            const initialBalanceClass = (acc.initial_balance || 0) >= 0 ? 'text-text-muted' : 'text-danger';
+
+            return `
+                <tr class="border-b border-border/50 last:border-0 hover:bg-surface-hover/50 transition-colors">
+                    <td class="py-3 px-4">
+                        <span class="font-medium text-text-main">${acc.name}</span>
+                    </td>
+                    <td class="py-3 px-4">
+                        <span class="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-semibold border ${typeClass}">
+                            ${typeLabels[acc.type] || acc.type}
+                        </span>
+                    </td>
+                    <td class="py-3 px-4">
+                        <span class="text-xs font-medium uppercase tracking-wide bg-surface-input px-2 py-0.5 rounded">
+                            ${acc.currency || state.getBaseCurrency()}
+                        </span>
+                    </td>
+                    <td class="py-3 px-4 text-right">
+                        <span class="${initialBalanceClass} text-sm">${formatter.formatCurrency(acc.initial_balance || 0, acc.currency)}</span>
+                    </td>
+                    <td class="py-3 px-4 text-right">
+                        <span class="${balanceClass} font-semibold">${formatter.formatCurrency(acc.balance, acc.currency)}</span>
+                    </td>
+                </tr>
+            `;
+        }).join('') : `
+            <tr>
+                <td colspan="5" class="py-8 text-center text-text-muted">
+                    <p>No accounts configured. <a href="#" onclick="app.router.navigate('settings'); setTimeout(() => app.views.settings.handleNewAccount(), 100); return false;" class="text-brand-primary hover:underline">Add one</a></p>
+                </td>
+            </tr>
+        `;
+
+        container.innerHTML = Card({
+            title: 'Accounts Overview',
+            icon: 'wallet',
+            variant: 'panel',
+            content: `
+                <div class="overflow-x-auto -mx-4">
+                    <table class="w-full text-sm">
+                        <thead>
+                            <tr class="border-b border-border text-text-muted">
+                                <th class="py-2 px-4 text-left font-semibold text-xs uppercase tracking-wider">Account</th>
+                                <th class="py-2 px-4 text-left font-semibold text-xs uppercase tracking-wider">Type</th>
+                                <th class="py-2 px-4 text-left font-semibold text-xs uppercase tracking-wider">Currency</th>
+                                <th class="py-2 px-4 text-right font-semibold text-xs uppercase tracking-wider">Initial</th>
+                                <th class="py-2 px-4 text-right font-semibold text-xs uppercase tracking-wider">Current</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${accountsHtml}
+                        </tbody>
+                    </table>
+                </div>
+            `
+        });
+
+        this.refreshIcons(container);
     }
 }

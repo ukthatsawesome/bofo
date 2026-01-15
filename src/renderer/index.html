@@ -13,19 +13,12 @@
     <meta http-equiv="Content-Security-Policy"
         content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' http: ws: https://api.currencyapi.com;">
 
-
-    <!-- Fonts are now loaded locally via tailwind.css -->
-
-    <!-- Styles - Handled by Vite -->
-
-    <!-- Theme: Light mode only (for now) -->
+    <!-- Theme Initialization -->
     <script>
         (function () {
             document.documentElement.setAttribute('data-theme', 'light');
         })();
     </script>
-
-    <!-- External Libs - Bundled by Vite -->
 
     <!-- Critical CSS for Startup Loader -->
     <style>
@@ -101,6 +94,7 @@
                     <i data-lucide="sparkles" class="nav-icon"></i>
                 </li>
             </ul>
+
             <ul class="nav-links bottom-nav">
                 <li id="ai-status-nav" class="ai-nav-item" title="AI Settings">
                     <i data-lucide="bot" class="nav-icon"></i>
@@ -134,6 +128,7 @@
     <div id="notification-modal-container"></div>
     <div id="toast-container" class="toast-container"></div>
 
+    <!-- Global Loader Overlay -->
     <div id="global-loader" class="loader-overlay">
         <div class="spinner"></div>
         <p class="text-secondary" style="margin-top: 16px; font-weight: 500;">Loading...</p>

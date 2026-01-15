@@ -493,6 +493,9 @@ export class BillsView extends BaseView {
 
         UIUtils.setHidden('#bill-reading-modal', false);
 
+        // Refresh icons after showing modal (fixes missing icons)
+        this.refreshIcons(modal);
+
         // Update Modal UI for edit mode
         const modalTitle = modal.querySelector('h2');
         if (modalTitle) modalTitle.innerText = reading ? 'Edit Reading' : 'Record New Reading';
@@ -522,6 +525,16 @@ export class BillsView extends BaseView {
             notesInput.value = '';
         }
 
+        // Shared function to calculate cost from units
+        const calculateCost = () => {
+            const opt = billTypeSelect.options[billTypeSelect.selectedIndex];
+            const units = parseFloat(unitsInput.value) || 0;
+            const costPer = parseFloat(opt?.dataset.cost || '0') || 0;
+            if (units > 0 && costPer > 0) {
+                costInput.value = (units * costPer).toFixed(2);
+            }
+        };
+
         const updateUnitInfo = () => {
             const opt = billTypeSelect.options[billTypeSelect.selectedIndex];
             if (opt) {
@@ -531,15 +544,17 @@ export class BillsView extends BaseView {
             }
         };
 
-        billTypeSelect.onchange = updateUnitInfo;
+        billTypeSelect.onchange = () => {
+            updateUnitInfo();
+            calculateCost(); // Recalculate when bill type changes
+        };
         updateUnitInfo();
 
-        calcBtn.onclick = () => {
-            const opt = billTypeSelect.options[billTypeSelect.selectedIndex];
-            const units = parseFloat(unitsInput.value) || 0;
-            const costPer = parseFloat(opt.dataset.cost || '0') || 0;
-            costInput.value = (units * costPer).toFixed(2);
-        };
+        // Auto-calculate cost when units are entered
+        unitsInput.oninput = calculateCost;
+
+        // Manual calculate button
+        calcBtn.onclick = calculateCost;
 
         // Always re-bind to handle save vs update
         const newSaveBtn = saveBtn.cloneNode(true);

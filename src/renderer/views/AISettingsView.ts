@@ -1,5 +1,5 @@
 import { BaseView } from './BaseView';
-import { $, UIUtils } from '../core/dom';
+import { $ } from '../core/dom';
 import { ViewHeader } from '../components/common/ViewHeader';
 import type { App } from '../core/app';
 
@@ -39,6 +39,7 @@ export class AISettingsView extends BaseView {
 
     renderBaseTemplate(): void {
         if (!this.element) return;
+
         this.element.innerHTML = `
             ${ViewHeader({
             title: 'AI Configuration',
@@ -135,6 +136,7 @@ export class AISettingsView extends BaseView {
 
     async loadAISettings(): Promise<void> {
         const aiSettings = await window.api.getAISettings();
+        const defaults = await window.api.getAIDefaults();
 
         // Update status badge
         this.updateStatusBadge(null); // Start with unknown
@@ -142,9 +144,11 @@ export class AISettingsView extends BaseView {
         // Populate form values
         ($('#set-ai-url') as HTMLInputElement).value = aiSettings.url || 'http://localhost:11434';
         ($('#set-ai-enabled') as HTMLInputElement).checked = aiSettings.enabled !== false;
-        ($('#set-ai-prompt-tx') as HTMLTextAreaElement).value = aiSettings.promptTx || '';
-        ($('#set-ai-prompt-insight') as HTMLTextAreaElement).value = aiSettings.promptInsight || '';
-        ($('#set-ai-prompt-chat') as HTMLTextAreaElement).value = aiSettings.promptChat || '';
+
+        // Use saved prompts or fall back to defaults
+        ($('#set-ai-prompt-tx') as HTMLTextAreaElement).value = aiSettings.promptTx || defaults.promptTx || '';
+        ($('#set-ai-prompt-insight') as HTMLTextAreaElement).value = aiSettings.promptInsight || defaults.promptInsight || '';
+        ($('#set-ai-prompt-chat') as HTMLTextAreaElement).value = aiSettings.promptChat || defaults.promptChat || '';
 
         // Bind events
         this.bindEvents(aiSettings);
@@ -164,19 +168,23 @@ export class AISettingsView extends BaseView {
         $('#btn-save-ai')?.addEventListener('click', () => this.saveSettings());
 
         // Reset prompt buttons
-        $('#reset-prompt-tx')?.addEventListener('click', async () => {
-            const defaults = await window.api.getAIDefaults();
-            if (defaults.promptTx) ($('#set-ai-prompt-tx') as HTMLTextAreaElement).value = defaults.promptTx;
-        });
+        this.bindResetButton('reset-prompt-tx', 'set-ai-prompt-tx', 'promptTx');
+        this.bindResetButton('reset-prompt-insight', 'set-ai-prompt-insight', 'promptInsight');
+        this.bindResetButton('reset-prompt-chat', 'set-ai-prompt-chat', 'promptChat');
+    }
 
-        $('#reset-prompt-insight')?.addEventListener('click', async () => {
+    /**
+     * Helper to bind reset buttons to their respective textareas
+     */
+    private bindResetButton(buttonId: string, inputId: string, settingKey: keyof AISettings): void {
+        $(`#${buttonId}`)?.addEventListener('click', async () => {
             const defaults = await window.api.getAIDefaults();
-            if (defaults.promptInsight) ($('#set-ai-prompt-insight') as HTMLTextAreaElement).value = defaults.promptInsight;
-        });
+            const value = defaults[settingKey];
 
-        $('#reset-prompt-chat')?.addEventListener('click', async () => {
-            const defaults = await window.api.getAIDefaults();
-            if (defaults.promptChat) ($('#set-ai-prompt-chat') as HTMLTextAreaElement).value = defaults.promptChat;
+            if (value) {
+                const input = $(`#${inputId}`) as HTMLTextAreaElement;
+                if (input) input.value = value;
+            }
         });
     }
 
@@ -191,6 +199,7 @@ export class AISettingsView extends BaseView {
 
         try {
             refreshBtn?.querySelector('i')?.classList.add('animate-spin');
+
             const models: OllamaModel[] = await window.api.getOllamaModels(url);
 
             if (models && models.length > 0) {

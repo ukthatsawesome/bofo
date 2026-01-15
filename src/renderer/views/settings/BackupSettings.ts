@@ -45,16 +45,21 @@ export const BackupSettingsMixin = {
         const confirmed = await notifications.confirm(
             'Import Data',
             'This will REPLACE all existing data. Are you sure you want to continue?',
-            { confirmText: 'Yes, Import', cancelText: 'Cancel', danger: true }
+            'warning'
         );
 
         if (!confirmed) return;
 
         try {
             const result = await window.api.importData();
-            if (result) {
+            if (result?.success) {
                 await this.app.loadData();
-                notifications.toast('Imported', 'Data restored successfully', 'success');
+                notifications.toast('Imported', result.message || 'Data restored successfully', 'success');
+            } else {
+                // Handle failed import or cancelled
+                if (result?.message && result.message !== 'Import cancelled') {
+                    notifications.toast('Import Failed', result.message, 'error');
+                }
             }
         } catch (error: any) {
             if (error.message !== 'cancelled') {

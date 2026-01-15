@@ -2659,14 +2659,14 @@
     color: var(--success);
 }
 
-/* Offline status - yellow/warning */
+/* Offline status - red/danger */
 .ai-nav-item.ai-offline .ai-status-dot-nav {
-    background: var(--warning);
-    box-shadow: 0 0 6px rgba(var(--warning-rgb), 0.8);
+    background: var(--danger);
+    box-shadow: 0 0 6px rgba(var(--danger-rgb), 0.8);
 }
 
 .ai-nav-item.ai-offline .nav-icon {
-    color: var(--warning);
+    color: var(--danger);
 }
 
 /* Checking status - blue with pulse */

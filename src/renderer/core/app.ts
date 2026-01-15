@@ -497,44 +497,8 @@ export class App {
         }
 
         // --- Budget Modal ---
-        const btnBudSave = document.getElementById('save-budget');
-        if (btnBudSave) {
-            const newBtn = btnBudSave.cloneNode(true);
-            btnBudSave.parentNode?.replaceChild(newBtn, btnBudSave);
-
-            newBtn.addEventListener('click', async () => {
-                const category = ($('#budget-category') as HTMLSelectElement).value;
-                const amount = parseFloat(($('#budget-limit') as HTMLInputElement).value);
-                const period = ($('#budget-period') as HTMLSelectElement).value;
-                const startNode = $('#budget-start') as HTMLInputElement;
-                const endNode = $('#budget-end') as HTMLInputElement;
-
-                // Determine dates if not manual
-                let start = startNode.value;
-                let end = endNode.value;
-
-                if (!amount) return this.notifications.toast('Error', 'Amount is required', 'error');
-                if (!start || !end) {
-                    // Auto-fill if empty (simplification)
-                    const now = new Date();
-                    start = now.toISOString().split('T')[0];
-                    const endDateObj = new Date();
-                    if (period === 'monthly') endDateObj.setMonth(endDateObj.getMonth() + 1);
-                    else if (period === 'weekly') endDateObj.setDate(endDateObj.getDate() + 7);
-                    else endDateObj.setFullYear(endDateObj.getFullYear() + 1);
-                    end = endDateObj.toISOString().split('T')[0];
-                }
-
-                try {
-                    await window.api.setBudget(category, amount, period, start, end);
-                    this.notifications.toast('Success', 'Budget set');
-                    UIUtils.setHidden('#budget-modal', true);
-                    if (this.router.currentView === 'budget') this.views.budget.render();
-                } catch (e: any) {
-                    this.notifications.alert('Error', e.message);
-                }
-            });
-        }
+        // NOTE: Budget save is handled by BudgetView.setupEventListeners()
+        // Do not add a duplicate handler here to avoid creating duplicate budget records
 
         // --- Transaction Modal Type Toggles ---
         document.querySelectorAll('#transaction-modal .segment').forEach(seg => {
