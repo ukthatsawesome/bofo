@@ -9,7 +9,19 @@ import { ipcMain, dialog, app, IpcMainInvokeEvent } from 'electron';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as XLSX from 'xlsx';
-import { FinanceModel } from '../models/finance';
+
+// =============================================================================
+// FINANCE MODEL (Lazy Loaded to avoid circular dependency)
+// =============================================================================
+
+let _financeModel: typeof import('../models/finance').FinanceModel | null = null;
+function getFinanceModel() {
+    if (!_financeModel) {
+        const module = require('../models/finance');
+        _financeModel = module.FinanceModel;
+    }
+    return _financeModel!;
+}
 
 // =============================================================================
 // AI SERVICE (Lazy Loaded)
@@ -27,7 +39,7 @@ function getAIService() {
 
 async function syncAIService() {
     const ai = getAIService();
-    const settings = await FinanceModel.getAISettings();
+    const settings = await getFinanceModel().getAISettings();
     ai.baseUrl = settings.url;
     ai.model = settings.model;
     ai.promptTx = settings.promptTx;
@@ -44,42 +56,44 @@ type HandlerFunction = (event: IpcMainInvokeEvent | null, data: any) => Promise<
 
 export const SIMPLE_ROUTES: Record<string, HandlerFunction> = {
     // Transactions (using generic CRUD)
-    'get-transactions': () => FinanceModel.getAll('transaction', { orderBy: 'start_date DESC' }),
-    'add-transaction': (_, data) => FinanceModel.create('transaction', data),
-    'update-transaction': (_, { id, data }) => FinanceModel.update('transaction', id, data),
+    'get-transactions': () => getFinanceModel().getAll('transaction', { orderBy: 'start_date DESC' }),
+    'add-transaction': (_, data) => getFinanceModel().create('transaction', data),
+    'update-transaction': (_, { id, data }) => getFinanceModel().update('transaction', id, data),
     'delete-transaction': async (_, id) => {
-        const tx = await FinanceModel.getById('transaction', id);
-        const result = await FinanceModel.delete('transaction', id, true);
+        const model = getFinanceModel();
+        const tx = await model.getById('transaction', id);
+        const result = await model.delete('transaction', id, true);
         // Sync balances after delete (triggers handle insert/update)
         if (tx) {
-            if (tx.account_id) await FinanceModel.syncAccountBalance(tx.account_id);
-            if (tx.to_account_id) await FinanceModel.syncAccountBalance(tx.to_account_id);
+            if (tx.account_id) await model.syncAccountBalance(tx.account_id);
+            if (tx.to_account_id) await model.syncAccountBalance(tx.to_account_id);
         }
         return result;
     },
-    'get-transactions-paginated': (_, options) => FinanceModel.getTransactionsPaginated(options),
-    'get-transaction-count': (_, options) => FinanceModel.getTransactionCount(options),
+    'get-transactions-paginated': (_, options) => getFinanceModel().getTransactionsPaginated(options),
+    'get-transaction-count': (_, options) => getFinanceModel().getTransactionCount(options),
 
     // Accounts (using generic CRUD)
-    'get-accounts': () => FinanceModel.getAllAccounts(),
-    'add-account': (_, data) => FinanceModel.create('account', { ...data, initial_balance: data.balance || 0 }),
-    'update-account': (_, data) => FinanceModel.update('account', data.id, data),
-    'delete-account': (_, id) => FinanceModel.delete('account', id),
-    'archive-account': (_, id) => FinanceModel.archive('account', id),
-    'unarchive-account': (_, id) => FinanceModel.unarchive('account', id),
+    'get-accounts': () => getFinanceModel().getAllAccounts(),
+    'add-account': (_, data) => getFinanceModel().create('account', { ...data, initial_balance: data.balance || 0 }),
+    'update-account': (_, data) => getFinanceModel().update('account', data.id, data),
+    'delete-account': (_, id) => getFinanceModel().delete('account', id),
+    'archive-account': (_, id) => getFinanceModel().archive('account', id),
+    'unarchive-account': (_, id) => getFinanceModel().unarchive('account', id),
     'is-account-in-use': async (_, id) => {
-        const row = await FinanceModel.getById('account', id);
+        const model = getFinanceModel();
+        const row = await model.getById('account', id);
         if (!row) return false;
         // Check transactions
-        const count = await FinanceModel.getTransactionCount({ accountId: id });
+        const count = await model.getTransactionCount({ accountId: id });
         return count > 0;
     },
 
     // Categories (using generic CRUD)
-    'get-categories': () => FinanceModel.getAllCategories(),
+    'get-categories': () => getFinanceModel().getAllCategories(),
     'add-category': async (_, { type, name }) => {
         try {
-            return await FinanceModel.create('category', { type, name });
+            return await getFinanceModel().create('category', { type, name });
         } catch (err: any) {
             if (err.code === 'SQLITE_CONSTRAINT' || err.message.includes('UNIQUE constraint')) {
                 throw new Error('A category with this name already exists.');
@@ -89,7 +103,7 @@ export const SIMPLE_ROUTES: Record<string, HandlerFunction> = {
     },
     'update-category': async (_, { id, data }) => {
         try {
-            return await FinanceModel.update('category', id, data);
+            return await getFinanceModel().update('category', id, data);
         } catch (err: any) {
             if (err.code === 'SQLITE_CONSTRAINT' || err.message.includes('UNIQUE constraint')) {
                 throw new Error('A category with this name already exists.');
@@ -97,29 +111,29 @@ export const SIMPLE_ROUTES: Record<string, HandlerFunction> = {
             throw err;
         }
     },
-    'delete-category': (_, id) => FinanceModel.delete('category', id),
-    'archive-category': (_, id) => FinanceModel.archive('category', id),
-    'unarchive-category': (_, id) => FinanceModel.unarchive('category', id),
-    'is-category-in-use': (_, name) => FinanceModel.isCategoryInUse(name),
+    'delete-category': (_, id) => getFinanceModel().delete('category', id),
+    'archive-category': (_, id) => getFinanceModel().archive('category', id),
+    'unarchive-category': (_, id) => getFinanceModel().unarchive('category', id),
+    'is-category-in-use': (_, name) => getFinanceModel().isCategoryInUse(name),
 
     // Settings
-    'get-settings': () => FinanceModel.getAllSettings(),
-    'update-setting': (_, { key, value }) => FinanceModel.updateSetting(key, value),
-    'save-settings': (_, settings) => FinanceModel.saveSettings(settings),
+    'get-settings': () => getFinanceModel().getAllSettings(),
+    'update-setting': (_, { key, value }) => getFinanceModel().updateSetting(key, value),
+    'save-settings': (_, settings) => getFinanceModel().saveSettings(settings),
 
     // Budgets (using generic CRUD)
-    'get-budgets': () => FinanceModel.getAllBudgets(),
+    'get-budgets': () => getFinanceModel().getAllBudgets(),
     'set-budget': (_, { category, amount, period, startDate, endDate }) =>
-        FinanceModel.create('budget', { category, amount, period, start_date: startDate, end_date: endDate }),
+        getFinanceModel().create('budget', { category, amount, period, start_date: startDate, end_date: endDate }),
     'update-budget': (_, { id, category, amount, period, startDate, endDate }) =>
-        FinanceModel.update('budget', id, { category, amount, period, start_date: startDate, end_date: endDate }),
-    'delete-budget': (_, id) => FinanceModel.delete('budget', id, true),
+        getFinanceModel().update('budget', id, { category, amount, period, start_date: startDate, end_date: endDate }),
+    'delete-budget': (_, id) => getFinanceModel().delete('budget', id, true),
 
     // Goals (using generic CRUD + specialized methods)
-    'get-goals': () => FinanceModel.getAllGoals(),
-    'get-active-goals': () => FinanceModel.getAll('goal', { where: { status: 'active' } }),
-    'get-goal': (_, id) => FinanceModel.getById('goal', id),
-    'create-goal': (_, data) => FinanceModel.create('goal', data),
+    'get-goals': () => getFinanceModel().getAllGoals(),
+    'get-active-goals': () => getFinanceModel().getAll('goal', { where: { status: 'active' } }),
+    'get-goal': (_, id) => getFinanceModel().getById('goal', id),
+    'create-goal': (_, data) => getFinanceModel().create('goal', data),
     'update-goal': async (_, { id, data }) => {
         // Auto-complete if target reached
         if (data.current_amount !== undefined && data.target_amount !== undefined) {
@@ -131,46 +145,46 @@ export const SIMPLE_ROUTES: Record<string, HandlerFunction> = {
                 (data as any).completed_at = new Date().toISOString();
             }
         }
-        return await FinanceModel.update('goal', id, data);
+        return await getFinanceModel().update('goal', id, data);
     },
-    'delete-goal': (_, id) => FinanceModel.deleteGoal(id),
+    'delete-goal': (_, id) => getFinanceModel().deleteGoal(id),
     'contribute-to-goal': (_, { goalId, amount, source, notes }) =>
-        FinanceModel.contributeToGoal(goalId, amount, source, notes),
-    'get-goal-contributions': (_, goalId) => FinanceModel.getGoalContributions(goalId),
-    'get-goals-summary': () => FinanceModel.getGoalsSummary(),
-    'get-available-for-goals': () => FinanceModel.getAvailableForGoals(),
+        getFinanceModel().contributeToGoal(goalId, amount, source, notes),
+    'get-goal-contributions': (_, goalId) => getFinanceModel().getGoalContributions(goalId),
+    'get-goals-summary': () => getFinanceModel().getGoalsSummary(),
+    'get-available-for-goals': () => getFinanceModel().getAvailableForGoals(),
 
     // Recurring Charges (using generic CRUD)
-    'get-recurring-charges': () => FinanceModel.getAllRecurringCharges(),
-    'get-active-recurring-charges': () => FinanceModel.getAll('recurringCharge', { where: { is_active: 1 } }),
-    'create-recurring-charge': (_, data) => FinanceModel.create('recurringCharge', data),
-    'update-recurring-charge': (_, { id, data }) => FinanceModel.update('recurringCharge', id, data),
-    'delete-recurring-charge': (_, id) => FinanceModel.delete('recurringCharge', id, true),
-    'get-monthly-recurring-total': () => FinanceModel.getMonthlyRecurringTotal(),
+    'get-recurring-charges': () => getFinanceModel().getAllRecurringCharges(),
+    'get-active-recurring-charges': () => getFinanceModel().getAll('recurringCharge', { where: { is_active: 1 } }),
+    'create-recurring-charge': (_, data) => getFinanceModel().create('recurringCharge', data),
+    'update-recurring-charge': (_, { id, data }) => getFinanceModel().update('recurringCharge', id, data),
+    'delete-recurring-charge': (_, id) => getFinanceModel().delete('recurringCharge', id, true),
+    'get-monthly-recurring-total': () => getFinanceModel().getMonthlyRecurringTotal(),
 
     // Bills (using generic CRUD)
-    'get-bill-types': () => FinanceModel.getBillTypes(),
-    'add-bill-type': (_, data) => FinanceModel.create('billType', data),
-    'update-bill-type': (_, { id, data }) => FinanceModel.update('billType', id, data),
-    'delete-bill-type': (_, id) => FinanceModel.delete('billType', id, true),
-    'get-bill-readings': (_, filters) => FinanceModel.getBillReadings(filters),
-    'get-bill-readings-paginated': (_, options) => FinanceModel.getBillReadingsPaginated(options),
-    'add-bill-reading': (_, data) => FinanceModel.create('billReading', data),
-    'update-bill-reading': (_, { id, data }) => FinanceModel.update('billReading', id, data),
-    'delete-bill-reading': (_, id) => FinanceModel.delete('billReading', id, true),
-    'get-bill-projections': () => FinanceModel.getBillProjections(),
+    'get-bill-types': () => getFinanceModel().getBillTypes(),
+    'add-bill-type': (_, data) => getFinanceModel().create('billType', data),
+    'update-bill-type': (_, { id, data }) => getFinanceModel().update('billType', id, data),
+    'delete-bill-type': (_, id) => getFinanceModel().delete('billType', id, true),
+    'get-bill-readings': (_, filters) => getFinanceModel().getBillReadings(filters),
+    'get-bill-readings-paginated': (_, options) => getFinanceModel().getBillReadingsPaginated(options),
+    'add-bill-reading': (_, data) => getFinanceModel().create('billReading', data),
+    'update-bill-reading': (_, { id, data }) => getFinanceModel().update('billReading', id, data),
+    'delete-bill-reading': (_, id) => getFinanceModel().delete('billReading', id, true),
+    'get-bill-projections': () => getFinanceModel().getBillProjections(),
 
     // Exchange Rates (using generic CRUD where applicable)
-    'get-exchange-rates': () => FinanceModel.getExchangeRates(),
-    'get-exchange-rate': (_, { from, to }) => FinanceModel.getExchangeRate(from, to),
+    'get-exchange-rates': () => getFinanceModel().getExchangeRates(),
+    'get-exchange-rate': (_, { from, to }) => getFinanceModel().getExchangeRate(from, to),
     'set-exchange-rate': (_, { from, to, rate, source }) =>
-        FinanceModel.setExchangeRate(from, to, rate, source || 'manual'),
-    'delete-exchange-rate': (_, id) => FinanceModel.delete('exchangeRate', id, true),
-    'convert-currency': (_, { amount, from, to }) => FinanceModel.convertCurrency(amount, from, to),
-    'get-used-currencies': () => FinanceModel.getUsedCurrencies(),
-    'get-accounts-converted': (_, baseCurrency) => FinanceModel.getAccountsWithConvertedBalances(baseCurrency),
-    'get-rate-sync-status': () => FinanceModel.getRateSyncStatus(),
-    'get-total-balance': (_, baseCurrency) => FinanceModel.getTotalBalanceInBaseCurrency(baseCurrency),
+        getFinanceModel().setExchangeRate(from, to, rate, source || 'manual'),
+    'delete-exchange-rate': (_, id) => getFinanceModel().delete('exchangeRate', id, true),
+    'convert-currency': (_, { amount, from, to }) => getFinanceModel().convertCurrency(amount, from, to),
+    'get-used-currencies': () => getFinanceModel().getUsedCurrencies(),
+    'get-accounts-converted': (_, baseCurrency) => getFinanceModel().getAccountsWithConvertedBalances(baseCurrency),
+    'get-rate-sync-status': () => getFinanceModel().getRateSyncStatus(),
+    'get-total-balance': (_, baseCurrency) => getFinanceModel().getTotalBalanceInBaseCurrency(baseCurrency),
 
     // AI Handlers (Mirrored from complex handlers for easy routing)
     'get-ai-settings': async () => {
@@ -186,7 +200,7 @@ export const SIMPLE_ROUTES: Record<string, HandlerFunction> = {
     },
     'save-ai-settings-internal': async (_, settings) => {
         try {
-            await FinanceModel.saveAISettings(settings);
+            await getFinanceModel().saveAISettings(settings);
             await syncAIService();
             return { success: true };
         } catch (e: any) {
@@ -258,8 +272,8 @@ export const SIMPLE_ROUTES: Record<string, HandlerFunction> = {
     },
 
     // Web-compatible raw data export
-    'get-backup-data': () => FinanceModel.exportData(),
-    'import-backup-data': (_, data) => FinanceModel.importData(data),
+    'get-backup-data': () => getFinanceModel().exportData(),
+    'import-backup-data': (_, data) => getFinanceModel().importData(data),
 
     // Web-compatible versions of complex handlers (no dialogs, no streaming)
     // Note: For IPC, 'chat-sandbox' also has a separate handler with streaming support
@@ -292,13 +306,14 @@ export const SIMPLE_ROUTES: Record<string, HandlerFunction> = {
 
     'sync-exchange-rates': async (_, { provider, baseCurrency, customUrl }) => {
         try {
+            const model = getFinanceModel();
             const { CurrencyService } = require('../services/currencyService');
             const rates = await CurrencyService.fetchRates(provider, baseCurrency, customUrl);
-            const usedCurrencies = await FinanceModel.getUsedCurrencies();
+            const usedCurrencies = await model.getUsedCurrencies();
             usedCurrencies.push(baseCurrency);
             const relevantRates = CurrencyService.filterRelevantRates(rates, usedCurrencies);
-            await FinanceModel.setExchangeRatesBulk(relevantRates, 'api');
-            await FinanceModel.updateSetting('currency_last_sync', new Date().toISOString());
+            await model.setExchangeRatesBulk(relevantRates, 'api');
+            await model.updateSetting('currency_last_sync', new Date().toISOString());
             return { success: true, message: `Synced ${relevantRates.length} exchange rates`, ratesUpdated: relevantRates.length };
         } catch (err: any) {
             return { success: false, message: err.message };
@@ -350,7 +365,7 @@ export function registerIpcHandlers(): void {
     // Export Data (with dialog)
     ipcMain.handle('export-data', async () => {
         try {
-            const data = await FinanceModel.exportData();
+            const data = await getFinanceModel().exportData();
             const { filePath } = await dialog.showSaveDialog({
                 buttonLabel: 'Export Data',
                 defaultPath: `bofo-export-${new Date().toISOString().split('T')[0]}.json`,
@@ -385,7 +400,7 @@ export function registerIpcHandlers(): void {
             if (!data.accounts && !data.transactions) {
                 return { success: false, message: 'Invalid backup file format' };
             }
-            await FinanceModel.importData(data);
+            await getFinanceModel().importData(data);
             return { success: true, message: 'Data imported successfully!' };
         } catch (err: any) {
             console.error('Import error:', err);
@@ -396,6 +411,7 @@ export function registerIpcHandlers(): void {
     // Export Excel
     ipcMain.handle('export-excel', async () => {
         try {
+            const model = getFinanceModel();
             const workbook = XLSX.utils.book_new();
             const addSheet = (data: any[], name: string, headers: string[]) => {
                 const sheetData = data?.length
@@ -405,21 +421,21 @@ export function registerIpcHandlers(): void {
                 XLSX.utils.book_append_sheet(workbook, ws, name);
             };
 
-            addSheet(await FinanceModel.getAllAccounts(), 'Accounts',
+            addSheet(await model.getAllAccounts(), 'Accounts',
                 ['id', 'name', 'type', 'balance', 'initial_balance', 'currency', 'status']);
-            addSheet(await FinanceModel.getAllTransactions(), 'Transactions',
+            addSheet(await model.getAllTransactions(), 'Transactions',
                 ['id', 'start_date', 'type', 'category', 'amount', 'currency', 'account_id', 'to_account_id', 'description', 'frequency', 'is_active']);
-            addSheet(await FinanceModel.getAllCategories(), 'Categories',
+            addSheet(await model.getAllCategories(), 'Categories',
                 ['id', 'type', 'name', 'status', 'is_default', 'color', 'icon']);
-            addSheet(await FinanceModel.getAllBudgets(), 'Budgets',
+            addSheet(await model.getAllBudgets(), 'Budgets',
                 ['id', 'category', 'amount', 'period', 'start_date', 'end_date', 'created_at']);
-            addSheet(await FinanceModel.getAllGoals(), 'Goals',
+            addSheet(await model.getAllGoals(), 'Goals',
                 ['id', 'name', 'description', 'target_amount', 'current_amount', 'monthly_contribution', 'target_date', 'status', 'priority']);
-            addSheet(await FinanceModel.getAllRecurringCharges(), 'Recurring Charges',
+            addSheet(await model.getAllRecurringCharges(), 'Recurring Charges',
                 ['id', 'category', 'name', 'amount', 'frequency', 'due_day', 'next_due_date', 'is_active', 'notes']);
-            addSheet(await FinanceModel.getBillTypes(), 'Bill Types',
+            addSheet(await model.getBillTypes(), 'Bill Types',
                 ['id', 'name', 'unit_name', 'cost_per_unit', 'category_name', 'account_id', 'auto_transaction']);
-            addSheet(await FinanceModel.getBillReadings({}), 'Bill Readings',
+            addSheet(await model.getBillReadings({}), 'Bill Readings',
                 ['id', 'bill_type_id', 'date', 'units_used', 'total_cost', 'notes']);
 
             const { filePath, canceled } = await dialog.showSaveDialog({
@@ -462,14 +478,15 @@ export function registerIpcHandlers(): void {
 
     ipcMain.handle('run-backup-now', async () => {
         try {
-            const settings = await FinanceModel.getAllSettings();
+            const model = getFinanceModel();
+            const settings = await model.getAllSettings();
             const backupDir = settings.auto_backup_directory;
             if (!backupDir || !fs.existsSync(backupDir)) return { success: false, message: 'Invalid backup directory' };
 
-            const data = await FinanceModel.exportData();
+            const data = await model.exportData();
             const timestamp = new Date().toISOString().replace(/[:.]/g, '-').split('T')[0];
             fs.writeFileSync(path.join(backupDir, `bofo-backup-${timestamp}.json`), JSON.stringify(data, null, 2));
-            await FinanceModel.updateSetting('auto_backup_last', new Date().toISOString());
+            await model.updateSetting('auto_backup_last', new Date().toISOString());
             return { success: true, message: 'Backup saved' };
         } catch (err: any) {
             return { success: false, message: err.message };
@@ -479,17 +496,18 @@ export function registerIpcHandlers(): void {
 
 export async function performAutoBackup() {
     try {
-        const settings = await FinanceModel.getAllSettings();
+        const model = getFinanceModel();
+        const settings = await model.getAllSettings();
         if (settings.auto_backup_enabled !== 'true' || !settings.auto_backup_directory) return;
         if (!fs.existsSync(settings.auto_backup_directory)) return;
 
         const lastBackup = settings.auto_backup_last;
         if (lastBackup && new Date(lastBackup).toDateString() === new Date().toDateString()) return;
 
-        const data = await FinanceModel.exportData();
+        const data = await model.exportData();
         const timestamp = new Date().toISOString().replace(/[:.]/g, '-').split('T')[0];
         fs.writeFileSync(path.join(settings.auto_backup_directory, `bofo-backup-${timestamp}.json`), JSON.stringify(data, null, 2));
-        await FinanceModel.updateSetting('auto_backup_last', new Date().toISOString());
+        await model.updateSetting('auto_backup_last', new Date().toISOString());
     } catch (err) {
         console.error('Auto-backup failed:', err);
     }

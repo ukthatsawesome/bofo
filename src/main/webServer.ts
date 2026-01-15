@@ -16,8 +16,17 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { app } from 'electron';
 import { SIMPLE_ROUTES } from './ipc/handlers';
-import { FinanceModel } from './models/finance';
 import type { IncomingMessage, ServerResponse } from 'http';
+
+// Lazy load FinanceModel to avoid circular dependency issues
+let _financeModel: typeof import('./models/finance').FinanceModel | null = null;
+function getFinanceModel() {
+    if (!_financeModel) {
+        const module = require('./models/finance');
+        _financeModel = module.FinanceModel;
+    }
+    return _financeModel!;
+}
 
 let server: http.Server | null = null;
 
@@ -178,7 +187,7 @@ export async function startWebServer(): Promise<void> {
     if (server) return;
 
     try {
-        const settings = await FinanceModel.getAllSettings();
+        const settings = await getFinanceModel().getAllSettings();
         const isDev = !app.isPackaged;
         const enabled = settings.remote_access_enabled === 'true' || isDev;
 
