@@ -38,10 +38,8 @@ The project uses **Tailwind CSS** with a **Soft UI** design system in `src/rende
 | **Utilities** | Standard Tailwind utilities |
 
 ### Design Principles
-- **Soft UI**: Clean white/gray surfaces with subtle shadows
-- **High Contrast**: WCAG AA compliant text/background ratios
 - **Bento Layouts**: CSS Grid-based responsive layouts
-- **Light Mode Only**: Dark mode deferred for future
+- **Dark Mode Scaffolding**: Support for `.dark` class is implemented via CSS variables, but full UI theme is in progress.
 
 ### Component Variants
 | Component | Variants |
@@ -80,9 +78,13 @@ Expose your data to the frontend:
 3.  Add HTML template and logic.
 4.  Register the route in `src/renderer/core/router.ts`.
 
-## 🧪 Testing
-- Run `npm run typecheck` to verify TypeScript types.
-- Run `npm run build` to ensure the build pipeline succeeds.
+## 🧪 Testing & Quality
+- **Unit Testing**: Run `npm run test` to execute Vitest suites.
+- **UI Testing**: Run `npm run test:ui` for the visual Vitest dashboard.
+- **Linting**: Run `npm run lint` to check code style.
+- **Formatting**: Run `npm run format` to apply Prettier rules.
+- **Type Checking**: Run `npm run typecheck` to verify TypeScript types.
+- **Build**: Run `npm run build` to ensure the build pipeline succeeds.
 
 ## 🤝 Contribution Guidelines
 

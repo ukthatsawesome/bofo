@@ -1,6 +1,6 @@
 /**
  * API Service Factory
- * 
+ *
  * Determines the correct API provider based on the runtime environment.
  * UI components should import 'api' from here, not window.api.
  */
@@ -16,13 +16,13 @@ const isElectron = window.api && typeof window.api.getTransactions === 'function
 let apiInstance: API;
 
 if (isElectron) {
-    // In Electron, we use the injected provider
-    // Note: ElectronApiProvider is just a reference to window.api
-    apiInstance = ElectronApiProvider as API;
-    console.log('[API] Using Electron IPC Provider');
+  // In Electron, we use the injected provider
+  // Note: ElectronApiProvider is just a reference to window.api
+  apiInstance = ElectronApiProvider as API;
+  console.log('[API] Using Electron IPC Provider');
 } else {
-    apiInstance = new HttpApiProvider() as unknown as API;
-    console.log('[API] Using Web HTTP Provider');
+  apiInstance = new HttpApiProvider() as unknown as API;
+  console.log('[API] Using Web HTTP Provider');
 }
 
 export const api = apiInstance;

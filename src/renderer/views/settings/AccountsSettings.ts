@@ -2,19 +2,19 @@ import { SortableHeader } from '../../components/tables/SortableHeader';
 import type { SettingsView } from '../SettingsView';
 
 export const AccountsSettingsMixin = {
-    // State
-    accountSortField: 'name',
-    accountSortDir: 'asc' as 'asc' | 'desc',
+  // State
+  accountSortField: 'name',
+  accountSortDir: 'asc' as 'asc' | 'desc',
 
-    // Table rendering
-    renderAccountsTable(this: SettingsView) {
-        const { state, formatter } = this.app;
-        const tbody = document.getElementById('accounts-table-body');
-        const thead = document.getElementById('accounts-table-head');
-        if (!tbody || !thead) return;
+  // Table rendering
+  renderAccountsTable(this: SettingsView) {
+    const { state, formatter } = this.app;
+    const tbody = document.getElementById('accounts-table-body');
+    const thead = document.getElementById('accounts-table-head');
+    if (!tbody || !thead) return;
 
-        // Render sortable headers
-        thead.innerHTML = `<tr>
+    // Render sortable headers
+    thead.innerHTML = `<tr>
             ${SortableHeader({ label: 'Name', field: 'name', currentSort: this.accountSortField, direction: this.accountSortDir, onclick: `app.views.settings.sortAccounts('name')` })}
             ${SortableHeader({ label: 'Type', field: 'type', currentSort: this.accountSortField, direction: this.accountSortDir, onclick: `app.views.settings.sortAccounts('type')` })}
             ${SortableHeader({ label: 'Starting', field: 'initial_balance', currentSort: this.accountSortField, direction: this.accountSortDir, onclick: `app.views.settings.sortAccounts('initial_balance')` })}
@@ -23,24 +23,26 @@ export const AccountsSettingsMixin = {
             <th class="text-right">Actions</th>
         </tr>`;
 
-        // Sort accounts
-        const sorted = [...(state.accounts || [])].sort((a: any, b: any) => {
-            const dir = this.accountSortDir === 'asc' ? 1 : -1;
-            if (typeof a[this.accountSortField] === 'string') {
-                return a[this.accountSortField].localeCompare(b[this.accountSortField]) * dir;
-            }
-            return (a[this.accountSortField] - b[this.accountSortField]) * dir;
-        });
+    // Sort accounts
+    const sorted = [...(state.accounts || [])].sort((a: any, b: any) => {
+      const dir = this.accountSortDir === 'asc' ? 1 : -1;
+      if (typeof a[this.accountSortField] === 'string') {
+        return a[this.accountSortField].localeCompare(b[this.accountSortField]) * dir;
+      }
+      return (a[this.accountSortField] - b[this.accountSortField]) * dir;
+    });
 
-        const typeLabels: Record<string, string> = {
-            bank: 'Bank Account',
-            wallet: 'Wallet',
-            credit_card: 'Credit Card',
-            loan: 'Loan',
-            investment: 'Investment'
-        };
+    const typeLabels: Record<string, string> = {
+      bank: 'Bank Account',
+      wallet: 'Wallet',
+      credit_card: 'Credit Card',
+      loan: 'Loan',
+      investment: 'Investment',
+    };
 
-        tbody.innerHTML = sorted.map(acc => `
+    tbody.innerHTML = sorted
+      .map(
+        (acc) => `
             <tr class="${acc.status === 'archived' ? 'opacity-50' : ''}">
                 <td><strong>${acc.name}</strong></td>
                 <td>${typeLabels[acc.type] || acc.type}</td>
@@ -56,52 +58,55 @@ export const AccountsSettingsMixin = {
                         <button class="action-btn" onclick="app.views.settings.handleEditAccount(${acc.id})" title="Edit">
                             <i data-lucide="edit-3"></i>
                         </button>
-                        ${acc.status === 'archived'
-                ? `<button class="action-btn success" onclick="app.views.settings.handleUnarchiveAccount(${acc.id})" title="Restore">
+                        ${
+                          acc.status === 'archived'
+                            ? `<button class="action-btn success" onclick="app.views.settings.handleUnarchiveAccount(${acc.id})" title="Restore">
                                 <i data-lucide="archive-restore"></i>
                                </button>`
-                : `<button class="action-btn warning" onclick="app.views.settings.handleArchiveAccount(${acc.id})" title="Archive">
+                            : `<button class="action-btn warning" onclick="app.views.settings.handleArchiveAccount(${acc.id})" title="Archive">
                                 <i data-lucide="archive"></i>
                                </button>`
-            }
+                        }
                         <button class="action-btn danger" onclick="app.views.settings.handleDeleteAccount(${acc.id})" title="Delete">
                             <i data-lucide="trash-2"></i>
                         </button>
                     </div>
                 </td>
             </tr>
-        `).join('');
+        `
+      )
+      .join('');
 
-        this.refreshIcons();
-    },
+    this.refreshIcons();
+  },
 
-    sortAccounts(this: SettingsView, field: string) {
-        if (this.accountSortField === field) {
-            this.accountSortDir = this.accountSortDir === 'asc' ? 'desc' : 'asc';
-        } else {
-            this.accountSortField = field;
-            this.accountSortDir = 'asc';
-        }
-        this.renderAccountsTable();
-    },
+  sortAccounts(this: SettingsView, field: string) {
+    if (this.accountSortField === field) {
+      this.accountSortDir = this.accountSortDir === 'asc' ? 'desc' : 'asc';
+    } else {
+      this.accountSortField = field;
+      this.accountSortDir = 'asc';
+    }
+    this.renderAccountsTable();
+  },
 
-    // CRUD handlers
-    handleNewAccount(this: SettingsView) {
-        this.showAccountModal();
-    },
+  // CRUD handlers
+  handleNewAccount(this: SettingsView) {
+    this.showAccountModal();
+  },
 
-    async handleEditAccount(this: SettingsView, id: number) {
-        const account = this.app.state.accounts.find(a => a.id === id);
-        if (account) this.showAccountModal(account);
-    },
+  async handleEditAccount(this: SettingsView, id: number) {
+    const account = this.app.state.accounts.find((a) => a.id === id);
+    if (account) this.showAccountModal(account);
+  },
 
-    showAccountModal(this: SettingsView, account: any = null) {
-        const isEdit = !!account;
-        const { notifications } = this.app;
+  showAccountModal(this: SettingsView, account: any = null) {
+    const isEdit = !!account;
+    const { notifications } = this.app;
 
-        notifications.modal({
-            title: isEdit ? 'Edit Account' : 'New Account',
-            content: `
+    notifications.modal({
+      title: isEdit ? 'Edit Account' : 'New Account',
+      content: `
                 <div class="form-group">
                     <label>Account Name</label>
                     <input type="text" id="setting-acc-name" class="form-control" value="${account?.name || ''}" placeholder="e.g. Main Bank">
@@ -127,79 +132,96 @@ export const AccountsSettingsMixin = {
                     </select>
                 </div>
             `,
-            confirmText: isEdit ? 'Save Changes' : 'Create Account',
-            onConfirm: async () => {
-                const name = (document.getElementById('setting-acc-name') as HTMLInputElement).value.trim();
-                const type = (document.getElementById('setting-acc-type') as HTMLSelectElement).value;
-                const balance = parseFloat((document.getElementById('setting-acc-balance') as HTMLInputElement).value) || 0;
-                const currency = (document.getElementById('setting-acc-currency') as HTMLSelectElement).value;
+      confirmText: isEdit ? 'Save Changes' : 'Create Account',
+      onConfirm: async () => {
+        const name = (document.getElementById('setting-acc-name') as HTMLInputElement).value.trim();
+        const type = (document.getElementById('setting-acc-type') as HTMLSelectElement).value;
+        const balance =
+          parseFloat((document.getElementById('setting-acc-balance') as HTMLInputElement).value) ||
+          0;
+        const currency = (document.getElementById('setting-acc-currency') as HTMLSelectElement)
+          .value;
 
-                if (!name) {
-                    notifications.toast('Error', 'Account name is required', 'error');
-                    return false;
-                }
-
-                try {
-                    if (isEdit) {
-                        await window.api.updateAccount({ id: account.id, name, type, initial_balance: balance, currency });
-                    } else {
-                        await window.api.addAccount({ name, type, balance, currency });
-                    }
-                    await this.app.loadData();
-                    this.renderAccountsTable();
-                    notifications.toast('Success', isEdit ? 'Account updated' : 'Account created', 'success');
-                } catch (error: any) {
-                    notifications.toast('Error', error.message, 'error');
-                    return false;
-                }
-            }
-        });
-    },
-
-    async handleDeleteAccount(this: SettingsView, id: number) {
-        if (await this.app.notifications.confirm('Delete Account', 'Delete this account? Associated transactions will be preserved but unlinked.')) {
-            try {
-                await window.api.deleteAccount(id);
-                await this.app.loadData();
-                this.renderAccountsTable();
-                this.app.notifications.toast('Deleted', 'Account deleted', 'success');
-            } catch (error: any) {
-                this.app.notifications.toast('Error', error.message, 'error');
-            }
+        if (!name) {
+          notifications.toast('Error', 'Account name is required', 'error');
+          return false;
         }
-    },
 
-    async handleArchiveAccount(this: SettingsView, id: number) {
         try {
-            await window.api.archiveAccount(id);
-            await this.app.loadData();
-            this.renderAccountsTable();
-            this.app.notifications.toast('Archived', 'Account archived', 'success');
+          if (isEdit) {
+            await window.api.updateAccount({
+              id: account.id,
+              name,
+              type,
+              initial_balance: balance,
+              currency,
+            });
+          } else {
+            await window.api.addAccount({ name, type, balance, currency });
+          }
+          await this.app.loadData();
+          this.renderAccountsTable();
+          notifications.toast('Success', isEdit ? 'Account updated' : 'Account created', 'success');
         } catch (error: any) {
-            this.app.notifications.toast('Error', error.message, 'error');
+          notifications.toast('Error', error.message, 'error');
+          return false;
         }
-    },
+      },
+    });
+  },
 
-    async handleUnarchiveAccount(this: SettingsView, id: number) {
-        try {
-            await window.api.unarchiveAccount(id);
-            await this.app.loadData();
-            this.renderAccountsTable();
-            this.app.notifications.toast('Restored', 'Account restored', 'success');
-        } catch (error: any) {
-            this.app.notifications.toast('Error', error.message, 'error');
-        }
-    },
-
-    getCurrencyOptions(this: SettingsView, selected: string = 'USD') {
-        const currencies = this.app?.currencies || [
-            { code: 'USD', name: 'US Dollar', symbol: '$' },
-            { code: 'EUR', name: 'Euro', symbol: '€' },
-            { code: 'GBP', name: 'British Pound', symbol: '£' }
-        ];
-
-        return currencies.map((c: any) =>
-            `<option value="${c.code}" ${c.code === selected ? 'selected' : ''}>${c.code} - ${c.name || ''}</option>`
-        ).join('');
+  async handleDeleteAccount(this: SettingsView, id: number) {
+    if (
+      await this.app.notifications.confirm(
+        'Delete Account',
+        'Delete this account? Associated transactions will be preserved but unlinked.'
+      )
+    ) {
+      try {
+        await window.api.deleteAccount(id);
+        await this.app.loadData();
+        this.renderAccountsTable();
+        this.app.notifications.toast('Deleted', 'Account deleted', 'success');
+      } catch (error: any) {
+        this.app.notifications.toast('Error', error.message, 'error');
+      }
     }
+  },
+
+  async handleArchiveAccount(this: SettingsView, id: number) {
+    try {
+      await window.api.archiveAccount(id);
+      await this.app.loadData();
+      this.renderAccountsTable();
+      this.app.notifications.toast('Archived', 'Account archived', 'success');
+    } catch (error: any) {
+      this.app.notifications.toast('Error', error.message, 'error');
+    }
+  },
+
+  async handleUnarchiveAccount(this: SettingsView, id: number) {
+    try {
+      await window.api.unarchiveAccount(id);
+      await this.app.loadData();
+      this.renderAccountsTable();
+      this.app.notifications.toast('Restored', 'Account restored', 'success');
+    } catch (error: any) {
+      this.app.notifications.toast('Error', error.message, 'error');
+    }
+  },
+
+  getCurrencyOptions(this: SettingsView, selected: string = 'USD') {
+    const currencies = this.app?.currencies || [
+      { code: 'USD', name: 'US Dollar', symbol: '$' },
+      { code: 'EUR', name: 'Euro', symbol: '€' },
+      { code: 'GBP', name: 'British Pound', symbol: '£' },
+    ];
+
+    return currencies
+      .map(
+        (c: any) =>
+          `<option value="${c.code}" ${c.code === selected ? 'selected' : ''}>${c.code} - ${c.name || ''}</option>`
+      )
+      .join('');
+  },
 };

@@ -6,36 +6,36 @@ import { UIUtils } from '../../core/dom';
  */
 
 interface ListItemProps {
-    label: string;
-    sublabel?: string;
-    value: string | number;
-    trendType?: 'neutral' | 'up' | 'down';
-    icon?: string;
+  label: string;
+  sublabel?: string;
+  value: string | number;
+  trendType?: 'neutral' | 'up' | 'down';
+  icon?: string;
 }
 
 export const ListItem = ({
-    label,
-    sublabel = '',
-    value,
-    trendType = 'neutral',
-    icon = ''
+  label,
+  sublabel = '',
+  value,
+  trendType = 'neutral',
+  icon = '',
 }: ListItemProps): string => {
-    const trendColors: Record<string, string> = {
-        up: 'text-success bg-success/10',
-        down: 'text-danger bg-danger/10',
-        neutral: 'text-text-muted bg-surface-input'
-    };
+  const trendColors: Record<string, string> = {
+    up: 'text-success bg-success/10',
+    down: 'text-danger bg-danger/10',
+    neutral: 'text-text-muted bg-surface-input',
+  };
 
-    const trendIcons: Record<string, string> = {
-        up: 'trending-up',
-        down: 'trending-down',
-        neutral: 'minus'
-    };
+  const trendIcons: Record<string, string> = {
+    up: 'trending-up',
+    down: 'trending-down',
+    neutral: 'minus',
+  };
 
-    const colorClass = trendColors[trendType] || trendColors.neutral;
-    const trendIcon = icon || trendIcons[trendType];
+  const colorClass = trendColors[trendType] || trendColors.neutral;
+  const trendIcon = icon || trendIcons[trendType];
 
-    return `
+  return `
     <div class="flex items-center justify-between py-2.5 border-b border-border/50 last:border-0">
         <div class="flex flex-col">
             <span class="text-sm font-medium text-text-main">${UIUtils.escapeHTML(label)}</span>

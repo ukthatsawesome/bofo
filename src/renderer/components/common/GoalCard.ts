@@ -6,68 +6,71 @@ import type { Formatter } from '../../core/formatter';
  */
 
 interface GoalCardProps {
-    id: number | string;
-    name: string;
-    description?: string;
-    target_amount: number;
-    current_amount?: number;
-    monthly_contribution?: number;
-    icon?: string;
-    color?: string;
-    status?: 'active' | 'completed' | 'paused' | 'cancelled';
-    target_date?: string | null;
-    formatter: Formatter;
-    onContribute: string;
-    onEdit: string;
-    onDelete: string;
+  id: number | string;
+  name: string;
+  description?: string;
+  target_amount: number;
+  current_amount?: number;
+  monthly_contribution?: number;
+  icon?: string;
+  color?: string;
+  status?: 'active' | 'completed' | 'paused' | 'cancelled';
+  target_date?: string | null;
+  formatter: Formatter;
+  onContribute: string;
+  onEdit: string;
+  onDelete: string;
 }
 
 export const GoalCard = ({
-    id,
-    name,
-    description = '',
-    target_amount,
-    current_amount = 0,
-    monthly_contribution = 0,
-    icon = 'target',
-    color = '#a29bfe',
-    status = 'active',
-    target_date = null,
-    formatter,
-    onContribute,
-    onEdit,
-    onDelete
+  id,
+  name,
+  description = '',
+  target_amount,
+  current_amount = 0,
+  monthly_contribution = 0,
+  icon = 'target',
+  color = '#a29bfe',
+  status = 'active',
+  target_date = null,
+  formatter,
+  onContribute,
+  onEdit,
+  onDelete,
 }: GoalCardProps): string => {
-    const progress = target_amount > 0 ? Math.min((current_amount / target_amount) * 100, 100) : 0;
-    const remaining = target_amount - current_amount;
-    const isCompleted = status === 'completed' || progress >= 100;
+  const progress = target_amount > 0 ? Math.min((current_amount / target_amount) * 100, 100) : 0;
+  const remaining = target_amount - current_amount;
+  const isCompleted = status === 'completed' || progress >= 100;
 
-    // Calculate estimated completion
-    let estimatedCompletion = '';
-    if (!isCompleted && monthly_contribution > 0 && remaining > 0) {
-        const monthsToGo = Math.ceil(remaining / monthly_contribution);
-        const completionDate = new Date();
-        completionDate.setMonth(completionDate.getMonth() + monthsToGo);
-        estimatedCompletion = completionDate.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
-    }
+  // Calculate estimated completion
+  let estimatedCompletion = '';
+  if (!isCompleted && monthly_contribution > 0 && remaining > 0) {
+    const monthsToGo = Math.ceil(remaining / monthly_contribution);
+    const completionDate = new Date();
+    completionDate.setMonth(completionDate.getMonth() + monthsToGo);
+    estimatedCompletion = completionDate.toLocaleDateString('en-US', {
+      month: 'short',
+      year: 'numeric',
+    });
+  }
 
-    // Progress bar color based on progress
-    const getProgressColor = () => {
-        if (isCompleted) return 'bg-success';
-        if (progress >= 75) return 'bg-success';
-        if (progress >= 50) return 'bg-info';
-        if (progress >= 25) return 'bg-warning';
-        return 'bg-brand-primary';
-    };
+  // Progress bar color based on progress
+  const getProgressColor = () => {
+    if (isCompleted) return 'bg-success';
+    if (progress >= 75) return 'bg-success';
+    if (progress >= 50) return 'bg-info';
+    if (progress >= 25) return 'bg-warning';
+    return 'bg-brand-primary';
+  };
 
-    const statusBadge: Record<string, string> = {
-        active: 'bg-info/15 text-info',
-        completed: 'bg-success/15 text-success',
-        paused: 'bg-warning/15 text-warning',
-        cancelled: 'bg-danger/15 text-danger'
-    };
+  const statusBadge: Record<string, string> = {
+    active: 'bg-info/15 text-info',
+    completed: 'bg-success/15 text-success',
+    paused: 'bg-warning/15 text-warning',
+    cancelled: 'bg-danger/15 text-danger',
+  };
 
-    return `
+  return `
     <div class="card-panel relative overflow-hidden ${isCompleted ? 'border-success/30' : ''}" data-goal-id="${id}">
         <!-- Colored top accent -->
         <div class="absolute top-0 left-0 right-0 h-1" style="background: ${color}"></div>
@@ -118,24 +121,28 @@ export const GoalCard = ({
                 <div class="bg-surface-input/50 rounded-lg p-3 text-center">
                     <p class="text-xs text-text-muted mb-0.5">${isCompleted ? 'Completed' : 'ETA'}</p>
                     <p class="text-sm font-bold ${isCompleted ? 'text-success' : 'text-text-main'}">
-                        ${isCompleted ? '🎉' : (estimatedCompletion || (target_date ? new Date(target_date).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : '—'))}
+                        ${isCompleted ? '🎉' : estimatedCompletion || (target_date ? new Date(target_date).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : '—')}
                     </p>
                 </div>
             </div>
 
             <!-- Actions -->
             <div class="flex gap-2">
-                ${!isCompleted ? `
+                ${
+                  !isCompleted
+                    ? `
                     <button class="btn-primary flex-1 text-sm py-2.5" onclick="${onContribute}(${id})">
                         <i data-lucide="plus" class="w-4 h-4"></i>
                         Contribute
                     </button>
-                ` : `
+                `
+                    : `
                     <button class="btn-secondary flex-1 text-sm py-2.5 text-success border-success/30" disabled>
                         <i data-lucide="party-popper" class="w-4 h-4"></i>
                         Goal Achieved!
                     </button>
-                `}
+                `
+                }
                 <button class="btn-secondary px-3" onclick="${onEdit}(${id})" title="Edit">
                     <i data-lucide="edit-3" class="w-4 h-4"></i>
                 </button>

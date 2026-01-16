@@ -2,7 +2,7 @@
  * NotificationModal - Functional component for the global notification modal
  */
 export const NotificationModal = (): string => {
-    return `
+  return `
     <div id="notification-modal" class="modal fixed inset-0 bg-black/85 backdrop-blur-sm z-[3000] flex items-center justify-center transition-all duration-300 hidden opacity-0 invisible pointer-events-none">
         <div class="modal-content bg-surface-card w-[90%] max-w-md p-8 rounded-lg border border-border-strong shadow-premium relative animate-[modalSlideUp_0.4s_ease-out]">
             <div class="flex flex-col items-center text-center">

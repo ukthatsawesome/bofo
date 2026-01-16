@@ -1,14 +1,14 @@
 /**
  * ViewHeader Component
- * 
+ *
  * Consistent header structure for all views.
  * Reduces ~50 lines of duplicated HTML per view.
  */
 
 interface ViewHeaderProps {
-    title: string;
-    subtitle?: string;
-    actions?: string;
+  title: string;
+  subtitle?: string;
+  actions?: string;
 }
 
 export const ViewHeader = ({ title, subtitle = '', actions = '' }: ViewHeaderProps): string => `
@@ -28,7 +28,7 @@ export const ViewHeader = ({ title, subtitle = '', actions = '' }: ViewHeaderPro
  * Container for stat cards with consistent styling
  */
 export const StatsContainer = (id: string, className: string = 'stats-grid mb-6'): string =>
-    `<div id="${id}" class="${className}"></div>`;
+  `<div id="${id}" class="${className}"></div>`;
 
 /**
  * ActionButton Component
@@ -36,19 +36,19 @@ export const StatsContainer = (id: string, className: string = 'stats-grid mb-6'
  */
 
 interface ActionButtonProps {
-    id?: string;
-    label: string;
-    icon?: string;
-    variant?: string;
-    className?: string;
+  id?: string;
+  label: string;
+  icon?: string;
+  variant?: string;
+  className?: string;
 }
 
 export const ActionButton = ({
-    id = '',
-    label,
-    icon = 'plus',
-    variant = 'primary',
-    className = ''
+  id = '',
+  label,
+  icon = 'plus',
+  variant = 'primary',
+  className = '',
 }: ActionButtonProps): string => `
     <button class="btn ${variant} ${className}"${id ? ` id="${id}"` : ''}>
         <i data-lucide="${icon}"></i>
@@ -62,8 +62,8 @@ export const ActionButton = ({
  */
 
 interface MonthFilterInputProps {
-    id: string;
-    containerId?: string;
+  id: string;
+  containerId?: string;
 }
 
 export const MonthFilterInput = ({ id, containerId = '' }: MonthFilterInputProps): string => `

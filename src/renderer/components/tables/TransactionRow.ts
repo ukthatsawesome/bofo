@@ -8,39 +8,39 @@ import type { Formatter } from '../../core/formatter';
  */
 
 interface TransactionRowProps {
-    id: number;
-    date: string;
-    category: string;
-    type: 'income' | 'expense' | 'transfer';
-    accountText: string;
-    description: string;
-    amount: number;
-    formatter: Formatter;
-    onEdit: string;
-    onDelete: string;
+  id: number;
+  date: string;
+  category: string;
+  type: 'income' | 'expense' | 'transfer';
+  accountText: string;
+  description: string;
+  amount: number;
+  formatter: Formatter;
+  onEdit: string;
+  onDelete: string;
 }
 
 export const TransactionRow = ({
-    id,
-    date,
-    category,
-    type,
-    accountText,
-    description,
-    amount,
-    formatter,
-    onEdit,
-    onDelete
+  id,
+  date,
+  category,
+  type,
+  accountText,
+  description,
+  amount,
+  formatter,
+  onEdit,
+  onDelete,
 }: TransactionRowProps): string => {
-    const amountColors: Record<string, string> = {
-        income: 'text-success',
-        expense: 'text-danger',
-        transfer: 'text-info'
-    };
+  const amountColors: Record<string, string> = {
+    income: 'text-success',
+    expense: 'text-danger',
+    transfer: 'text-info',
+  };
 
-    const amountColor = amountColors[type] || 'text-text-main';
+  const amountColor = amountColors[type] || 'text-text-main';
 
-    return `
+  return `
     <tr class="group transition-colors hover:bg-white/[0.02]">
         <td class="px-5 py-4 bg-surface-panel/30 first:rounded-l-xl text-sm text-text-main">
             ${date}

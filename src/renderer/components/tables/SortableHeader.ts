@@ -4,18 +4,24 @@
  */
 
 interface SortableHeaderProps {
-    label: string;
-    field: string;
-    currentSort: string;
-    direction: 'asc' | 'desc';
-    onclick: string;
+  label: string;
+  field: string;
+  currentSort: string;
+  direction: 'asc' | 'desc';
+  onclick: string;
 }
 
-export const SortableHeader = ({ label, field, currentSort, direction, onclick }: SortableHeaderProps): string => {
-    const isActive = field === currentSort;
-    const icon = isActive ? (direction === 'asc' ? 'arrow-up' : 'arrow-down') : 'arrow-up-down';
+export const SortableHeader = ({
+  label,
+  field,
+  currentSort,
+  direction,
+  onclick,
+}: SortableHeaderProps): string => {
+  const isActive = field === currentSort;
+  const icon = isActive ? (direction === 'asc' ? 'arrow-up' : 'arrow-down') : 'arrow-up-down';
 
-    return `
+  return `
         <th 
             class="px-5 py-4 text-left cursor-pointer select-none transition-colors hover:bg-brand-primary/10
                    ${isActive ? 'text-brand-primary' : 'text-text-secondary'}" 

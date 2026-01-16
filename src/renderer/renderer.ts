@@ -11,24 +11,24 @@ import type { Lucide } from './types';
 
 // Declare globals
 declare global {
-    interface Window {
-        app: App;
-        Chart: any;
-        lucide: Lucide;
-        // Legacy bridges
-        showSettingsSubView: (id: string) => void;
-        showSettingsHome: () => void;
-        updateAppSetting: (key: string, val: string) => void;
-        filterCategoryTable: (type: string) => void;
-        handleAddNewCategory: () => void;
-    }
+  interface Window {
+    app: App;
+    Chart: any;
+    lucide: Lucide;
+    // Legacy bridges
+    showSettingsSubView: (id: string) => void;
+    showSettingsHome: () => void;
+    updateAppSetting: (key: string, val: string) => void;
+    filterCategoryTable: (type: string) => void;
+    handleAddNewCategory: () => void;
+  }
 }
 
 // Legacy compatibility: ensure window.api refers to our service
 // This keeps all existing views working without finding/replacing every usage.
 // In Electron, window.api is read-only (ContextBridge), so we don't overwrite it if it exists.
 if (!window.api) {
-    (window as any).api = api;
+  (window as any).api = api;
 }
 
 // Expose globals for compatibility
@@ -38,15 +38,15 @@ window.lucide = { createIcons, icons };
 // Patch createIcons to default to using all icons if not specified
 const originalCreateIcons = createIcons;
 window.lucide.createIcons = (options: any) => {
-    return originalCreateIcons({ icons, ...options });
+  return originalCreateIcons({ icons, ...options });
 };
 
 let app: App;
 
 document.addEventListener('DOMContentLoaded', async () => {
-    app = new App();
-    window.app = app; // Expose to window for legacy HTML event handlers if needed
-    await app.init();
+  app = new App();
+  window.app = app; // Expose to window for legacy HTML event handlers if needed
+  await app.init();
 });
 
 // Helper bridges for static HTML onclick handlers (if any remain)

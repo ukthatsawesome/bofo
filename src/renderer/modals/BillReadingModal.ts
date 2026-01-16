@@ -1,16 +1,16 @@
 interface BillType {
-    id: number | string;
-    name: string;
-    unit_name: string;
-    cost_per_unit: number;
+  id: number | string;
+  name: string;
+  unit_name: string;
+  cost_per_unit: number;
 }
 
 interface BillReadingModalProps {
-    billTypes: BillType[];
+  billTypes: BillType[];
 }
 
 export const BillReadingModal = ({ billTypes }: BillReadingModalProps): string => {
-    return `
+  return `
         <div id="bill-reading-modal" class="modal hidden">
             <div class="modal-content glass">
                 <div class="modal-header">
@@ -22,7 +22,7 @@ export const BillReadingModal = ({ billTypes }: BillReadingModalProps): string =
                         <div class="form-group full-width">
                             <label>Bill Type</label>
                             <select id="reading-bill-type" class="form-control">
-                                ${billTypes.map(bt => `<option value="${bt.id}" data-unit="${bt.unit_name}" data-cost="${bt.cost_per_unit}">${bt.name}</option>`).join('')}
+                                ${billTypes.map((bt) => `<option value="${bt.id}" data-unit="${bt.unit_name}" data-cost="${bt.cost_per_unit}">${bt.name}</option>`).join('')}
                             </select>
                         </div>
                         <div class="form-group">

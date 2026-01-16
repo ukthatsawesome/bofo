@@ -1,5 +1,5 @@
 export const BillTypeModal = (): string => {
-    return `
+  return `
         <div id="bill-type-modal" class="modal hidden">
             <div class="modal-content glass">
                 <div class="modal-header">

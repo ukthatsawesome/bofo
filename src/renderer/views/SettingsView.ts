@@ -2,13 +2,13 @@ import { BaseView } from './BaseView';
 import { $, $$, UIUtils } from '../core/dom';
 import { ViewHeader } from '../components/common/ViewHeader';
 import {
-    applySettingsMixins,
-    AccountsSettingsMixin,
-    CategoriesSettingsMixin,
-    BillsSettingsMixin,
-    ExchangeRatesSettingsMixin,
-    BackupSettingsMixin,
-    RemoteSettingsMixin
+  applySettingsMixins,
+  AccountsSettingsMixin,
+  CategoriesSettingsMixin,
+  BillsSettingsMixin,
+  ExchangeRatesSettingsMixin,
+  BackupSettingsMixin,
+  RemoteSettingsMixin,
 } from './settings/index';
 import type { App } from '../core/app';
 
@@ -24,42 +24,44 @@ type RemoteSettingsType = typeof RemoteSettingsMixin;
 // However, we copied methods onto the instance.
 // We can use declaration merging or just declare the properties.
 
-export interface SettingsView extends BaseView,
+export interface SettingsView
+  extends
+    BaseView,
     AccountsSettingsType,
     CategoriesSettingsType,
     BillsSettingsType,
     ExchangeRatesSettingsType,
     BackupSettingsType,
-    RemoteSettingsType { }
+    RemoteSettingsType {}
 
 export class SettingsView extends BaseView {
-    constructor(app: App) {
-        super(app, 'settings');
-        // Apply all settings section mixins
-        applySettingsMixins(this);
+  constructor(app: App) {
+    super(app, 'settings');
+    // Apply all settings section mixins
+    applySettingsMixins(this);
+  }
+
+  async onShow(): Promise<void> {
+    if (!this.isInitialized) {
+      this.renderBaseTemplate();
+
+      // Set up navigation handling
+      this.setupNavigation();
+
+      this.isInitialized = true;
     }
 
-    async onShow(): Promise<void> {
-        if (!this.isInitialized) {
-            this.renderBaseTemplate();
+    // Default to first tab (Accounts) if no hash or specific sub-view logic
+    this.showSubView('accounts');
+  }
 
-            // Set up navigation handling
-            this.setupNavigation();
-
-            this.isInitialized = true;
-        }
-
-        // Default to first tab (Accounts) if no hash or specific sub-view logic
-        this.showSubView('accounts');
-    }
-
-    renderBaseTemplate(): void {
-        if (!this.element) return;
-        this.element.innerHTML = `
+  renderBaseTemplate(): void {
+    if (!this.element) return;
+    this.element.innerHTML = `
             ${ViewHeader({
-            title: 'Settings',
-            subtitle: 'Manage accounts, categories, and preferences'
-        })}
+              title: 'Settings',
+              subtitle: 'Manage accounts, categories, and preferences',
+            })}
 
             <div class="settings-layout">
                 <div class="settings-sidebar">
@@ -430,77 +432,77 @@ export class SettingsView extends BaseView {
             </div>
         `;
 
-        this.refreshIcons();
-        this.populatePreferences();
+    this.refreshIcons();
+    this.populatePreferences();
+  }
+
+  setupNavigation(): void {
+    const navItems = $$('.settings-nav-item');
+    navItems.forEach((item) => {
+      item.addEventListener('click', () => {
+        const target = item.dataset.target;
+        if (target) this.showSubView(target);
+      });
+    });
+  }
+
+  async showSubView(targetId: string): Promise<void> {
+    // Update nav state
+    $$('.settings-nav-item').forEach((el) => el.classList.remove('active'));
+    $(`.settings-nav-item[data-target="${targetId}"]`)?.classList.add('active');
+
+    // Show section
+    $$('.settings-section').forEach((el) => el.classList.remove('active'));
+    $(`#settings-section-${targetId}`)?.classList.add('active');
+
+    // Load specific data if needed
+    switch (targetId) {
+      case 'accounts':
+        this.renderAccountsTable();
+        break;
+      case 'categories':
+        this.renderCategoryTable();
+        break;
+      case 'currencies':
+        await this.renderExchangeRates();
+        break;
+      case 'bills':
+        this.renderBillsTable();
+        break;
+      case 'backup':
+        await this.populateAutoBackupSettings();
+        break;
+      case 'remote':
+        await this.populateRemoteSettings();
+        break;
     }
 
-    setupNavigation(): void {
-        const navItems = $$('.settings-nav-item');
-        navItems.forEach(item => {
-            item.addEventListener('click', () => {
-                const target = item.dataset.target;
-                if (target) this.showSubView(target);
-            });
-        });
-    }
+    this.refreshIcons();
+  }
 
-    async showSubView(targetId: string): Promise<void> {
-        // Update nav state
-        $$('.settings-nav-item').forEach(el => el.classList.remove('active'));
-        $(`.settings-nav-item[data-target="${targetId}"]`)?.classList.add('active');
+  populatePreferences(): void {
+    const { state } = this.app;
+    if (!state.settings) return;
 
-        // Show section
-        $$('.settings-section').forEach(el => el.classList.remove('active'));
-        $(`#settings-section-${targetId}`)?.classList.add('active');
+    // Theme
+    const themeSelect = $('#pref-theme') as HTMLSelectElement;
+    if (themeSelect) themeSelect.value = state.settings.theme || 'system';
 
-        // Load specific data if needed
-        switch (targetId) {
-            case 'accounts':
-                this.renderAccountsTable();
-                break;
-            case 'categories':
-                this.renderCategoryTable();
-                break;
-            case 'currencies':
-                await this.renderExchangeRates();
-                break;
-            case 'bills':
-                this.renderBillsTable();
-                break;
-            case 'backup':
-                await this.populateAutoBackupSettings();
-                break;
-            case 'remote':
-                await this.populateRemoteSettings();
-                break;
-        }
+    // Forecast settings
+    const forecastRange = $('#forecast-range-default') as HTMLSelectElement;
+    if (forecastRange) forecastRange.value = state.settings.forecast_range_default || '12';
 
-        this.refreshIcons();
-    }
+    const forecastRecur = $('#forecast-include-recurring') as HTMLInputElement;
+    if (forecastRecur) forecastRecur.checked = state.settings.forecast_include_recurring !== '0';
+  }
 
-    populatePreferences(): void {
-        const { state } = this.app;
-        if (!state.settings) return;
+  async saveForecastSettings(): Promise<void> {
+    const range = ($('#forecast-range-default') as HTMLSelectElement)?.value;
+    const recur = ($('#forecast-include-recurring') as HTMLInputElement)?.checked;
 
-        // Theme
-        const themeSelect = $('#pref-theme') as HTMLSelectElement;
-        if (themeSelect) themeSelect.value = state.settings.theme || 'system';
+    await window.api.updateSetting({ key: 'forecast_range_default', value: range });
+    await window.api.updateSetting({ key: 'forecast_include_recurring', value: recur ? '1' : '0' });
 
-        // Forecast settings
-        const forecastRange = $('#forecast-range-default') as HTMLSelectElement;
-        if (forecastRange) forecastRange.value = state.settings.forecast_range_default || '12';
-
-        const forecastRecur = $('#forecast-include-recurring') as HTMLInputElement;
-        if (forecastRecur) forecastRecur.checked = state.settings.forecast_include_recurring !== '0';
-    }
-
-    async saveForecastSettings(): Promise<void> {
-        const range = ($('#forecast-range-default') as HTMLSelectElement)?.value;
-        const recur = ($('#forecast-include-recurring') as HTMLInputElement)?.checked;
-
-        await window.api.updateSetting({ key: 'forecast_range_default', value: range });
-        await window.api.updateSetting({ key: 'forecast_include_recurring', value: recur ? '1' : '0' });
-
-        this.app.notifications.toast('Saved', 'Forecast settings updated', 'success');
-    }
+    this.app.notifications.toast('Saved', 'Forecast settings updated', 'success');
+  }
 }

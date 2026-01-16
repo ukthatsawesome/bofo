@@ -4,54 +4,62 @@
  */
 
 interface CardProps {
-    title?: string;
-    content: string;
-    id?: string;
-    className?: string;
-    footer?: string;
-    icon?: string;
-    variant?: 'glass' | 'panel' | 'default' | 'flat';
-    bodyClass?: string;
+  title?: string;
+  content: string;
+  id?: string;
+  className?: string;
+  footer?: string;
+  icon?: string;
+  variant?: 'glass' | 'panel' | 'default' | 'flat';
+  bodyClass?: string;
 }
 
 export const Card = ({
-    title = '',
-    content,
-    id = '',
-    className = '',
-    footer = '',
-    icon = '',
-    variant = 'default',
-    bodyClass = ''
+  title = '',
+  content,
+  id = '',
+  className = '',
+  footer = '',
+  icon = '',
+  variant = 'default',
+  bodyClass = '',
 }: CardProps): string => {
-    // Card variants using Tailwind classes
-    const variants: Record<string, string> = {
-        glass: 'card-glass', // from tailwind-input.css
-        panel: 'card-panel', // from tailwind-input.css
-        default: 'card',
-        flat: 'bg-surface-card border border-border rounded-lg p-6'
-    };
+  // Card variants using Tailwind classes
+  const variants: Record<string, string> = {
+    glass: 'card-glass', // from tailwind-input.css
+    panel: 'card-panel', // from tailwind-input.css
+    default: 'card',
+    flat: 'bg-surface-card border border-border rounded-lg p-6',
+  };
 
-    const cardClass = variants[variant] || variants.glass;
+  const cardClass = variants[variant] || variants.glass;
 
-    return `
+  return `
     <div ${id ? `id="${id}"` : ''} class="${cardClass} ${className}">
-        ${(title || icon) ? `
+        ${
+          title || icon
+            ? `
             <div class="flex items-center justify-between mb-4">
                 <h3 class="flex items-center gap-2 text-base font-semibold text-text-main m-0">
                     ${icon ? `<i data-lucide="${icon}" class="w-5 h-5 text-brand-primary"></i>` : ''}
                     ${title}
                 </h3>
             </div>
-        ` : ''}
+        `
+            : ''
+        }
         <div class="card-body ${bodyClass}">
             ${content}
         </div>
-        ${footer ? `
+        ${
+          footer
+            ? `
             <div class="mt-4 pt-4 border-t border-border">
                 ${footer}
             </div>
-        ` : ''}
+        `
+            : ''
+        }
     </div>
 `;
 };

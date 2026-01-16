@@ -6,39 +6,39 @@ import { ProgressBar } from './ProgressBar';
 import type { Formatter } from '../../core/formatter';
 
 interface BudgetCardProps {
-    category: string;
-    period: string;
-    startDate: string;
-    endDate: string;
-    spent: number;
-    limit: number;
-    formatter: Formatter;
-    onEdit: string;
-    onDelete: string;
+  category: string;
+  period: string;
+  startDate: string;
+  endDate: string;
+  spent: number;
+  limit: number;
+  formatter: Formatter;
+  onEdit: string;
+  onDelete: string;
 }
 
 export const BudgetCard = ({
-    category,
-    period,
-    startDate,
-    endDate,
-    spent,
-    limit,
-    formatter,
-    onEdit,
-    onDelete
+  category,
+  period,
+  startDate,
+  endDate,
+  spent,
+  limit,
+  formatter,
+  onEdit,
+  onDelete,
 }: BudgetCardProps): string => {
-    const percent = Math.min((spent / limit) * 100, 100);
-    const isOver = spent > limit;
-    const remaining = limit - spent;
+  const percent = Math.min((spent / limit) * 100, 100);
+  const isOver = spent > limit;
+  const remaining = limit - spent;
 
-    // Determine color
-    let barColor = 'bg-success';
-    if (percent > 100) barColor = 'bg-danger';
-    else if (percent > 85) barColor = 'bg-warning';
-    else if (percent > 60) barColor = 'bg-brand-primary';
+  // Determine color
+  let barColor = 'bg-success';
+  if (percent > 100) barColor = 'bg-danger';
+  else if (percent > 85) barColor = 'bg-warning';
+  else if (percent > 60) barColor = 'bg-brand-primary';
 
-    return `
+  return `
         <div class="card-panel ${isOver ? 'border-danger/50' : ''}">
             <div class="flex items-start justify-between mb-4">
                 <div>
@@ -68,13 +68,13 @@ export const BudgetCard = ({
             </div>
             
             ${ProgressBar({
-        label: 'Spending',
-        value: `${formatter.formatCurrency(spent)} of ${formatter.formatCurrency(limit)}`,
-        percent: percent,
-        color: barColor,
-        showPercent: false,
-        size: 'sm'
-    })}
+              label: 'Spending',
+              value: `${formatter.formatCurrency(spent)} of ${formatter.formatCurrency(limit)}`,
+              percent: percent,
+              color: barColor,
+              showPercent: false,
+              size: 'sm',
+            })}
             
             <div class="text-sm font-medium ${remaining < 0 ? 'text-danger' : 'text-success'}">
                 ${remaining < 0 ? 'Over by' : 'Remaining:'} ${formatter.formatCurrency(Math.abs(remaining))}

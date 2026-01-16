@@ -3,20 +3,20 @@
  */
 
 interface ToastProps {
-    title?: string;
-    message: string;
-    type?: 'success' | 'error' | 'warning' | 'info';
+  title?: string;
+  message: string;
+  type?: 'success' | 'error' | 'warning' | 'info';
 }
 
 export const Toast = ({ title, message, type = 'info' }: ToastProps): string => {
-    const icons: Record<string, string> = {
-        success: 'check-circle',
-        error: 'x-circle',
-        warning: 'alert-triangle',
-        info: 'info'
-    };
+  const icons: Record<string, string> = {
+    success: 'check-circle',
+    error: 'x-circle',
+    warning: 'alert-triangle',
+    info: 'info',
+  };
 
-    return `
+  return `
         <div class="toast toast-${type}">
             <div class="toast-icon">
                 <i data-lucide="${icons[type] || icons.info}"></i>

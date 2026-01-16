@@ -5,52 +5,51 @@ import type { Formatter } from '../../core/formatter';
  */
 
 interface RecurringChargeItemProps {
-    id: number | string;
-    category: string;
-    name: string;
-    amount: number;
-    frequency?: 'weekly' | 'monthly' | 'yearly';
-    due_day?: number;
-    is_active?: boolean;
-    notes?: string;
-    formatter: Formatter;
-    onEdit: string;
-    onDelete: string;
-    onToggle: string;
+  id: number | string;
+  category: string;
+  name: string;
+  amount: number;
+  frequency?: 'weekly' | 'monthly' | 'yearly';
+  due_day?: number;
+  is_active?: boolean;
+  notes?: string;
+  formatter: Formatter;
+  onEdit: string;
+  onDelete: string;
+  onToggle: string;
 }
 
 export const RecurringChargeItem = ({
-    id,
-    category,
-    name,
-    amount,
-    frequency = 'monthly',
-    due_day = 1,
-    is_active = true,
-    notes = '',
-    formatter,
-    onEdit,
-    onDelete,
-    onToggle
+  id,
+  category,
+  name,
+  amount,
+  frequency = 'monthly',
+  due_day = 1,
+  is_active = true,
+  notes = '',
+  formatter,
+  onEdit,
+  onDelete,
+  onToggle,
 }: RecurringChargeItemProps): string => {
-    const frequencyLabels: Record<string, string> = {
-        weekly: 'Weekly',
-        monthly: 'Monthly',
-        yearly: 'Yearly'
-    };
+  const frequencyLabels: Record<string, string> = {
+    weekly: 'Weekly',
+    monthly: 'Monthly',
+    yearly: 'Yearly',
+  };
 
-    const frequencyIcons: Record<string, string> = {
-        weekly: 'calendar-days',
-        monthly: 'calendar',
-        yearly: 'calendar-range'
-    };
+  const frequencyIcons: Record<string, string> = {
+    weekly: 'calendar-days',
+    monthly: 'calendar',
+    yearly: 'calendar-range',
+  };
 
-    // Calculate monthly equivalent
-    const monthlyAmount = frequency === 'weekly' ? amount * 4.33
-        : frequency === 'yearly' ? amount / 12
-            : amount;
+  // Calculate monthly equivalent
+  const monthlyAmount =
+    frequency === 'weekly' ? amount * 4.33 : frequency === 'yearly' ? amount / 12 : amount;
 
-    return `
+  return `
     <div class="flex items-center gap-4 p-4 rounded-xl bg-surface-panel/50 border border-border 
                 transition-all hover:border-border-strong ${!is_active ? 'opacity-50' : ''}"
          data-charge-id="${id}">
@@ -75,9 +74,13 @@ export const RecurringChargeItem = ({
         <!-- Amount -->
         <div class="text-right shrink-0">
             <p class="text-sm font-bold text-danger">${formatter.formatCurrency(amount)}</p>
-            ${frequency !== 'monthly' ? `
+            ${
+              frequency !== 'monthly'
+                ? `
                 <p class="text-xs text-text-muted">${formatter.formatCurrency(monthlyAmount)}/mo</p>
-            ` : ''}
+            `
+                : ''
+            }
         </div>
 
         <!-- Actions -->
@@ -108,11 +111,14 @@ export const RecurringChargeItem = ({
  */
 
 interface RecurringChargesSummaryProps {
-    total: number;
-    formatter: Formatter;
+  total: number;
+  formatter: Formatter;
 }
 
-export const RecurringChargesSummary = ({ total, formatter }: RecurringChargesSummaryProps): string => `
+export const RecurringChargesSummary = ({
+  total,
+  formatter,
+}: RecurringChargesSummaryProps): string => `
     <div class="flex items-center justify-between p-4 rounded-xl bg-danger/10 border border-danger/20">
         <div class="flex items-center gap-3">
             <div class="w-10 h-10 rounded-lg bg-danger/20 flex items-center justify-center text-danger">

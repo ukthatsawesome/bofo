@@ -6,42 +6,42 @@ import { UIUtils } from '../../core/dom';
  */
 
 interface ProgressBarProps {
-    label: string;
-    value: string;
-    percent: number;
-    color?: string;
-    showPercent?: boolean;
-    size?: 'sm' | 'default' | 'lg';
+  label: string;
+  value: string;
+  percent: number;
+  color?: string;
+  showPercent?: boolean;
+  size?: 'sm' | 'default' | 'lg';
 }
 
 export const ProgressBar = ({
-    label,
-    value,
-    percent,
-    color = '',
-    showPercent = true,
-    size = 'default'
+  label,
+  value,
+  percent,
+  color = '',
+  showPercent = true,
+  size = 'default',
 }: ProgressBarProps): string => {
-    // Determine color based on percent if not provided
-    const getAutoColor = (pct: number): string => {
-        if (pct > 100) return 'bg-danger';
-        if (pct > 85) return 'bg-warning';
-        return 'bg-success';
-    };
+  // Determine color based on percent if not provided
+  const getAutoColor = (pct: number): string => {
+    if (pct > 100) return 'bg-danger';
+    if (pct > 85) return 'bg-warning';
+    return 'bg-success';
+  };
 
-    const barColor = color || getAutoColor(percent);
-    const clampedPercent = Math.min(percent, 100);
+  const barColor = color || getAutoColor(percent);
+  const clampedPercent = Math.min(percent, 100);
 
-    // Size variants
-    const sizes: Record<string, string> = {
-        sm: 'h-1.5',
-        default: 'h-2',
-        lg: 'h-3'
-    };
+  // Size variants
+  const sizes: Record<string, string> = {
+    sm: 'h-1.5',
+    default: 'h-2',
+    lg: 'h-3',
+  };
 
-    const heightClass = sizes[size] || sizes.default;
+  const heightClass = sizes[size] || sizes.default;
 
-    return `
+  return `
     <div class="mb-3">
         <div class="flex justify-between items-center mb-2">
             <span class="text-sm font-medium text-text-main">${UIUtils.escapeHTML(label)}</span>

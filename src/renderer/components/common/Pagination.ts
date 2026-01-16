@@ -3,19 +3,19 @@
  */
 
 interface PaginationProps {
-    currentPage: number;
-    totalPages: number;
-    id?: string;
-    onPrev?: string;
-    onNext?: string;
+  currentPage: number;
+  totalPages: number;
+  id?: string;
+  onPrev?: string;
+  onNext?: string;
 }
 
 export const Pagination = ({
-    currentPage,
-    totalPages,
-    id = 'pagination',
-    onPrev = '',
-    onNext = ''
+  currentPage,
+  totalPages,
+  id = 'pagination',
+  onPrev = '',
+  onNext = '',
 }: PaginationProps): string => `
     <div id="${id}" class="flex items-center justify-center gap-3 mt-5">
         <button 

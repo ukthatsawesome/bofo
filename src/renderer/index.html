@@ -1,124 +1,137 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en" data-theme="light">
-
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="Bofo - Your Personal AI Financial Manager">
-    <meta name="theme-color" content="#f8fafc">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Bofo - Your Personal AI Financial Manager" />
+    <meta name="theme-color" content="#f8fafc" />
     <title>Bofo - AI Finance</title>
-    <link rel="icon" type="image/x-icon" href="/assets/icons/icon.ico">
+    <link rel="icon" type="image/x-icon" href="/assets/icons/icon.ico" />
 
     <!-- Security: Content Security Policy -->
-    <meta http-equiv="Content-Security-Policy"
-        content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' http: ws: https://api.currencyapi.com;">
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' http: ws: https://api.currencyapi.com;"
+    />
 
     <!-- Theme Initialization -->
     <script>
-        (function () {
-            document.documentElement.setAttribute('data-theme', 'light');
-        })();
+      (function () {
+        const cache = localStorage.getItem('bofo_theme_cache');
+        const systemDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        const mode = cache ? cache : (systemDark ? 'dark' : 'light');
+        
+        document.documentElement.setAttribute('data-theme', mode);
+        if (mode === 'dark') {
+          document.documentElement.classList.add('dark');
+        } else {
+          document.documentElement.classList.remove('dark');
+        }
+      })();
     </script>
 
     <!-- Critical CSS for Startup Loader -->
     <style>
-        .loader-overlay {
-            position: fixed;
-            inset: 0;
-            background: rgba(15, 23, 42, 0.6);
-            backdrop-filter: blur(8px);
-            z-index: 9999;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            gap: 16px;
-            font-family: system-ui, -apple-system, sans-serif;
+      .loader-overlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(15, 23, 42, 0.6);
+        backdrop-filter: blur(8px);
+        z-index: 9999;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 16px;
+        font-family:
+          system-ui,
+          -apple-system,
+          sans-serif;
+      }
+
+      .loader-overlay.hidden {
+        display: none !important;
+      }
+
+      .spinner {
+        width: 48px;
+        height: 48px;
+        border: 3px solid #e2e8f0;
+        border-top-color: #7c3aed;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+      }
+
+      @keyframes spin {
+        from {
+          transform: rotate(0deg);
         }
 
-        .loader-overlay.hidden {
-            display: none !important;
+        to {
+          transform: rotate(360deg);
         }
-
-        .spinner {
-            width: 48px;
-            height: 48px;
-            border: 3px solid #e2e8f0;
-            border-top-color: #7c3aed;
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-        }
-
-        @keyframes spin {
-            from {
-                transform: rotate(0deg);
-            }
-
-            to {
-                transform: rotate(360deg);
-            }
-        }
+      }
     </style>
 
     <!-- Application Entry -->
     <script type="module" src="./renderer.ts"></script>
-</head>
+  </head>
 
-<body>
+  <body>
     <div class="app-container">
-        <!-- Sidebar Navigation -->
-        <nav class="sidebar">
-            <ul class="nav-links top-nav">
-                <li class="active logo-nav" data-view="dashboard" title="Dashboard">
-                    <i data-lucide="piggy-bank"></i>
-                </li>
-                <li data-view="transactions" title="Transactions">
-                    <i data-lucide="arrow-left-right" class="nav-icon"></i>
-                </li>
-                <li data-view="forecast" title="Forecast">
-                    <i data-lucide="trending-up" class="nav-icon"></i>
-                </li>
-                <li data-view="budget" title="Budget">
-                    <i data-lucide="pie-chart" class="nav-icon"></i>
-                </li>
-                <li data-view="recurring" title="Recurring Charges">
-                    <i data-lucide="repeat" class="nav-icon"></i>
-                </li>
-                <li data-view="bills" title="Bills Tracking">
-                    <i data-lucide="receipt" class="nav-icon"></i>
-                </li>
-                <li data-view="goals" title="Goals">
-                    <i data-lucide="target" class="nav-icon"></i>
-                </li>
-                <li data-view="whatif" title="Sandbox">
-                    <i data-lucide="sparkles" class="nav-icon"></i>
-                </li>
-            </ul>
+      <!-- Sidebar Navigation -->
+      <nav class="sidebar">
+        <ul class="nav-links top-nav">
+          <li class="active logo-nav" data-view="dashboard" title="Dashboard">
+            <i data-lucide="piggy-bank"></i>
+          </li>
+          <li data-view="transactions" title="Transactions">
+            <i data-lucide="arrow-left-right" class="nav-icon"></i>
+          </li>
+          <li data-view="forecast" title="Forecast">
+            <i data-lucide="trending-up" class="nav-icon"></i>
+          </li>
+          <li data-view="budget" title="Budget">
+            <i data-lucide="pie-chart" class="nav-icon"></i>
+          </li>
+          <li data-view="recurring" title="Recurring Charges">
+            <i data-lucide="repeat" class="nav-icon"></i>
+          </li>
+          <li data-view="bills" title="Bills Tracking">
+            <i data-lucide="receipt" class="nav-icon"></i>
+          </li>
+          <li data-view="goals" title="Goals">
+            <i data-lucide="target" class="nav-icon"></i>
+          </li>
+          <li data-view="whatif" title="Sandbox">
+            <i data-lucide="sparkles" class="nav-icon"></i>
+          </li>
+        </ul>
 
-            <ul class="nav-links bottom-nav">
-                <li id="ai-status-nav" class="ai-nav-item" title="AI Settings">
-                    <i data-lucide="bot" class="nav-icon"></i>
-                    <span class="ai-status-dot-nav"></span>
-                </li>
-                <li data-view="settings" title="Settings">
-                    <i data-lucide="settings" class="nav-icon"></i>
-                </li>
-            </ul>
-        </nav>
+        <ul class="nav-links bottom-nav">
+          <li id="ai-status-nav" class="ai-nav-item" title="AI Settings">
+            <i data-lucide="bot" class="nav-icon"></i>
+            <span class="ai-status-dot-nav"></span>
+          </li>
+          <li data-view="settings" title="Settings">
+            <i data-lucide="settings" class="nav-icon"></i>
+          </li>
+        </ul>
+      </nav>
 
-        <!-- Main Content Area -->
-        <main class="content" id="main-content">
-            <section id="dashboard" class="view active"></section>
-            <section id="transactions" class="view"></section>
-            <section id="forecast" class="view"></section>
-            <section id="budget" class="view"></section>
-            <section id="recurring" class="view"></section>
-            <section id="bills" class="view"></section>
-            <section id="goals" class="view"></section>
-            <section id="whatif" class="view"></section>
-            <section id="settings" class="view"></section>
-            <section id="ai-settings" class="view"></section>
-        </main>
+      <!-- Main Content Area -->
+      <main class="content" id="main-content">
+        <section id="dashboard" class="view active"></section>
+        <section id="transactions" class="view"></section>
+        <section id="forecast" class="view"></section>
+        <section id="budget" class="view"></section>
+        <section id="recurring" class="view"></section>
+        <section id="bills" class="view"></section>
+        <section id="goals" class="view"></section>
+        <section id="whatif" class="view"></section>
+        <section id="settings" class="view"></section>
+        <section id="ai-settings" class="view"></section>
+      </main>
     </div>
 
     <!-- Dynamic Containers -->
@@ -130,9 +143,8 @@
 
     <!-- Global Loader Overlay -->
     <div id="global-loader" class="loader-overlay">
-        <div class="spinner"></div>
-        <p class="text-secondary" style="margin-top: 16px; font-weight: 500;">Loading...</p>
+      <div class="spinner"></div>
+      <p class="text-secondary" style="margin-top: 16px; font-weight: 500">Loading...</p>
     </div>
-</body>
-
+  </body>
 </html>
