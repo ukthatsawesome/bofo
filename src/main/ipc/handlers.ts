@@ -56,7 +56,7 @@ type HandlerFunction = (event: IpcMainInvokeEvent | null, data: any) => Promise<
 
 export const SIMPLE_ROUTES: Record<string, HandlerFunction> = {
   // Transactions (using generic CRUD)
-  'get-transactions': () => getFinanceModel().getAll('transaction', { orderBy: 'start_date DESC' }),
+  // 'get-transactions' - Handled by TransactionController
   'add-transaction': (_, data) => getFinanceModel().create('transaction', data),
   'update-transaction': (_, { id, data }) => getFinanceModel().update('transaction', id, data),
   'delete-transaction': async (_, id) => {
@@ -70,7 +70,7 @@ export const SIMPLE_ROUTES: Record<string, HandlerFunction> = {
     }
     return result;
   },
-  'get-transactions-paginated': (_, options) => getFinanceModel().getTransactionsPaginated(options),
+  // 'get-transactions-paginated' - Handled by TransactionController
   'get-transaction-count': (_, options) => getFinanceModel().getTransactionCount(options),
 
   // Accounts (using generic CRUD)
@@ -320,21 +320,7 @@ export const SIMPLE_ROUTES: Record<string, HandlerFunction> = {
     }
   },
 
-  'calculate-forecast': async (_, data) => {
-    try {
-      const { ForecastEngine } = require('../utils/forecast');
-      const engine = new ForecastEngine(
-        data.transactions || [],
-        data.accounts || [],
-        data.settings || {},
-        data.recurringCharges || []
-      );
-      return engine.generateForecast(data.months || 6);
-    } catch (e) {
-      console.error('Forecast error:', e);
-      return { timeline: [], summary: {}, insights: [] };
-    }
-  },
+  // 'calculate-forecast' - Handled by FinanceController
 
   'sync-exchange-rates': async (_, { provider, baseCurrency, customUrl }) => {
     try {
@@ -375,7 +361,8 @@ export const SIMPLE_ROUTES: Record<string, HandlerFunction> = {
 // REGISTER HANDLERS
 // =============================================================================
 
-export function registerIpcHandlers(): void {
+export function registerIpcHandlers(excludeChannels: string[] = []): void {
+
   // Channels that have separate IPC handlers with special features (e.g., streaming)
   const skipForIpc = new Set(['chat-sandbox']);
 
@@ -383,6 +370,9 @@ export function registerIpcHandlers(): void {
   for (const [channel, handler] of Object.entries(SIMPLE_ROUTES)) {
     // Skip channels that have custom IPC handlers
     if (skipForIpc.has(channel)) continue;
+    
+    // Skip channels explicitly excluded (e.g. handled by new Controllers)
+    if (excludeChannels?.includes(channel)) continue;
 
     ipcMain.handle(channel, async (event, data) => {
       try {

@@ -9,6 +9,10 @@ import {
 } from 'electron';
 import * as path from 'path';
 import { registerIpcHandlers, performAutoBackup } from './ipc/handlers';
+import { IpcRouter } from './ipc/router';
+import { SettingsController } from './ipc/controllers/SettingsController';
+import { TransactionController } from './ipc/controllers/TransactionController';
+import { FinanceController } from './ipc/controllers/FinanceController';
 import { startWebServer, restartWebServer } from './webServer';
 import { dbInitialized } from './database/db';
 
@@ -123,7 +127,26 @@ app.whenReady().then(async () => {
     console.error('[Main] Database failed to initialize:', err);
   }
 
-  registerIpcHandlers();
+  try {
+    // Phase 1: Initialize Router
+    const settingsController = new SettingsController();
+    const transactionController = new TransactionController();
+    const financeController = new FinanceController();
+    const router = new IpcRouter([settingsController, transactionController, financeController]);
+
+    // Register new controller routes
+    router.registerAll();
+    console.log('[Main] IPC Router initialized successfully.');
+
+    // Identify which channels were handled to prevent duplication in legacy
+    const handled = router.getRegisteredChannels();
+    registerIpcHandlers(handled);
+
+  } catch (err) {
+    console.error('[Main] IPC Router failed to initialize, falling back to legacy handlers:', err);
+    // Fallback: register everything via legacy method
+    registerIpcHandlers();
+  }
 
   // Listen for web server control
   ipcMain.on('restart-web-server', () => {

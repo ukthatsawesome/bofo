@@ -78,21 +78,12 @@ export class DashboardView extends BaseView {
     const now = new Date();
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
 
-    const mStats = this.state.transactions.reduce(
-      (acc, t) => {
-        if (new Date(t.start_date) >= monthStart) {
-          if (t.type === 'income') acc.income += t.amount;
-          if (t.type === 'expense') acc.expense += t.amount;
-        }
-        return acc;
-      },
-      { income: 0, expense: 0 }
-    );
+    const mStats = {
+        income: this.state.summaryStats.monthIncome,
+        expense: this.state.summaryStats.monthExpense
+    };
 
-    const totalBalance = this.state.accounts.reduce((sum, a) => {
-      const isAsset = ['bank', 'wallet', 'investment'].includes(a.type);
-      return sum + (isAsset ? a.balance : -a.balance);
-    }, 0);
+    const totalBalance = this.state.summaryStats.totalBalance;
 
     const topCategory = this.getTopCategory(monthStart);
     const topCategoryAmount = this._getTopCategoryAmount();
@@ -191,46 +182,12 @@ export class DashboardView extends BaseView {
     // Load exchange rates for currency conversion
     await this.formatter.loadExchangeRates();
 
-    const baseCurrency = this.state.getBaseCurrency();
-    let liquidBalance = 0,
-      totalAssets = 0,
-      totalLiabilities = 0;
-
-    // Calculate balances with currency conversion to base currency
-    this.state.accounts.forEach((acc) => {
-      const isLiquid = acc.type === 'bank' || acc.type === 'wallet';
-      const isAsset = isLiquid || acc.type === 'investment';
-
-      // Convert balance to base currency
-      const convertedBalance = this.formatter.toBase(acc.balance, acc.currency || baseCurrency);
-
-      if (isLiquid) liquidBalance += convertedBalance;
-      if (isAsset) totalAssets += convertedBalance;
-      else totalLiabilities += convertedBalance;
-    });
-
-    const netWorth = totalAssets - totalLiabilities;
-    const now = new Date();
-    const threeMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 3, 1);
-    const recentTxs = this.state.transactions.filter(
-      (t) => new Date(t.start_date) >= threeMonthsAgo
-    );
-
-    let totalIncome = 0,
-      totalExpense = 0;
-    recentTxs.forEach((t) => {
-      // Convert transaction amounts to base currency
-      const txCurrency = t.currency || baseCurrency;
-      const convertedAmount = this.formatter.toBase(t.amount, txCurrency);
-
-      if (t.type === 'income') totalIncome += convertedAmount;
-      else if (t.type === 'expense') totalExpense += convertedAmount;
-    });
-
-    const monthlyIncome = totalIncome / 3;
-    const monthlyExpense = totalExpense / 3;
-    const savingsRate =
-      monthlyIncome > 0 ? ((monthlyIncome - monthlyExpense) / monthlyIncome) * 100 : 0;
+    // Use server-side stats
+    const liquidBalance = this.state.summaryStats.totalBalance;
+    const netWorth = this.state.summaryStats.netWorth;
+    const monthlyIncome = this.state.summaryStats.monthIncome;
+    const monthlyExpense = this.state.summaryStats.monthExpense;
+    const savingsRate = this.state.summaryStats.savingsRate;
 
     // Render stats using components
     const statsContainer = $('#dashboard-stats-container');

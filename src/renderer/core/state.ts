@@ -11,12 +11,27 @@ import type {
   Setting,
 } from '../../main/database/types';
 
+import { eventBus } from './eventBus';
+
 export class StateManager {
   transactions: TransactionWithCategory[];
+  transactionMetadata: {
+    total: number;
+    limit: number;
+    offset: number;
+    hasMore: boolean;
+  };
   accounts: Account[];
   categories: Category[];
   settings: Record<string, string>;
   aiSettings: any;
+  summaryStats: {
+    netWorth: number;
+    totalBalance: number;
+    monthIncome: number;
+    monthExpense: number;
+    savingsRate: number;
+  };
 
   theme: 'light' | 'dark' | 'system';
 
@@ -51,10 +66,12 @@ export class StateManager {
 
   constructor() {
     this.transactions = [];
+    this.transactionMetadata = { total: 0, limit: 100, offset: 0, hasMore: false };
     this.accounts = [];
     this.categories = [];
     this.settings = {};
     this.aiSettings = {};
+    this.summaryStats = { netWorth: 0, totalBalance: 0, monthIncome: 0, monthExpense: 0, savingsRate: 0 };
     this.theme = 'system';
     this.txHistoryFilter = 'all';
     this.txHistoryPage = 1;
@@ -84,6 +101,15 @@ export class StateManager {
     };
     this.exchangeRates = [];
     this.recurringCharges = [];
+  }
+
+  private checkResponse(response: any): boolean {
+    if (response && response.error === true) {
+      console.warn('IPC Error detected:', response);
+      eventBus.emit('api:error', response);
+      return false;
+    }
+    return true;
   }
 
   async loadSettings(): Promise<void> {
@@ -119,10 +145,54 @@ export class StateManager {
     this.categories = Array.isArray(data) ? data : [];
   }
 
-  async loadTransactions(): Promise<void> {
-    const data = await window.api.getTransactions();
-    // Sort is handled by SQL query now for better performance
-    this.transactions = Array.isArray(data) ? data : [];
+  async loadTransactions(reset = true): Promise<void> {
+    const options = {
+      limit: 100,
+      offset: reset ? 0 : this.transactionMetadata.offset + this.transactionMetadata.limit,
+    };
+    
+    // Use proper typing based on new API contract
+    const response = await window.api.getTransactions(options);
+    
+    if (!this.checkResponse(response)) return;
+
+    // Handle both new PaginatedResponse (object) and legacy array (fallback)
+    if (response && 'data' in response && Array.isArray(response.data)) {
+        if (reset) {
+            this.transactions = response.data;
+        } else {
+            this.transactions = [...this.transactions, ...response.data];
+        }
+        
+        this.transactionMetadata = {
+            total: response.total,
+            limit: response.limit,
+            offset: response.offset,
+            hasMore: response.hasMore
+        };
+    } else if (Array.isArray(response)) {
+        console.warn('Received legacy array response for transactions');
+        this.transactions = response;
+        this.transactionMetadata = { total: response.length, limit: response.length, offset: 0, hasMore: false };
+    } else {
+        this.transactions = [];
+        this.transactionMetadata = { total: 0, limit: 100, offset: 0, hasMore: false };
+    }
+
+    // Phase 3: Load server-side stats for dashboard accuracy
+    if (reset) {
+        try {
+            this.summaryStats = await window.api.getSummaryStats();
+        } catch (e) {
+            console.warn('Failed to load summary stats', e);
+        }
+    }
+  }
+
+  async loadMoreTransactions(): Promise<void> {
+      if (this.transactionMetadata.hasMore) {
+          await this.loadTransactions(false);
+      }
   }
 
   applyTheme(theme: string): void {

@@ -483,6 +483,20 @@ export const FinanceModel = {
     return { data, total, limit, offset, hasMore: offset + data.length < total };
   },
 
+  getMonthlyTotals: async (startDate: string, endDate: string) => {
+    const result = await get<{ income: number; expense: number }>(
+      `
+      SELECT 
+        COALESCE(SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END), 0) as income,
+        COALESCE(SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END), 0) as expense
+      FROM transactions 
+      WHERE start_date BETWEEN ? AND ? AND is_active = 1
+      `,
+      [startDate, endDate]
+    );
+    return result || { income: 0, expense: 0 };
+  },
+
   getTransactionCount: async (
     options: { activeOnly?: boolean; accountId?: number; type?: string } = {}
   ) => {

@@ -580,6 +580,12 @@ export class App {
       this.views[this.router.currentViewName!]?.render();
     });
 
+    // Global API Error Handler
+    eventBus.on('api:error', (error: any) => {
+      const title = error.code ? error.code.replace(/_/g, ' ') : 'Error';
+      this.notifications.toast(title, error.message || 'Operation failed', 'error');
+    });
+
     // Listen for AI settings changes
     eventBus.on('ai:settings-changed', async () => {
       await this.updateAIStatusIndicator();

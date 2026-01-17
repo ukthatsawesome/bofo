@@ -18,6 +18,25 @@ Bofo is a sleek, modern, and powerful personal finance application built with **
 - **💾 Data Control**: Full export/import capabilities (JSON/Excel) with specialized settings for backup management.
 - **🌓 Modern Aesthetics**: A polished Glassmorphism UI with comprehensive dark/light mode support.
 
+
+---
+
+## ⚡ System Improvements (v1.1)
+
+Recent updates have significantly hardened the application architecture:
+
+### 🛡️ Security
+- **Path Validation**: All file operations (backups, imports) pass through a strict `validateSafePath` filter to prevent directory traversal attacks.
+- **SQLCipher**: Database is encrypted at rest using AES-256.
+
+### 🚀 Performance
+- **Pagination**: Transaction lists use an efficient `LIMIT/OFFSET` strategy, defaulting to 100 items per page.
+- **Backend Analytics**: Heavy computations (Forecasts, Net Worth) are offloaded to SQLite aggregations, ensuring instant UI rendering even with 100k+ records.
+
+### 🛡️ Resilience
+- **Global Error Handling**: The IPC layer automatically catches crashes and returns standardized error codes.
+- **Timeout Protection**: All API calls have a 5-second fuse to prevent UI freezes.
+
 ---
 
 ## 🛠️ Technology Stack

@@ -13,18 +13,20 @@ import type {
   TransactionWithCategory,
 } from '../main/database/types';
 
+export interface PaginatedResponse<T> {
+  data: T[];
+  total: number;
+  limit: number;
+  offset: number;
+  hasMore: boolean;
+}
+
 export interface API {
   // Transactions
-  getTransactions: () => Promise<TransactionWithCategory[]>;
+  getTransactions: (options?: any) => Promise<PaginatedResponse<TransactionWithCategory>>;
   getTransactionsPaginated: (
     options: any
-  ) => Promise<{
-    data: TransactionWithCategory[];
-    total: number;
-    limit: number;
-    offset: number;
-    hasMore: boolean;
-  }>;
+  ) => Promise<PaginatedResponse<TransactionWithCategory>>;
   getTransactionCount: (options: any) => Promise<number>;
   addTransaction: (data: Partial<Transaction>) => Promise<any>;
   updateTransaction: (id: number, data: Partial<Transaction>) => Promise<any>;
@@ -173,6 +175,15 @@ export interface API {
   restartWebServer: () => void;
   onNativeThemeChanged: (callback: (isDark: boolean) => void) => void;
   version: string;
+
+  // Analytics
+  getSummaryStats: () => Promise<{
+    netWorth: number;
+    totalBalance: number;
+    monthIncome: number;
+    monthExpense: number;
+    savingsRate: number;
+  }>;
 }
 
 export interface Lucide {

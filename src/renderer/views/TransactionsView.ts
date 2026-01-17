@@ -280,7 +280,7 @@ export class TransactionsView extends BaseView {
     ($('#modal-tx-amount') as HTMLInputElement).value = t.amount.toString();
     ($('#modal-tx-desc') as HTMLInputElement).value = t.description || '';
     ($('#modal-tx-date') as HTMLInputElement).value = t.start_date;
-    ($('#modal-tx-account') as HTMLSelectElement).value = t.account_id.toString();
+    ($('#modal-tx-account') as HTMLSelectElement).value = (t.account_id || '').toString();
 
     if (t.type === 'transfer') {
       ($('#modal-tx-to-account') as HTMLSelectElement).value = t.to_account_id?.toString() || '';
@@ -591,8 +591,8 @@ export class TransactionsView extends BaseView {
 
       container.innerHTML = InsightCard({
         title: isPastMonth ? `${monthName} in Review` : `${monthName} So Far`,
-        message: insight.text,
-        icon: insight.isAI ? 'sparkles' : isPastMonth ? 'calendar-check' : 'activity',
+        message: insight?.text || 'No insight available',
+        icon: insight?.isAI ? 'sparkles' : isPastMonth ? 'calendar-check' : 'activity',
       });
       this.refreshIcons(container);
     } catch (err) {
