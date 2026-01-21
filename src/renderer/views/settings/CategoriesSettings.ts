@@ -63,7 +63,7 @@ export const CategoriesSettingsMixin = {
                         <strong>${cat.name}</strong>
                     </div>
                 </td>
-                <td>${TypePill({ type: cat.type })}</td>
+                <td>${TypePill({ label: cat.type, type: cat.type })}</td>
                 <td>
                     <span class="status-badge ${cat.status === 'archived' ? 'muted' : 'success'}">
                         ${cat.status === 'archived' ? 'Archived' : 'Active'}
@@ -166,7 +166,7 @@ export const CategoriesSettingsMixin = {
           if (isEdit) {
             await window.api.updateCategory(category.id, { name, icon });
           } else {
-            await window.api.addCategory({ type, name });
+            await window.api.addCategory({ type: type as any, name });
             // Update icon after creation
             const created = (await window.api.getCategories()).find((c: any) => c.name === name);
             if (created) {

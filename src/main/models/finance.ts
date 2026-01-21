@@ -21,8 +21,8 @@ import type {
   ExchangeRate,
   Setting,
   GoalContribution,
-  TransactionWithCategory,
 } from '../database/types';
+import { TransactionListDTO } from '../../shared/types';
 
 // Use strict types for helper functions
 const { run, get, all } = createDbHelpers(db);
@@ -475,8 +475,24 @@ export const FinanceModel = {
     );
     const total = countResult?.total || 0;
 
-    const data = await all<TransactionWithCategory>(
-      `SELECT * FROM transactions ${whereClause} ORDER BY ${sortBy} ${sortOrder} LIMIT ? OFFSET ?`,
+    const data = await all<TransactionListDTO>(
+      `SELECT 
+        t.id, 
+        t.account_id,
+        t.start_date as date, 
+        t.amount, 
+        t.description, 
+        t.category as category_name, 
+        t.type,
+        CASE 
+          WHEN t.type = 'transfer' THEN a.name || ' → ' || COALESCE(to_a.name, '?')
+          ELSE a.name 
+        END as account_name
+       FROM transactions t
+       LEFT JOIN accounts a ON t.account_id = a.id
+       LEFT JOIN accounts to_a ON t.to_account_id = to_a.id
+       ${whereClause} 
+       ORDER BY ${sortBy} ${sortOrder} LIMIT ? OFFSET ?`,
       [...params, limit, offset]
     );
 

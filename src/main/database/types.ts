@@ -11,6 +11,9 @@ import type { Database, RunResult } from 'sqlite3';
 // DATABASE HELPER TYPES
 // =============================================================================
 
+import type { Account, Category, Transaction, TransactionType, TransactionFrequency, AccountType } from '../../shared/types';
+export type { Account, Category, Transaction, TransactionType, TransactionFrequency };
+
 export interface DbRunResult {
   id: number;
   changes: number;
@@ -51,54 +54,7 @@ export interface ColumnInfo {
 // ENTITY TYPES
 // =============================================================================
 
-export interface Account {
-  id: number;
-  name: string;
-  type: 'bank' | 'wallet' | 'credit_card' | 'loan' | 'investment' | 'other';
-  balance: number;
-  initial_balance: number;
-  currency: string;
-  status: 'active' | 'archived';
-  deleted_at: string | null;
-  updated_at: string;
-}
-
-export interface Category {
-  id: number;
-  type: 'income' | 'expense' | 'asset' | 'liability' | 'transfer';
-  name: string;
-  is_default: number;
-  color: string;
-  icon: string;
-  status: 'active' | 'archived';
-  deleted_at: string | null;
-  updated_at: string;
-}
-
-export interface Transaction {
-  id: number;
-  account_id: number | null;
-  to_account_id: number | null;
-  type: 'income' | 'expense' | 'asset' | 'liability' | 'transfer';
-  category: string;
-  category_id: number | null;
-  amount: number;
-  description: string | null;
-  attachment: string | null;
-  frequency: 'once' | 'weekly' | 'monthly' | 'yearly';
-  start_date: string;
-  end_date: string | null;
-  currency: string;
-  exchange_rate: number;
-  to_amount: number | null;
-  base_currency: string | null;
-  base_amount: number | null;
-  tags: string | null;
-  is_active: number;
-  deleted_at: string | null;
-  created_at: string;
-  updated_at: string;
-}
+// Entities imported from shared types
 
 export interface Budget {
   id: number;

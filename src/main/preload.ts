@@ -16,6 +16,7 @@ const invokeWithTimeout = async (channel: string, ...args: any[]) => {
 contextBridge.exposeInMainWorld('api', {
   // Transactions
   getTransactions: () => invokeWithTimeout('get-transactions'),
+  getTransaction: (id: number) => invokeWithTimeout('get-transaction', id),
   getTransactionsPaginated: (options: any) =>
     invokeWithTimeout('get-transactions-paginated', options),
   getTransactionCount: (options: any) => invokeWithTimeout('get-transaction-count', options),

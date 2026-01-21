@@ -1,5 +1,5 @@
 import type { StateManager } from './state';
-import type { ExchangeRate } from '../../database/types';
+import type { ExchangeRate } from '../../shared/types';
 
 export class Formatter {
   private state: StateManager;

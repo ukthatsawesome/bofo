@@ -6,8 +6,8 @@ import { UIUtils } from '../../core/dom';
  */
 
 interface ProgressBarProps {
-  label: string;
-  value: string;
+  label?: string;
+  value?: string;
   percent: number;
   color?: string;
   showPercent?: boolean;
@@ -41,15 +41,20 @@ export const ProgressBar = ({
 
   const heightClass = sizes[size] || sizes.default;
 
+  const headerHtml = (label || value) 
+    ? `
+        <div class="flex justify-between items-center mb-2">
+            <span class="text-sm font-medium text-text-main">${label ? UIUtils.escapeHTML(label) : ''}</span>
+            <span class="text-sm text-text-muted">
+                ${value ? UIUtils.escapeHTML(value) : ''}
+                ${showPercent && value ? `<span class="opacity-60 font-normal ml-1">(${percent.toFixed(0)}%)</span>` : ''}
+            </span>
+        </div>`
+    : '';
+
   return `
     <div class="mb-3">
-        <div class="flex justify-between items-center mb-2">
-            <span class="text-sm font-medium text-text-main">${UIUtils.escapeHTML(label)}</span>
-            <span class="text-sm text-text-muted">
-                ${UIUtils.escapeHTML(value)}
-                ${showPercent ? `<span class="opacity-60 font-normal ml-1">(${percent.toFixed(0)}%)</span>` : ''}
-            </span>
-        </div>
+        ${headerHtml}
         <div class="w-full ${heightClass} bg-surface-input rounded-full overflow-hidden">
             <div 
                 class="h-full ${barColor} rounded-full transition-all duration-500 ease-out"

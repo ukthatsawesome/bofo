@@ -1,14 +1,7 @@
 import { $ } from '../../core/dom';
 import type { SettingsView } from '../SettingsView';
 
-interface ExchangeRate {
-  id: number;
-  from_currency: string;
-  to_currency: string;
-  rate: number;
-  source: string;
-  updated_at: string;
-}
+import type { ExchangeRate } from '../../../shared/types';
 
 export const ExchangeRatesSettingsMixin = {
   // Exchange rates rendering
@@ -132,7 +125,7 @@ export const ExchangeRatesSettingsMixin = {
                             ${rate.source === 'api' ? 'API' : 'Manual'}
                         </span>
                     </td>
-                    <td class="text-muted text-sm">${new Date(rate.updated_at).toLocaleDateString()}</td>
+                    <td class="text-muted text-sm">${new Date(rate.last_updated).toLocaleDateString()}</td>
                     <td class="text-right">
                         <div class="row-actions justify-end">
                             <button class="action-btn" onclick="app.views.settings.handleEditExchangeRate(${rate.id})" title="Edit">

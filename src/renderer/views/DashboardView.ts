@@ -135,8 +135,10 @@ export class DashboardView extends BaseView {
         }
       );
 
+      if (!insight) throw new Error('No insight returned');
+
       container.innerHTML = InsightCard({
-        title: insight.title,
+        title: insight.title || 'Financial Insight',
         message: insight.text,
         icon: insight.icon,
       });
@@ -160,7 +162,7 @@ export class DashboardView extends BaseView {
     const counts: Record<string, number> = {};
     this.state.transactions.forEach((t) => {
       if (t.type === 'expense' && new Date(t.start_date) >= monthStart) {
-        counts[t.category] = (counts[t.category] || 0) + t.amount;
+        counts[t.category_name] = (counts[t.category_name] || 0) + t.amount;
       }
     });
     const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]);
@@ -171,7 +173,7 @@ export class DashboardView extends BaseView {
     const counts: Record<string, number> = {};
     this.state.transactions.forEach((t) => {
       if (t.type === 'expense' && new Date(t.start_date) >= sinceDate) {
-        counts[t.category] = (counts[t.category] || 0) + t.amount;
+        counts[t.category_name] = (counts[t.category_name] || 0) + t.amount;
       }
     });
     const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]);
@@ -570,7 +572,9 @@ export class DashboardView extends BaseView {
       this.state.transactions
         .filter((t) => {
           const d = new Date(t.start_date);
-          return d >= start && (!end || d <= end) && t.category.toLowerCase().includes('salary');
+          const cat = (t.category_name || '').toLowerCase();
+          const desc = (t.description || '').toLowerCase();
+          return d >= start && (!end || d <= end) && (cat.includes('salary') || desc.includes('salary'));
         })
         .reduce((sum, t) => sum + t.amount, 0);
 
@@ -608,7 +612,7 @@ export class DashboardView extends BaseView {
     this.state.transactions
       .filter((t) => t.type === 'expense' && new Date(t.start_date) >= monthStart)
       .forEach((t) => {
-        expenseMap[t.category] = (expenseMap[t.category] || 0) + t.amount;
+        expenseMap[t.category_name] = (expenseMap[t.category_name] || 0) + t.amount;
         totalExpense += t.amount;
       });
 
@@ -645,7 +649,7 @@ export class DashboardView extends BaseView {
     let totalSpent = 0;
     activeBudgets.forEach((b) => {
       totalSpent += this.state.transactions
-        .filter((t) => t.category === b.category && t.type === 'expense')
+        .filter((t) => t.category_name === b.category && t.type === 'expense')
         .filter((t) => {
           const d = new Date(t.start_date);
           return d >= monthStart && d <= monthEnd;

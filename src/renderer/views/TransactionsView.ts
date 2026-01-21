@@ -156,8 +156,8 @@ export class TransactionsView extends BaseView {
 
     return [...this.state.transactions]
       .filter((t) => txHistoryFilter === 'all' || t.type === txHistoryFilter)
-      .filter((t) => !txMonthFilter || t.start_date.startsWith(txMonthFilter))
-      .sort((a, b) => {
+      .filter((t: any) => !txMonthFilter || t.start_date.startsWith(txMonthFilter))
+      .sort((a: any, b: any) => {
         let A = a[txSortField];
         let B = b[txSortField];
 
@@ -210,11 +210,11 @@ export class TransactionsView extends BaseView {
     if (thead && !thead.innerHTML.trim()) {
       thead.innerHTML = `
                 <tr>
-                    ${SortableHeader({ label: 'Date', field: 'start_date', currentSort: txSortField, direction: txSortOrder, onclick: 'app.views.transactions.handleSort' })}
-                    ${SortableHeader({ label: 'Category', field: 'category', currentSort: txSortField, direction: txSortOrder, onclick: 'app.views.transactions.handleSort' })}
-                    ${SortableHeader({ label: 'Account', field: 'account_id', currentSort: txSortField, direction: txSortOrder, onclick: 'app.views.transactions.handleSort' })}
-                    ${SortableHeader({ label: 'Description', field: 'description', currentSort: txSortField, direction: txSortOrder, onclick: 'app.views.transactions.handleSort' })}
-                    ${SortableHeader({ label: 'Amount', field: 'amount', currentSort: txSortField, direction: txSortOrder, onclick: 'app.views.transactions.handleSort' })}
+                    ${SortableHeader({ label: 'Date', field: 'start_date', currentSort: txSortField, direction: txSortOrder as 'asc' | 'desc', onclick: 'app.views.transactions.handleSort' })}
+                    ${SortableHeader({ label: 'Category', field: 'category_name', currentSort: txSortField, direction: txSortOrder as 'asc' | 'desc', onclick: 'app.views.transactions.handleSort' })}
+                    ${SortableHeader({ label: 'Account', field: 'account_name', currentSort: txSortField, direction: txSortOrder as 'asc' | 'desc', onclick: 'app.views.transactions.handleSort' })}
+                    ${SortableHeader({ label: 'Description', field: 'description', currentSort: txSortField, direction: txSortOrder as 'asc' | 'desc', onclick: 'app.views.transactions.handleSort' })}
+                    ${SortableHeader({ label: 'Amount', field: 'amount', currentSort: txSortField, direction: txSortOrder as 'asc' | 'desc', onclick: 'app.views.transactions.handleSort' })}
                     <th>Action</th>
                 </tr>
             `;
@@ -229,20 +229,12 @@ export class TransactionsView extends BaseView {
       'tx-table-body',
       filtered.slice((page - 1) * pageSize, page * pageSize),
       (t: any) => {
-        const acc = this.state.accounts.find((a) => a.id == t.account_id);
-        const toAcc = t.to_account_id
-          ? this.state.accounts.find((a) => a.id == t.to_account_id)
-          : null;
-        const accName = acc ? acc.name : 'Unknown';
-        const accountText =
-          t.type === 'transfer' ? `${accName} → ${toAcc ? toAcc.name : '?'}` : accName;
-
         return TransactionRow({
           id: t.id,
           date: t.start_date,
-          category: t.category,
+          category: t.category_name,
           type: t.type,
-          accountText: accountText,
+          accountText: t.account_name,
           description: t.description,
           amount: t.amount,
           formatter: this.formatter,
@@ -271,16 +263,20 @@ export class TransactionsView extends BaseView {
   // Note: handleEdit is called via string eval from HTML, so it needs to be accessible globally or via app
   // We will ensure app.views.transactions.handleEdit maps to this.
 
-  handleEdit(id: number | string): void {
-    const t = this.state.transactions.find((tx) => tx.id == id);
-    if (!t) return;
+  async handleEdit(id: number | string): Promise<void> {
+    try {
+      this.app.setLoading(true);
+      const t = await window.api.getTransaction(Number(id));
+      this.app.setLoading(false);
+      
+      if (!t) return;
 
-    this.editingTxId = id;
+      this.editingTxId = id;
 
-    ($('#modal-tx-amount') as HTMLInputElement).value = t.amount.toString();
-    ($('#modal-tx-desc') as HTMLInputElement).value = t.description || '';
-    ($('#modal-tx-date') as HTMLInputElement).value = t.start_date;
-    ($('#modal-tx-account') as HTMLSelectElement).value = (t.account_id || '').toString();
+      ($('#modal-tx-amount') as HTMLInputElement).value = t.amount.toString();
+      ($('#modal-tx-desc') as HTMLInputElement).value = t.description || '';
+      ($('#modal-tx-date') as HTMLInputElement).value = t.start_date;
+      ($('#modal-tx-account') as HTMLSelectElement).value = (t.account_id || '').toString();
 
     if (t.type === 'transfer') {
       ($('#modal-tx-to-account') as HTMLSelectElement).value = t.to_account_id?.toString() || '';
@@ -327,6 +323,10 @@ export class TransactionsView extends BaseView {
     this.refreshIcons();
     // Trigger change event to sync any remaining state
     $('#modal-tx-account')?.dispatchEvent(new Event('change'));
+    } catch (e: any) {
+      this.app.setLoading(false);
+      this.app.notifications.toast('Error', 'Failed to load transaction details', 'error');
+    }
   }
 
   updateSecondaryCategoryDropdown(type: string): void {
@@ -406,7 +406,7 @@ export class TransactionsView extends BaseView {
         );
       }
 
-      await window.api.updateTransaction(id, data);
+      await window.api.updateTransaction(Number(id), data);
       UIUtils.setHidden('#transaction-modal', true);
 
       await Promise.all([this.state.loadAccounts(), this.state.loadTransactions()]);

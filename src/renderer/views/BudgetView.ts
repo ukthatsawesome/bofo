@@ -159,7 +159,7 @@ export class BudgetView extends BaseView {
       const calcEnd = bEnd < viewMonthEnd ? bEnd : viewMonthEnd;
 
       const spent = state.transactions
-        .filter((t) => t.category === budget.category && t.type === 'expense')
+        .filter((t) => t.category_name === budget.category && t.type === 'expense')
         .filter((t) => {
           const tDate = new Date(t.start_date);
           return tDate >= calcStart && tDate <= calcEnd;
@@ -262,20 +262,22 @@ export class BudgetView extends BaseView {
               label: 'Total Budgeted',
               value: fmt.formatCurrency(budgeted),
               icon: 'piggy-bank',
-              trend: 'Monthly target',
+              trend: { type: 'neutral', value: 'Monthly target' },
             })}
             ${StatCard({
               label: 'Total Spent',
               value: fmt.formatCurrency(spent),
               icon: 'shopping-cart',
-              color: spent > budgeted ? 'danger' : 'warning',
+
             })}
             ${StatCard({
               label: 'Remaining',
               value: fmt.formatCurrency(Math.abs(remaining)),
               icon: remaining < 0 ? 'alert-circle' : 'check-circle',
-              color: remaining < 0 ? 'danger' : 'success',
-              trend: remaining < 0 ? 'Over budget' : 'Under budget',
+              trend: { 
+                type: remaining < 0 ? 'down' : 'up', 
+                value: remaining < 0 ? 'Over budget' : 'Under budget' 
+              },
             })}
         `;
     this.refreshIcons(container);
@@ -448,7 +450,7 @@ export class BudgetView extends BaseView {
 
   async handleDeleteBudget(id: number | string): Promise<void> {
     if (await this.app.notifications.confirm('Delete Budget', 'Remove this budget limit?')) {
-      await window.api.deleteBudget(id);
+      await window.api.deleteBudget(Number(id));
       await this.render();
       this.app.notifications.toast('Budget Removed', 'Budget limit has been cleared', 'success');
     }

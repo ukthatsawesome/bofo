@@ -3,8 +3,8 @@ import { IController } from '../router';
 import { FinanceModel } from '../../models/finance';
 import type { 
   Transaction, 
-  TransactionWithCategory 
 } from '../../database/types';
+import type { TransactionListDTO } from '../../../shared/types';
 
 interface PaginationResult<T> {
   data: T[];
@@ -27,7 +27,7 @@ export class TransactionController implements IController {
    * Enhanced get-transactions handler.
    * Auto-enforces pagination if no options provided to prevent OOM.
    */
-  async getTransactions(event: IpcMainInvokeEvent, options: any = {}): Promise<PaginationResult<TransactionWithCategory>> {
+  async getTransactions(event: IpcMainInvokeEvent, options: any = {}): Promise<PaginationResult<TransactionListDTO>> {
     // Default to pagination if not specified
     // Legacy calls might expect all, but we return a paginated struct with limit 100
     // This IS A BREAKING CHANGE in response structure, as mandated by the plan.

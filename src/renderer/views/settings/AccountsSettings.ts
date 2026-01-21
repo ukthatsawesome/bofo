@@ -152,12 +152,12 @@ export const AccountsSettingsMixin = {
             await window.api.updateAccount({
               id: account.id,
               name,
-              type,
+              type: type as any,
               initial_balance: balance,
               currency,
             });
           } else {
-            await window.api.addAccount({ name, type, balance, currency });
+            await window.api.addAccount({ name, type: type as any, balance, currency });
           }
           await this.app.loadData();
           this.renderAccountsTable();

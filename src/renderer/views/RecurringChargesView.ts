@@ -5,16 +5,7 @@ import { SortableHeader } from '../components/tables/SortableHeader';
 import { ViewHeader } from '../components/common/ViewHeader';
 import type { App } from '../core/app';
 
-interface RecurringCharge {
-  id: number;
-  name: string;
-  category: string;
-  amount: number;
-  frequency: 'weekly' | 'monthly' | 'yearly';
-  due_day?: number;
-  notes?: string;
-  is_active: boolean | number;
-}
+import type { RecurringCharge } from '../../shared/types';
 
 export class RecurringChargesView extends BaseView {
   private recurringCharges: RecurringCharge[] = [];
@@ -178,10 +169,10 @@ export class RecurringChargesView extends BaseView {
     if (thead && !thead.innerHTML.trim()) {
       thead.innerHTML = `
                 <tr>
-                    ${SortableHeader({ label: 'Name', field: 'name', currentSort: field, direction, onclick: 'app.views.recurring.sort' })}
-                    ${SortableHeader({ label: 'Category', field: 'category', currentSort: field, direction, onclick: 'app.views.recurring.sort' })}
-                    ${SortableHeader({ label: 'Frequency', field: 'frequency', currentSort: field, direction, onclick: 'app.views.recurring.sort' })}
-                    ${SortableHeader({ label: 'Amount', field: 'amount', currentSort: field, direction, onclick: 'app.views.recurring.sort' })}
+                    ${SortableHeader({ label: 'Name', field: 'name', currentSort: field, direction: direction as any, onclick: 'app.views.recurring.sort' })}
+                    ${SortableHeader({ label: 'Category', field: 'category', currentSort: field, direction: direction as any, onclick: 'app.views.recurring.sort' })}
+                    ${SortableHeader({ label: 'Frequency', field: 'frequency', currentSort: field, direction: direction as any, onclick: 'app.views.recurring.sort' })}
+                    ${SortableHeader({ label: 'Amount', field: 'amount', currentSort: field, direction: direction as any, onclick: 'app.views.recurring.sort' })}
                     <th>Status</th>
                     <th>Actions</th>
                 </tr>
@@ -196,14 +187,14 @@ export class RecurringChargesView extends BaseView {
       } else {
         tbody.innerHTML = sorted
           .map((c) => {
-            const freq = { weekly: 'Weekly', monthly: 'Monthly', yearly: 'Yearly' };
+            const freq: Record<string, string> = { once: 'One-time', weekly: 'Weekly', monthly: 'Monthly', yearly: 'Yearly' };
             return `
                         <tr class="${!c.is_active ? 'opacity-40' : ''}">
                             <td><strong>${UIUtils.escapeHTML(c.name)}</strong></td>
                             <td><span class="badge secondary">${UIUtils.escapeHTML(c.category)}</span></td>
                             <td>${freq[c.frequency]}</td>
                             <td class="amount expense font-bold">${formatter.formatCurrency(c.amount)}</td>
-                            <td>${StatusBadge(c.is_active ? 'Active' : 'Paused', c.is_active ? 'success' : 'warning')}</td>
+                            <td>${StatusBadge({ text: c.is_active ? 'Active' : 'Paused', type: c.is_active ? 'active' : 'warning' })}</td>
                             <td>
                                 <div class="row-actions">
                                     <button class="action-btn" onclick="app.views.recurring.toggleStatus(${c.id}, ${!c.is_active})">
@@ -222,6 +213,7 @@ export class RecurringChargesView extends BaseView {
           })
           .join('');
       }
+      this.refreshIcons(tbody);
     }
 
     const form = $('#recurring-charge-form') as HTMLFormElement;
@@ -234,7 +226,7 @@ export class RecurringChargesView extends BaseView {
     }
 
     this.refreshIcons('#recurring-summary-card');
-    this.refreshIcons(tbody);
+
   }
 
   sort(field: string): void {

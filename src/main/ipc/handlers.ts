@@ -57,6 +57,7 @@ type HandlerFunction = (event: IpcMainInvokeEvent | null, data: any) => Promise<
 export const SIMPLE_ROUTES: Record<string, HandlerFunction> = {
   // Transactions (using generic CRUD)
   // 'get-transactions' - Handled by TransactionController
+  'get-transaction': (_, id) => getFinanceModel().getById('transaction', id),
   'add-transaction': (_, data) => getFinanceModel().create('transaction', data),
   'update-transaction': (_, { id, data }) => getFinanceModel().update('transaction', id, data),
   'delete-transaction': async (_, id) => {

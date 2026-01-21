@@ -140,7 +140,11 @@ const db = new sqlite3.Database(dbPath, async (err) => {
  * Configure SQLCipher encryption settings
  */
 async function configureEncryption(): Promise<void> {
-  const pragmas = getSQLCipherConfig(encryptionKey);
+  const pragmas = [
+    ...getSQLCipherConfig(encryptionKey),
+    'PRAGMA journal_mode = WAL',
+    'PRAGMA synchronous = NORMAL',
+  ];
 
   return new Promise((resolve, reject) => {
     db.serialize(() => {
@@ -821,6 +825,33 @@ const MIGRATIONS: Migration[] = [
       log('[DB] Recurring charges linking complete.');
     },
   },
+  {
+    id: 19,
+    name: 'Optimize Indexes for JOINs',
+    up: async () => {
+      // Drop conflicting simple index if exists (replaced by composite)
+      await run('DROP INDEX IF EXISTS idx_transactions_account');
+
+      await createIndexes(run, [
+        {
+          name: 'idx_transactions_feed',
+          table: 'transactions',
+          columns: ['is_active', 'start_date DESC'],
+        },
+        {
+          name: 'idx_transactions_account', // Re-creating as composite
+          table: 'transactions',
+          columns: ['account_id', 'is_active', 'type', 'amount'],
+        },
+        {
+          name: 'idx_transactions_date_range',
+          table: 'transactions',
+          columns: ['start_date', 'is_active'],
+        },
+      ]);
+      log('[DB] Optimized indexes created.');
+    },
+  },
 ];
 
 // =============================================================================
@@ -1160,6 +1191,8 @@ CREATE INDEX IF NOT EXISTS idx_transactions_base_currency ON transactions(base_c
     await processMigrations();
 
     console.log('[DB] Database bootstrapping complete.');
+
+
   } catch (error) {
     console.error('[DB] Database bootstrap failed:', error);
     throw error;

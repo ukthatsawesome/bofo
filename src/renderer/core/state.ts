@@ -1,7 +1,7 @@
 import type {
   Account,
   Category,
-  TransactionWithCategory,
+  TransactionListDTO,
   Budget,
   Goal,
   RecurringCharge,
@@ -9,12 +9,13 @@ import type {
   BillReading,
   ExchangeRate,
   Setting,
-} from '../../main/database/types';
+} from '../../shared/types';
+import type { TransactionWithCategory } from '../../main/database/types';
 
 import { eventBus } from './eventBus';
 
 export class StateManager {
-  transactions: TransactionWithCategory[];
+  transactions: TransactionListDTO[];
   transactionMetadata: {
     total: number;
     limit: number;

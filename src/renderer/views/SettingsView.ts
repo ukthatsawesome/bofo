@@ -440,7 +440,7 @@ export class SettingsView extends BaseView {
     const navItems = $$('.settings-nav-item');
     navItems.forEach((item) => {
       item.addEventListener('click', () => {
-        const target = item.dataset.target;
+        const target = (item as HTMLElement).dataset.target;
         if (target) this.showSubView(target);
       });
     });

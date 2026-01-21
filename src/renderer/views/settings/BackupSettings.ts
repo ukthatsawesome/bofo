@@ -72,7 +72,7 @@ export const BackupSettingsMixin = {
   async populateAutoBackupSettings(this: SettingsView) {
     try {
       const settings = await window.api.getSettings();
-      const enabled = settings.auto_backup_enabled === '1' || settings.auto_backup_enabled === 1;
+      const enabled = settings['auto_backup_enabled'] === '1';
       const directory = settings.auto_backup_directory || '';
       const lastBackup = settings.last_backup_time || null;
 

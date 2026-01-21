@@ -14,6 +14,7 @@ interface PlannedItem {
   type: 'expense' | 'income';
   amount: number;
   category: string;
+  category_name: string; // Compatibility with DTO
   account_id: number;
   start_date: string;
   frequency: 'once' | 'weekly' | 'monthly' | 'yearly';
@@ -247,6 +248,7 @@ export class SandboxView extends BaseView {
       type,
       amount,
       category: ($('#plan-category') as HTMLSelectElement).value,
+      category_name: ($('#plan-category') as HTMLSelectElement).value,
       account_id: parseInt(($('#plan-account') as HTMLSelectElement).value),
       start_date: ($('#plan-date') as HTMLInputElement).value,
       frequency: ($('#plan-frequency') as HTMLSelectElement).value as any,
@@ -467,13 +469,15 @@ export class SandboxView extends BaseView {
           const prompt = this._buildInsightPrompt(data);
           return await window.api.getAIInsight(prompt);
         },
-        (data: any) => this.app.fallbackGenerator.generatePlannerInsight(data),
+        (data: any) => (this.app as any).fallbackGenerator.generatePlannerInsight(data),
         {
           aiTitle: 'AI Financial Analysis',
           fallbackTitle: 'Financial Analysis',
           ttl: 5 * 60 * 1000, // 5 minutes for planner (changes frequently)
         }
       );
+
+      if (!insight) throw new Error('No insight returned');
 
       this.aiInsight = insight.text;
       container.innerHTML = InsightCard({
@@ -484,7 +488,7 @@ export class SandboxView extends BaseView {
       this.refreshIcons(container);
     } catch (error) {
       console.error('Failed to load planner insight:', error);
-      const fallbackInsight = this.app.fallbackGenerator.generatePlannerInsight(summaryData);
+      const fallbackInsight = (this.app as any).fallbackGenerator.generatePlannerInsight(summaryData);
       container.innerHTML = InsightCard({
         title: 'Financial Analysis',
         message: fallbackInsight,
@@ -560,7 +564,7 @@ Be direct, practical, and give specific advice on how to balance this plan if ne
                 const value = new Intl.NumberFormat('en-US', {
                   style: 'currency',
                   currency: 'USD',
-                }).format(ctx.parsed.y);
+                }).format(ctx.parsed.y as number);
                 return `${ctx.dataset.label}: ${value}`;
               },
             },

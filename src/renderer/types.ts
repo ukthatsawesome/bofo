@@ -2,6 +2,7 @@ import type {
   Account,
   Category,
   Transaction,
+  TransactionListDTO,
   Budget,
   Goal,
   RecurringCharge,
@@ -10,6 +11,8 @@ import type {
   ExchangeRate,
   Setting,
   GoalContribution,
+} from '../shared/types';
+import type {
   TransactionWithCategory,
 } from '../main/database/types';
 
@@ -23,10 +26,11 @@ export interface PaginatedResponse<T> {
 
 export interface API {
   // Transactions
-  getTransactions: (options?: any) => Promise<PaginatedResponse<TransactionWithCategory>>;
+  getTransactions: (options?: any) => Promise<PaginatedResponse<TransactionListDTO>>;
   getTransactionsPaginated: (
     options: any
-  ) => Promise<PaginatedResponse<TransactionWithCategory>>;
+  ) => Promise<PaginatedResponse<TransactionListDTO>>;
+  getTransaction: (id: number) => Promise<Transaction>;
   getTransactionCount: (options: any) => Promise<number>;
   addTransaction: (data: Partial<Transaction>) => Promise<any>;
   updateTransaction: (id: number, data: Partial<Transaction>) => Promise<any>;
@@ -82,7 +86,7 @@ export interface API {
   createGoal: (data: Partial<Goal>) => Promise<any>;
   updateGoal: (id: number, data: Partial<Goal>) => Promise<any>;
   deleteGoal: (id: number) => Promise<any>;
-  contributeToGoal: (goalId: number, amount: number, source: string, notes: string) => Promise<any>;
+  contributeToGoal: (goalId: number, amount: number, source: string | null, notes: string | null) => Promise<any>;
   getGoalContributions: (goalId: number) => Promise<GoalContribution[]>;
   getGoalsSummary: () => Promise<any>;
 
@@ -100,11 +104,12 @@ export interface API {
   // Data Export/Import
   exportData: () => Promise<any>;
   importData: () => Promise<any>;
+  exportCSV: () => Promise<boolean>;
   exportExcel: () => Promise<boolean>;
 
   // Auto-Backup
   pickBackupDirectory: () => Promise<string | null>;
-  runBackupNow: () => Promise<any>;
+  runBackupNow: (directory?: string) => Promise<any>;
 
   // AI
   getAISettings: () => Promise<any>;
@@ -122,7 +127,7 @@ export interface API {
   // Bills
   getBillTypes: () => Promise<(BillType & { account_name?: string })[]>;
   addBillType: (data: Partial<BillType>) => Promise<any>;
-  updateBillType: (data: Partial<BillType>) => Promise<any>;
+  updateBillType: (args: { id: number; data: Partial<BillType> }) => Promise<any>;
   deleteBillType: (id: number) => Promise<any>;
   getBillReadings: (filters: any) => Promise<(BillReading & { bill_name: string })[]>;
   getBillReadingsPaginated: (options: any) => Promise<any>;

@@ -287,7 +287,7 @@ export class App {
             ${BudgetModal({ categories })}
             ${SandboxModal()}
             ${BillTypeModal()}
-            ${BillReadingModal({ billTypes: this.state.billTypes || [] })}
+            ${BillReadingModal({ billTypes: (this.state.billTypes as any) || [] })}
         `;
 
     const notificationContainer = document.getElementById('notification-modal-container');
@@ -483,7 +483,7 @@ export class App {
         if (!name) return this.notifications.toast('Error', 'Name is required', 'error');
 
         try {
-          await window.api.addAccount({ name, type, balance, currency });
+          await window.api.addAccount({ name, type: type as any, balance, currency });
           this.notifications.toast('Success', 'Account created');
           UIUtils.setHidden('#account-modal', true);
           await this.state.loadAccounts();
@@ -509,7 +509,7 @@ export class App {
         if (!name) return this.notifications.toast('Error', 'Name is required', 'error');
 
         try {
-          await window.api.addCategory({ type, name });
+          await window.api.addCategory({ type: type as any, name });
           this.notifications.toast('Success', 'Category saved');
           UIUtils.setHidden('#category-modal', true);
           await this.state.loadCategories();
