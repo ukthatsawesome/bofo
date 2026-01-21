@@ -36,7 +36,6 @@ import {
   hasColumn,
   getColumnNames,
 } from './migrations/utils';
-
 // =============================================================================
 // DATABASE ENGINE INITIALIZATION
 // =============================================================================
@@ -796,7 +795,6 @@ const MIGRATIONS: Migration[] = [
         'INTEGER REFERENCES transactions(id)',
         log
       );
-      await createIndex(run, 'idx_bill_readings_transaction', 'bill_readings', 'transaction_id');
       log('[DB] Bill readings linking complete.');
     },
   },
@@ -852,6 +850,51 @@ const MIGRATIONS: Migration[] = [
       log('[DB] Optimized indexes created.');
     },
   },
+  {
+    id: 20, // Audit System Upgrade
+    name: 'Audit System Upgrade',
+    up: async () => {
+      log('[Migration 20] Starting Audit System Upgrade...');
+
+      // 1. Drop old triggers that were causing "System" only logging
+      const triggers = [
+        'trg_audit_tx_insert',
+        'trg_audit_tx_update',
+        'trg_audit_tx_delete'
+      ];
+      
+      for (const trigger of triggers) {
+        await run(`DROP TRIGGER IF EXISTS ${trigger}`);
+      }
+      log('[Migration 20] Dropped legacy audit triggers.');
+
+      // 2. Create flexible `audit_logs` table for all non-transaction entities
+      await run(`
+        CREATE TABLE IF NOT EXISTS audit_logs (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          entity_type TEXT NOT NULL,
+          entity_id INTEGER NOT NULL,
+          action TEXT CHECK(action IN ('CREATE', 'UPDATE', 'DELETE')) NOT NULL,
+          source TEXT DEFAULT 'USER',
+          changes JSON,
+          metadata JSON,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+      `);
+      
+      // Index creation
+      await createIndex(run, 'idx_audit_logs_entity', 'audit_logs', ['entity_type', 'entity_id']);
+      await createIndex(run, 'idx_audit_logs_created_at', 'audit_logs', 'created_at DESC');
+      
+      log('[Migration 20] Created audit_logs table.');
+
+      // 3. Upgrade `transaction_history` to support Source tracking
+      await addColumnIfNotExists({ run, get, all }, 'transaction_history', 'source', "TEXT DEFAULT 'USER'", log);
+      await addColumnIfNotExists({ run, get, all }, 'transaction_history', 'metadata', "JSON", log);
+      
+      log('[Migration 20] Upgraded transaction_history table.');
+    }
+  }
 ];
 
 // =============================================================================

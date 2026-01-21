@@ -230,7 +230,7 @@ export const FinanceModel = {
   /**
    * Create a new entity
    */
-  create: async (entityType: string, data: any): Promise<{ id: number; changes: number }> => {
+  create: async (entityType: string, data: any, auditContext: { source?: string; metadata?: any } = {}): Promise<{ id: number; changes: number }> => {
     const schema = ENTITY_SCHEMAS[entityType];
     if (!schema) throw new Error(`Unknown entity type: ${entityType}`);
 
@@ -253,6 +253,9 @@ export const FinanceModel = {
     // Post-write hooks
     if (schema.afterWrite) await schema.afterWrite({ ...finalData, id: result.id });
 
+    // Audit Log
+    await FinanceModel.logAudit(entityType, result.id, 'CREATE', null, finalData, auditContext);
+
     return result;
   },
 
@@ -262,7 +265,8 @@ export const FinanceModel = {
   update: async (
     entityType: string,
     id: number,
-    data: any
+    data: any,
+    auditContext: { source?: string; metadata?: any } = {}
   ): Promise<{ id: number; changes: number }> => {
     const schema = ENTITY_SCHEMAS[entityType];
     if (!schema) throw new Error(`Unknown entity type: ${entityType}`);
@@ -285,10 +289,20 @@ export const FinanceModel = {
     const values = [...fields.map((f) => sanitized[f]), id];
 
     const sql = `UPDATE ${schema.table} SET ${setClause} WHERE id = ?`;
+    
+    // Get old data for audit BEFORE update
+    const oldData = await FinanceModel.getById(entityType, id);
+    
     const result = await run(sql, values);
 
     // Post-write hooks
     if (schema.afterWrite) await schema.afterWrite({ ...sanitized, id });
+
+    // Post-write hooks
+    if (schema.afterWrite) await schema.afterWrite({ ...sanitized, id });
+
+    // Audit Log
+    await FinanceModel.logAudit(entityType, id, 'UPDATE', oldData, sanitized, auditContext);
 
     return result;
   },
@@ -299,7 +313,8 @@ export const FinanceModel = {
   delete: async (
     entityType: string,
     id: number,
-    force: boolean = false
+    force: boolean = false,
+    auditContext: { source?: string; metadata?: any } = {}
   ): Promise<{ id: number; changes: number }> => {
     const schema = ENTITY_SCHEMAS[entityType];
     if (!schema) throw new Error(`Unknown entity type: ${entityType}`);
@@ -312,7 +327,17 @@ export const FinanceModel = {
       }
     }
 
-    return await run(`DELETE FROM ${schema.table} WHERE id = ?`, [id]);
+    // Get old data for audit
+    const oldData = await FinanceModel.getById(entityType, id);
+
+    const result = await run(`DELETE FROM ${schema.table} WHERE id = ?`, [id]);
+    
+    // Audit Log
+    if (oldData) {
+        await FinanceModel.logAudit(entityType, id, 'DELETE', oldData, null, auditContext);
+    }
+    
+    return result;
   },
 
   /**
@@ -322,6 +347,72 @@ export const FinanceModel = {
     const schema = ENTITY_SCHEMAS[entityType];
     if (!schema) throw new Error(`Unknown entity type: ${entityType}`);
     return await get(`SELECT * FROM ${schema.table} WHERE id = ?`, [id]);
+  },
+
+  /**
+   * Log an audit event
+   */
+  logAudit: async (
+    entityType: string,
+    entityId: number,
+    action: 'CREATE' | 'UPDATE' | 'DELETE',
+    oldData: any,
+    newData: any,
+    context: { source?: string; metadata?: any } = {}
+  ) => {
+    try {
+        const source = context.source || 'USER';
+        const metadata = context.metadata ? JSON.stringify(context.metadata) : null;
+        
+        // Use specific table for transactions to maintain backward compatibility (renames or upgrades notwithstanding)
+        // But our logic is: transaction_history for transactions, audit_logs for everything else.
+        
+        if (entityType === 'transaction') {
+            // Check if transaction_history has source column (it should after migration)
+            // We use safe check or just assume migration ran.
+            const changeData = action === 'UPDATE' ? { old: oldData, new: newData } : (action === 'CREATE' ? newData : oldData);
+            
+            // For transaction history, we try to match the schema.
+            // But wait, the transaction_history table has old_data / new_data columns.
+            await run(`
+                INSERT INTO transaction_history (transaction_id, action, old_data, new_data, source, metadata)
+                VALUES (?, ?, ?, ?, ?, ?)
+            `, [
+                entityId, 
+                action, 
+                oldData ? JSON.stringify(oldData) : null, 
+                newData ? JSON.stringify(newData) : null, 
+                source,
+                metadata
+            ]);
+        } else {
+            // Generic audit logs
+            // We only store the DIFF mostly, but here for simplicity storing full blobs or diff
+            // Let's compute a simple DIFF for updates
+            let changes: string | null = null;
+            if (action === 'UPDATE' && oldData && newData) {
+                const diff: Record<string, any> = {};
+                Object.keys(newData).forEach(key => {
+                    if (JSON.stringify(oldData[key]) !== JSON.stringify(newData[key])) {
+                        diff[key] = { from: oldData[key], to: newData[key] };
+                    }
+                });
+                changes = JSON.stringify(diff);
+            } else if (action === 'CREATE') {
+                changes = JSON.stringify(newData);
+            } else {
+                changes = JSON.stringify(oldData);
+            }
+
+            await run(`
+                INSERT INTO audit_logs (entity_type, entity_id, action, source, changes, metadata)
+                VALUES (?, ?, ?, ?, ?, ?)
+            `, [entityType, entityId, action, source, changes, metadata]);
+        }
+    } catch (e) {
+        console.error('[Audit] Failed to log:', e);
+        // Don't block the actual operation if audit fails
+    }
   },
 
   /**
@@ -479,14 +570,14 @@ export const FinanceModel = {
       `SELECT 
         t.id, 
         t.account_id,
-        t.start_date as date, 
+        t.start_date, 
         t.amount, 
         t.description, 
-        t.category as category_name, 
+        COALESCE(t.category, 'Uncategorized') as category_name, 
         t.type,
         CASE 
-          WHEN t.type = 'transfer' THEN a.name || ' → ' || COALESCE(to_a.name, '?')
-          ELSE a.name 
+          WHEN t.type = 'transfer' THEN COALESCE(a.name, 'Unknown') || ' → ' || COALESCE(to_a.name, 'Unknown')
+          ELSE COALESCE(a.name, 'Unknown Account')
         END as account_name
        FROM transactions t
        LEFT JOIN accounts a ON t.account_id = a.id

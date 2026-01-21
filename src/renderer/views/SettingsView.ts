@@ -10,6 +10,7 @@ import {
   BackupSettingsMixin,
   RemoteSettingsMixin,
 } from './settings/index';
+import { AuditSettingsView } from './settings/AuditSettings';
 import type { App } from '../core/app';
 
 // Define the shape of the mixins for TypeScript to know about them
@@ -89,6 +90,9 @@ export class SettingsView extends BaseView {
                         </button>
                         <button class="settings-nav-item" data-target="remote">
                             <i data-lucide="wifi"></i> Remote Access
+                        </button>
+                        <button class="settings-nav-item" data-target="audit">
+                            <i data-lucide="clipboard-list"></i> Activity Log
                         </button>
                     </nav>
 
@@ -428,6 +432,11 @@ export class SettingsView extends BaseView {
                             </div>
                         </div>
                     </div>
+                    
+                    <!-- Activity Log Section -->
+                    <div id="settings-section-audit" class="settings-section">
+                        <!-- Content rendered by AuditSettingsView -->
+                    </div>
                 </div>
             </div>
         `;
@@ -474,6 +483,9 @@ export class SettingsView extends BaseView {
         break;
       case 'remote':
         await this.populateRemoteSettings();
+        break;
+      case 'audit':
+        new AuditSettingsView(this.app).onShow();
         break;
     }
 

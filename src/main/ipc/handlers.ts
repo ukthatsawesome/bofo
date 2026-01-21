@@ -58,12 +58,18 @@ export const SIMPLE_ROUTES: Record<string, HandlerFunction> = {
   // Transactions (using generic CRUD)
   // 'get-transactions' - Handled by TransactionController
   'get-transaction': (_, id) => getFinanceModel().getById('transaction', id),
-  'add-transaction': (_, data) => getFinanceModel().create('transaction', data),
-  'update-transaction': (_, { id, data }) => getFinanceModel().update('transaction', id, data),
+  'add-transaction': (_, data) => {
+      const { _auditContext, ...rest } = data;
+      return getFinanceModel().create('transaction', rest, _auditContext || { source: 'USER' });
+  },
+  'update-transaction': (_, { id, data }) => {
+      const { _auditContext, ...rest } = data;
+      return getFinanceModel().update('transaction', id, rest, _auditContext || { source: 'USER' });
+  },
   'delete-transaction': async (_, id) => {
     const model = getFinanceModel();
     const tx = await model.getById('transaction', id);
-    const result = await model.delete('transaction', id, true);
+    const result = await model.delete('transaction', id, true, { source: 'USER' });
     // Sync balances after delete (triggers handle insert/update)
     if (tx) {
       if (tx.account_id) await model.syncAccountBalance(tx.account_id);
@@ -76,10 +82,15 @@ export const SIMPLE_ROUTES: Record<string, HandlerFunction> = {
 
   // Accounts (using generic CRUD)
   'get-accounts': () => getFinanceModel().getAllAccounts(),
-  'add-account': (_, data) =>
-    getFinanceModel().create('account', { ...data, initial_balance: data.balance || 0 }),
-  'update-account': (_, data) => getFinanceModel().update('account', data.id, data),
-  'delete-account': (_, id) => getFinanceModel().delete('account', id),
+  'add-account': (_, data) => {
+    const { _auditContext, ...rest } = data;
+    return getFinanceModel().create('account', { ...rest, initial_balance: rest.balance || 0 }, _auditContext || { source: 'USER' });
+  },
+  'update-account': (_, data) => {
+    const { _auditContext, ...rest } = data;
+    return getFinanceModel().update('account', rest.id, rest, _auditContext || { source: 'USER' });
+  },
+  'delete-account': (_, id) => getFinanceModel().delete('account', id, false, { source: 'USER' }), // Accounts usually deleted by user
   'archive-account': (_, id) => getFinanceModel().archive('account', id),
   'unarchive-account': (_, id) => getFinanceModel().unarchive('account', id),
   'is-account-in-use': async (_, id) => {
@@ -93,9 +104,9 @@ export const SIMPLE_ROUTES: Record<string, HandlerFunction> = {
 
   // Categories (using generic CRUD)
   'get-categories': () => getFinanceModel().getAllCategories(),
-  'add-category': async (_, { type, name }) => {
+  'add-category': async (_, { type, name, _auditContext }) => {
     try {
-      return await getFinanceModel().create('category', { type, name });
+      return await getFinanceModel().create('category', { type, name }, _auditContext || { source: 'USER' });
     } catch (err: any) {
       if (err.code === 'SQLITE_CONSTRAINT' || err.message.includes('UNIQUE constraint')) {
         throw new Error('A category with this name already exists.');
@@ -105,7 +116,8 @@ export const SIMPLE_ROUTES: Record<string, HandlerFunction> = {
   },
   'update-category': async (_, { id, data }) => {
     try {
-      return await getFinanceModel().update('category', id, data);
+      const { _auditContext, ...rest } = data;
+      return await getFinanceModel().update('category', id, rest, _auditContext || { source: 'USER' });
     } catch (err: any) {
       if (err.code === 'SQLITE_CONSTRAINT' || err.message.includes('UNIQUE constraint')) {
         throw new Error('A category with this name already exists.');
@@ -125,22 +137,22 @@ export const SIMPLE_ROUTES: Record<string, HandlerFunction> = {
 
   // Budgets (using generic CRUD)
   'get-budgets': () => getFinanceModel().getAllBudgets(),
-  'set-budget': (_, { category, amount, period, startDate, endDate }) =>
+  'set-budget': (_, { category, amount, period, startDate, endDate, _auditContext }) =>
     getFinanceModel().create('budget', {
       category,
       amount,
       period,
       start_date: startDate,
       end_date: endDate,
-    }),
-  'update-budget': (_, { id, category, amount, period, startDate, endDate }) =>
+    }, _auditContext || { source: 'USER' }),
+  'update-budget': (_, { id, category, amount, period, startDate, endDate, _auditContext }) =>
     getFinanceModel().update('budget', id, {
       category,
       amount,
       period,
       start_date: startDate,
       end_date: endDate,
-    }),
+    }, _auditContext || { source: 'USER' }),
   'delete-budget': (_, id) => getFinanceModel().delete('budget', id, true),
 
   // Goals (using generic CRUD + specialized methods)
@@ -286,6 +298,40 @@ export const SIMPLE_ROUTES: Record<string, HandlerFunction> = {
   },
 
   // Metadata Handlers
+  'get-audit-logs': async (_, options) => {
+      // Just exposing raw logs for now, filtered by entity/source via options if needed (later)
+      // For now, return recent 100
+      const { all } = require('../database/helpers').createDbHelpers(require('../database/db').db);
+      // Combine transaction_history and audit_logs
+      // This is a bit complex SQL, let's keep it simple: fetch both and merge in memory or just use two lists
+      // Actually the view should handle this. Let's just expose a direct SQL helper for the view.
+      
+      const txLogs = await all(`
+        SELECT 
+            h.id, 'transaction' as entity_type, h.transaction_id as entity_id, 
+            h.action, h.source, h.old_data, h.new_data as changes, h.metadata, h.changed_at as created_at,
+            t.description as entity_name
+        FROM transaction_history h
+        LEFT JOIN transactions t ON h.transaction_id = t.id
+        ORDER BY h.changed_at DESC LIMIT 50
+      `);
+      
+      const genericLogs = await all(`
+        SELECT 
+            l.id, l.entity_type, l.entity_id, l.action, l.source, NULL as old_data, l.changes, l.metadata, l.created_at,
+            NULL as entity_name
+        FROM audit_logs l
+        ORDER BY l.created_at DESC LIMIT 50
+      `);
+      
+      // Merge and sort
+      const combined = [...txLogs, ...genericLogs].sort((a: any, b: any) => 
+        new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      ).slice(0, 50);
+      
+      return combined;
+  },
+
   'get-host-info': () => {
     const os = require('os');
     const interfaces = os.networkInterfaces();

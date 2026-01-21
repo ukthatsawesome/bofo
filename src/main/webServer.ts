@@ -215,9 +215,8 @@ export async function startWebServer(): Promise<void> {
     }
 
     console.log(`[Web Server] Config: Port=${port}, Enabled=${enabled} (Dev=${isDev})`);
-    console.log(
-      `[Web Server] Allowed origins: ${[...allowedOrigins].join(', ') || '(dev mode: localhost)'}`
-    );
+    const originsList = [...allowedOrigins].join(', ') || '(dev mode: localhost)';
+    console.log(`[Web Server] Allowed origins: ${originsList}`);
 
     if (!enabled) return;
 

@@ -189,6 +189,9 @@ export interface API {
     monthExpense: number;
     savingsRate: number;
   }>;
+  
+  // Audit
+  getAuditLogs: (options?: any) => Promise<any[]>;
 }
 
 export interface Lucide {

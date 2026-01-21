@@ -160,5 +160,9 @@ contextBridge.exposeInMainWorld('api', {
   onNativeThemeChanged: (callback: (isDark: boolean) => void) => {
     ipcRenderer.on('native-theme-changed', (_event, isDark: boolean) => callback(isDark));
   },
+  
+  // Audit
+  getAuditLogs: (options: any) => invokeWithTimeout('get-audit-logs', options),
+
   version: '1.1.1',
 });
