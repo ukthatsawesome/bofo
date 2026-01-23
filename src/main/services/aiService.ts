@@ -356,15 +356,27 @@ OR
     text: string,
     categories: string[],
     accountNames: string[] = [],
-    promptTemplate: string | null = null
+    promptTemplate: string | null = null,
+    corrections: { original: string; corrected: string; description: string }[] = []
   ): Promise<ParsedTransaction> {
     const template = promptTemplate || this.promptTx || this.DEFAULTS.promptTx;
+
+    // Build corrections section for few-shot learning
+    let correctionsSection = '';
+    if (corrections.length > 0) {
+      correctionsSection = '\n\nLEARN FROM PAST CORRECTIONS (prioritize these patterns):\n';
+      correctionsSection += corrections
+        .map((c, i) => `${i + 1}. "${c.description}" was "${c.original}" → should be "${c.corrected}"`)
+        .join('\n');
+      correctionsSection += '\n';
+    }
+
     const prompt = this._replaceTemplate(template, {
       input: text,
       date: new Date().toISOString().split('T')[0],
       categories: categories.join(', '),
       accounts: accountNames.join(', '),
-    });
+    }) + correctionsSection;
 
     try {
       const response = await this._callApi('generate', { prompt, format: 'json' });

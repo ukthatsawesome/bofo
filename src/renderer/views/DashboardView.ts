@@ -32,9 +32,9 @@ export class DashboardView extends BaseView {
     if (!this.element) return;
     this.element.innerHTML = `
             ${ViewHeader({
-              title: 'Financial Dashboard',
-              subtitle: "Welcome back, here's your financial overview",
-            })}
+      title: 'Financial Dashboard',
+      subtitle: "Welcome back, here's your financial overview",
+    })}
 
             <div id="dashboard-stats-container" class="stats-grid mb-6"></div>
 
@@ -43,17 +43,17 @@ export class DashboardView extends BaseView {
             <div class="dashboard-grid">
                 <div class="dashboard-main-col">
                     ${Card({
-                      title: 'Net Worth & Cash Flow',
-                      icon: 'line-chart',
-                      variant: 'default',
-                      className: 'h-full flex flex-col',
-                      bodyClass: 'flex-1 flex flex-col pt-0',
-                      content: `
+      title: 'Net Worth & Cash Flow',
+      icon: 'line-chart',
+      variant: 'default',
+      className: 'h-full flex flex-col',
+      bodyClass: 'flex-1 flex flex-col pt-0',
+      content: `
                             <div class="chart-container flex-1 relative min-h-[350px]">
                                 <canvas id="mainChart"></canvas>
                             </div>
                         `,
-                    })}
+    })}
                 </div>
                 <div class="dashboard-side-col">
                     <div id="quick-transaction-widget"></div>
@@ -79,8 +79,8 @@ export class DashboardView extends BaseView {
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
 
     const mStats = {
-        income: this.state.summaryStats.monthIncome,
-        expense: this.state.summaryStats.monthExpense
+      income: this.state.summaryStats.monthIncome,
+      expense: this.state.summaryStats.monthExpense
     };
 
     const totalBalance = this.state.summaryStats.totalBalance;
@@ -196,29 +196,29 @@ export class DashboardView extends BaseView {
     if (statsContainer) {
       statsContainer.innerHTML = `
                 ${StatCard({
-                  label: 'Current Balance',
-                  value: this.formatter.formatCurrency(liquidBalance),
-                  icon: 'landmark',
-                })}
+        label: 'Current Balance',
+        value: this.formatter.formatCurrency(liquidBalance),
+        icon: 'landmark',
+      })}
                 ${StatCard({
-                  label: 'Net Worth',
-                  value: this.formatter.formatCurrency(netWorth),
-                  icon: 'gem',
-                })}
+        label: 'Net Worth',
+        value: this.formatter.formatCurrency(netWorth),
+        icon: 'gem',
+      })}
                 ${StatCard({
-                  label: 'Average Income',
-                  value: this.formatter.formatCurrency(monthlyIncome),
-                  icon: 'wallet',
-                })}
+        label: 'Average Income',
+        value: this.formatter.formatCurrency(monthlyIncome),
+        icon: 'wallet',
+      })}
                 ${StatCard({
-                  label: 'Average Expenses',
-                  value: this.formatter.formatCurrency(monthlyExpense),
-                  icon: 'trending-down',
-                  trend: {
-                    type: savingsRate >= 20 ? 'up' : 'down',
-                    value: `${savingsRate.toFixed(1)}% Saved`,
-                  },
-                })}
+        label: 'Average Expenses',
+        value: this.formatter.formatCurrency(monthlyExpense),
+        icon: 'trending-down',
+        trend: {
+          type: savingsRate >= 20 ? 'up' : 'down',
+          value: `${savingsRate.toFixed(1)}% Saved`,
+        },
+      })}
             `;
     }
 
@@ -227,24 +227,24 @@ export class DashboardView extends BaseView {
     if (gridContainer) {
       gridContainer.innerHTML = `
                 ${Card({
-                  title: 'Growth Highlights',
-                  icon: 'trending-up',
-                  variant: 'panel',
-                  content: '<div id="growth-list" class="flex flex-col gap-4"></div>',
-                })}
+        title: 'Growth Highlights',
+        icon: 'trending-up',
+        variant: 'panel',
+        content: '<div id="growth-list" class="flex flex-col gap-4"></div>',
+      })}
                 ${Card({
-                  title: 'Top Categories',
-                  icon: 'pie-chart',
-                  variant: 'panel',
-                  content: '<div id="category-distribution" class="flex flex-col gap-4"></div>',
-                })}
+        title: 'Top Categories',
+        icon: 'pie-chart',
+        variant: 'panel',
+        content: '<div id="category-distribution" class="flex flex-col gap-4"></div>',
+      })}
                 ${Card({
-                  title: 'Current Budget',
-                  icon: 'target',
-                  variant: 'panel',
-                  content:
-                    '<div id="dashboard-budget-content" class="flex flex-col gap-4 min-h-[120px] justify-center"></div>',
-                })}
+        title: 'Current Budget',
+        icon: 'target',
+        variant: 'panel',
+        content:
+          '<div id="dashboard-budget-content" class="flex flex-col gap-4 min-h-[120px] justify-center"></div>',
+      })}
             `;
     }
 
@@ -495,7 +495,34 @@ export class DashboardView extends BaseView {
 
     // Save and refresh
     try {
-      await window.api.addTransaction(tx);
+      const savedTx = await window.api.addTransaction(tx);
+
+      // Check for anomalies after save
+      try {
+        const anomalyResult = await (window.api as any).detectAnomalies({ transaction: savedTx });
+        if (anomalyResult.success && anomalyResult.anomalies.length > 0) {
+          // Show anomaly alerts
+          const highSeverity = anomalyResult.anomalies.filter((a: any) => a.severity === 'high');
+          if (highSeverity.length > 0) {
+            this.app.notifications.toast(
+              'Unusual Transaction Detected',
+              highSeverity[0].message,
+              'warning'
+            );
+          } else {
+            // Show info for medium/low severity
+            this.app.notifications.toast(
+              'Transaction Alert',
+              anomalyResult.anomalies[0].message,
+              'info'
+            );
+          }
+        }
+      } catch (anomalyErr) {
+        // Don't block on anomaly detection failure
+        console.warn('Anomaly detection failed:', anomalyErr);
+      }
+
       this.app.notifications.toast('Success', 'Transaction recorded', 'success');
 
       const inputAmount = $('#quick-tx-amount') as HTMLInputElement;
@@ -703,13 +730,13 @@ export class DashboardView extends BaseView {
     const accountsHtml =
       accounts.length > 0
         ? accounts
-            .map((acc) => {
-              const typeClass = typeColors[acc.type] || typeColors.other;
-              const balanceClass = acc.balance >= 0 ? 'text-success' : 'text-danger';
-              const initialBalanceClass =
-                (acc.initial_balance || 0) >= 0 ? 'text-text-muted' : 'text-danger';
+          .map((acc) => {
+            const typeClass = typeColors[acc.type] || typeColors.other;
+            const balanceClass = acc.balance >= 0 ? 'text-success' : 'text-danger';
+            const initialBalanceClass =
+              (acc.initial_balance || 0) >= 0 ? 'text-text-muted' : 'text-danger';
 
-              return `
+            return `
                 <tr class="border-b border-border/50 last:border-0 hover:bg-surface-hover/50 transition-colors">
                     <td class="py-3 px-4">
                         <span class="font-medium text-text-main">${acc.name}</span>
@@ -732,8 +759,8 @@ export class DashboardView extends BaseView {
                     </td>
                 </tr>
             `;
-            })
-            .join('')
+          })
+          .join('')
         : `
             <tr>
                 <td colspan="5" class="py-8 text-center text-text-muted">

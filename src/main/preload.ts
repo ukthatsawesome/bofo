@@ -5,7 +5,7 @@ const invokeWithTimeout = async (channel: string, ...args: any[]) => {
   const timeoutPromise = new Promise((_, reject) => {
     setTimeout(() => reject(new Error('Request Timed Out')), timeoutMs);
   });
-  
+
   // Race the invoke against the timeout
   return Promise.race([
     ipcRenderer.invoke(channel, ...args),
@@ -160,9 +160,13 @@ contextBridge.exposeInMainWorld('api', {
   onNativeThemeChanged: (callback: (isDark: boolean) => void) => {
     ipcRenderer.on('native-theme-changed', (_event, isDark: boolean) => callback(isDark));
   },
-  
+
   // Audit
   getAuditLogs: (options: any) => invokeWithTimeout('get-audit-logs', options),
+
+  // Anomaly Detection
+  detectAnomalies: (data: { transaction: any }) => invokeWithTimeout('detect-anomalies', data),
+  getCategoryStats: () => invokeWithTimeout('get-category-stats'),
 
   version: '1.1.1',
 });

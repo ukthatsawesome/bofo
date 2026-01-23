@@ -5,10 +5,14 @@ import { FeedbackItem } from '../components/common/FeedbackItem';
 import { SegmentedControl } from '../components/common/SegmentedControl';
 import { InsightCard } from '../components/common/InsightCard';
 import { ViewHeader } from '../components/common/ViewHeader';
+import { ForecastCalendar } from '../components/charts/ForecastCalendar';
 import type { App } from '../core/app';
 
 export class ForecastView extends BaseView {
   private range: number | 'custom' = 6;
+  private viewMode: 'chart' | 'calendar' = 'chart';
+  private calendarMonth: number = new Date().getMonth();
+  private calendarYear: number = new Date().getFullYear();
 
   constructor(app: App) {
     super(app, 'forecast');
@@ -27,10 +31,15 @@ export class ForecastView extends BaseView {
     if (!this.element) return;
     this.element.innerHTML = `
             ${ViewHeader({
-              title: 'Financial Forecast',
-              subtitle: 'Analyze your future wealth based on historical patterns',
-              actions: `<div id="forecast-range-container"></div>`,
-            })}
+      title: 'Financial Forecast',
+      subtitle: 'Analyze your future wealth based on historical patterns',
+      actions: `
+        <div class="header-controls">
+          <div id="forecast-view-toggle"></div>
+          <div id="forecast-range-container"></div>
+        </div>
+      `,
+    })}
 
             <div id="forecast-custom-dates" class="card mb-6 hidden">
                 <div class="card-body flex-row gap-4 align-center">
@@ -50,7 +59,8 @@ export class ForecastView extends BaseView {
             <div class="forecast-content">
                 <div id="forecast-insights-container" class="mb-6"></div>
 
-                <div class="card">
+                <!-- Chart View -->
+                <div id="forecast-chart-view" class="card">
                     <div class="card-header">
                         <h3><i data-lucide="line-chart"></i> Wealth Projection</h3>
                     </div>
@@ -58,6 +68,15 @@ export class ForecastView extends BaseView {
                         <div class="chart-container" style="height: 450px;">
                             <canvas id="forecastChart"></canvas>
                         </div>
+                    </div>
+                </div>
+
+                <!-- Calendar View -->
+                <div id="forecast-calendar-view" class="card hidden">
+                    <div class="card-header">
+                        <h3><i data-lucide="calendar"></i> Cash Flow Calendar</h3>
+                    </div>
+                    <div class="card-body" id="forecast-calendar-container">
                     </div>
                 </div>
             </div>
@@ -72,6 +91,19 @@ export class ForecastView extends BaseView {
   }
 
   async render(): Promise<void> {
+    // Render view toggle
+    const viewToggle = $('#forecast-view-toggle');
+    if (viewToggle && !viewToggle.innerHTML.trim()) {
+      viewToggle.innerHTML = SegmentedControl({
+        id: 'forecast-view-mode',
+        onchange: 'app.views.forecast.handleViewToggle',
+        options: [
+          { label: '<i data-lucide="line-chart"></i> Chart', value: 'chart', active: this.viewMode === 'chart' },
+          { label: '<i data-lucide="calendar"></i> Calendar', value: 'calendar', active: this.viewMode === 'calendar' },
+        ],
+      });
+    }
+
     const container = $('#forecast-range-container');
     if (container && !container.innerHTML.trim()) {
       container.innerHTML = SegmentedControl({
@@ -175,27 +207,27 @@ export class ForecastView extends BaseView {
 
     container.innerHTML = `
             ${StatCard({
-              label: 'Projected Income',
-              value: formatter.formatCurrency(totalIncome),
-              icon: 'trending-up',
-              type: 'income',
-            })}
+      label: 'Projected Income',
+      value: formatter.formatCurrency(totalIncome),
+      icon: 'trending-up',
+      type: 'income',
+    })}
             ${StatCard({
-              label: 'Projected Expense',
-              value: formatter.formatCurrency(totalExpense),
-              icon: 'trending-down',
-              type: 'expense',
-            })}
+      label: 'Projected Expense',
+      value: formatter.formatCurrency(totalExpense),
+      icon: 'trending-down',
+      type: 'expense',
+    })}
             ${StatCard({
-              label: 'Projected Savings',
-              value: formatter.formatCurrency(netSavings),
-              icon: 'piggy-bank',
-            })}
+      label: 'Projected Savings',
+      value: formatter.formatCurrency(netSavings),
+      icon: 'piggy-bank',
+    })}
             ${StatCard({
-              label: 'Runway',
-              value: runway === Infinity ? 'Infinite' : (runway || 0).toFixed(1) + ' Months',
-              icon: 'clock',
-            })}
+      label: 'Runway',
+      value: runway === Infinity ? 'Infinite' : (runway || 0).toFixed(1) + ' Months',
+      icon: 'clock',
+    })}
         `;
   }
 
@@ -228,5 +260,78 @@ export class ForecastView extends BaseView {
 
   renderChart(timeline: any[]): void {
     this.app.chartManager.renderForecastChart('forecastChart', timeline);
+  }
+
+  /* -------------------- CALENDAR VIEW -------------------- */
+
+  handleViewToggle(mode: string): void {
+    this.viewMode = mode as 'chart' | 'calendar';
+
+    // Toggle visibility
+    UIUtils.setHidden('#forecast-chart-view', mode === 'calendar');
+    UIUtils.setHidden('#forecast-calendar-view', mode === 'chart');
+    UIUtils.setHidden('#forecast-range-container', mode === 'calendar');
+
+    // Update toggle active states
+    $('#forecast-view-toggle')?.querySelectorAll('.segment').forEach((btn) => {
+      const el = btn as HTMLElement;
+      el.classList.toggle('active', el.dataset.value === mode);
+    });
+
+    if (mode === 'calendar') {
+      this.renderCalendar();
+    }
+
+    this.refreshIcons();
+  }
+
+  prevMonth(): void {
+    this.calendarMonth--;
+    if (this.calendarMonth < 0) {
+      this.calendarMonth = 11;
+      this.calendarYear--;
+    }
+    this.renderCalendar();
+  }
+
+  nextMonth(): void {
+    this.calendarMonth++;
+    if (this.calendarMonth > 11) {
+      this.calendarMonth = 0;
+      this.calendarYear++;
+    }
+    this.renderCalendar();
+  }
+
+  async renderCalendar(): Promise<void> {
+    const container = $('#forecast-calendar-container');
+    if (!container) return;
+
+    // Get forecast data for timeline
+    const forecast = await this.getForecast(12);
+    const timeline = forecast?.timeline || [];
+
+    // Get recurring charges with due days
+    const recurringCharges = (this.state.recurringCharges || []).map((rc: any) => ({
+      name: rc.name,
+      due_day: rc.due_day || 1,
+      amount: rc.amount,
+      category: rc.category,
+    }));
+
+    // Default low balance threshold (could be made configurable)
+    const lowBalanceThreshold = 500;
+
+    container.innerHTML = ForecastCalendar({
+      month: this.calendarMonth,
+      year: this.calendarYear,
+      timeline: timeline.map((t: any) => ({ date: t.date, balance: t.balance })),
+      bills: [], // Bills would come from bill projections if needed
+      recurringCharges,
+      lowBalanceThreshold,
+      formatCurrency: this.formatter.formatCurrency.bind(this.formatter),
+    });
+
+    this.refreshIcons('#forecast-calendar-container');
   }
 }

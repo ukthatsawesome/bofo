@@ -59,12 +59,12 @@ export const SIMPLE_ROUTES: Record<string, HandlerFunction> = {
   // 'get-transactions' - Handled by TransactionController
   'get-transaction': (_, id) => getFinanceModel().getById('transaction', id),
   'add-transaction': (_, data) => {
-      const { _auditContext, ...rest } = data;
-      return getFinanceModel().create('transaction', rest, _auditContext || { source: 'USER' });
+    const { _auditContext, ...rest } = data;
+    return getFinanceModel().create('transaction', rest, _auditContext || { source: 'USER' });
   },
   'update-transaction': (_, { id, data }) => {
-      const { _auditContext, ...rest } = data;
-      return getFinanceModel().update('transaction', id, rest, _auditContext || { source: 'USER' });
+    const { _auditContext, ...rest } = data;
+    return getFinanceModel().update('transaction', id, rest, _auditContext || { source: 'USER' });
   },
   'delete-transaction': async (_, id) => {
     const model = getFinanceModel();
@@ -277,10 +277,15 @@ export const SIMPLE_ROUTES: Record<string, HandlerFunction> = {
   },
   'parse-transaction-ai': async (_, { text, categories, accounts }) => {
     try {
+      // Fetch recent user corrections for few-shot learning
+      const corrections = await getFinanceModel().getAICategoryCorrections(5);
+
       const result = await getAIService().parseTransactionFromText(
         text,
         categories || [],
-        accounts || []
+        accounts || [],
+        null, // Use default prompt template
+        corrections // Pass corrections for improved categorization
       );
       return { success: true, data: result };
     } catch (e: any) {
@@ -299,14 +304,14 @@ export const SIMPLE_ROUTES: Record<string, HandlerFunction> = {
 
   // Metadata Handlers
   'get-audit-logs': async (_, options) => {
-      // Just exposing raw logs for now, filtered by entity/source via options if needed (later)
-      // For now, return recent 100
-      const { all } = require('../database/helpers').createDbHelpers(require('../database/db').db);
-      // Combine transaction_history and audit_logs
-      // This is a bit complex SQL, let's keep it simple: fetch both and merge in memory or just use two lists
-      // Actually the view should handle this. Let's just expose a direct SQL helper for the view.
-      
-      const txLogs = await all(`
+    // Just exposing raw logs for now, filtered by entity/source via options if needed (later)
+    // For now, return recent 100
+    const { all } = require('../database/helpers').createDbHelpers(require('../database/db').db);
+    // Combine transaction_history and audit_logs
+    // This is a bit complex SQL, let's keep it simple: fetch both and merge in memory or just use two lists
+    // Actually the view should handle this. Let's just expose a direct SQL helper for the view.
+
+    const txLogs = await all(`
         SELECT 
             h.id, 'transaction' as entity_type, h.transaction_id as entity_id, 
             h.action, h.source, h.old_data, h.new_data as changes, h.metadata, h.changed_at as created_at,
@@ -315,21 +320,21 @@ export const SIMPLE_ROUTES: Record<string, HandlerFunction> = {
         LEFT JOIN transactions t ON h.transaction_id = t.id
         ORDER BY h.changed_at DESC LIMIT 50
       `);
-      
-      const genericLogs = await all(`
+
+    const genericLogs = await all(`
         SELECT 
             l.id, l.entity_type, l.entity_id, l.action, l.source, NULL as old_data, l.changes, l.metadata, l.created_at,
             NULL as entity_name
         FROM audit_logs l
         ORDER BY l.created_at DESC LIMIT 50
       `);
-      
-      // Merge and sort
-      const combined = [...txLogs, ...genericLogs].sort((a: any, b: any) => 
-        new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-      ).slice(0, 50);
-      
-      return combined;
+
+    // Merge and sort
+    const combined = [...txLogs, ...genericLogs].sort((a: any, b: any) =>
+      new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+    ).slice(0, 50);
+
+    return combined;
   },
 
   'get-host-info': () => {
@@ -402,6 +407,38 @@ export const SIMPLE_ROUTES: Record<string, HandlerFunction> = {
     const { CurrencyService } = require('../services/currencyService');
     return CurrencyService.getProviders();
   },
+
+  // Anomaly Detection
+  'get-category-stats': async () => {
+    try {
+      return await getFinanceModel().getCategoryStats();
+    } catch (e: any) {
+      console.warn('[IPC] get-category-stats failed:', e.message);
+      return [];
+    }
+  },
+
+  'detect-anomalies': async (_, { transaction }) => {
+    try {
+      const { AnomalyService } = require('../services/anomalyService');
+      const model = getFinanceModel();
+
+      // Get recent history for context
+      const history = await model.getAllTransactions();
+
+      // Build category stats map
+      const statsArray = await model.getCategoryStats();
+      const statsMap = new Map(statsArray.map((s: any) => [s.category, s]));
+
+      // Detect anomalies
+      const anomalies = AnomalyService.detectAnomalies(transaction, history, statsMap);
+
+      return { success: true, anomalies };
+    } catch (e: any) {
+      console.warn('[IPC] detect-anomalies failed:', e.message);
+      return { success: false, anomalies: [], error: e.message };
+    }
+  },
 };
 
 // =============================================================================
@@ -417,7 +454,7 @@ export function registerIpcHandlers(excludeChannels: string[] = []): void {
   for (const [channel, handler] of Object.entries(SIMPLE_ROUTES)) {
     // Skip channels that have custom IPC handlers
     if (skipForIpc.has(channel)) continue;
-    
+
     // Skip channels explicitly excluded (e.g. handled by new Controllers)
     if (excludeChannels?.includes(channel)) continue;
 

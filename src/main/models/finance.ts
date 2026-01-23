@@ -289,10 +289,10 @@ export const FinanceModel = {
     const values = [...fields.map((f) => sanitized[f]), id];
 
     const sql = `UPDATE ${schema.table} SET ${setClause} WHERE id = ?`;
-    
+
     // Get old data for audit BEFORE update
     const oldData = await FinanceModel.getById(entityType, id);
-    
+
     const result = await run(sql, values);
 
     // Post-write hooks
@@ -331,12 +331,12 @@ export const FinanceModel = {
     const oldData = await FinanceModel.getById(entityType, id);
 
     const result = await run(`DELETE FROM ${schema.table} WHERE id = ?`, [id]);
-    
+
     // Audit Log
     if (oldData) {
-        await FinanceModel.logAudit(entityType, id, 'DELETE', oldData, null, auditContext);
+      await FinanceModel.logAudit(entityType, id, 'DELETE', oldData, null, auditContext);
     }
-    
+
     return result;
   },
 
@@ -361,57 +361,57 @@ export const FinanceModel = {
     context: { source?: string; metadata?: any } = {}
   ) => {
     try {
-        const source = context.source || 'USER';
-        const metadata = context.metadata ? JSON.stringify(context.metadata) : null;
-        
-        // Use specific table for transactions to maintain backward compatibility (renames or upgrades notwithstanding)
-        // But our logic is: transaction_history for transactions, audit_logs for everything else.
-        
-        if (entityType === 'transaction') {
-            // Check if transaction_history has source column (it should after migration)
-            // We use safe check or just assume migration ran.
-            const changeData = action === 'UPDATE' ? { old: oldData, new: newData } : (action === 'CREATE' ? newData : oldData);
-            
-            // For transaction history, we try to match the schema.
-            // But wait, the transaction_history table has old_data / new_data columns.
-            await run(`
+      const source = context.source || 'USER';
+      const metadata = context.metadata ? JSON.stringify(context.metadata) : null;
+
+      // Use specific table for transactions to maintain backward compatibility (renames or upgrades notwithstanding)
+      // But our logic is: transaction_history for transactions, audit_logs for everything else.
+
+      if (entityType === 'transaction') {
+        // Check if transaction_history has source column (it should after migration)
+        // We use safe check or just assume migration ran.
+        const changeData = action === 'UPDATE' ? { old: oldData, new: newData } : (action === 'CREATE' ? newData : oldData);
+
+        // For transaction history, we try to match the schema.
+        // But wait, the transaction_history table has old_data / new_data columns.
+        await run(`
                 INSERT INTO transaction_history (transaction_id, action, old_data, new_data, source, metadata)
                 VALUES (?, ?, ?, ?, ?, ?)
             `, [
-                entityId, 
-                action, 
-                oldData ? JSON.stringify(oldData) : null, 
-                newData ? JSON.stringify(newData) : null, 
-                source,
-                metadata
-            ]);
-        } else {
-            // Generic audit logs
-            // We only store the DIFF mostly, but here for simplicity storing full blobs or diff
-            // Let's compute a simple DIFF for updates
-            let changes: string | null = null;
-            if (action === 'UPDATE' && oldData && newData) {
-                const diff: Record<string, any> = {};
-                Object.keys(newData).forEach(key => {
-                    if (JSON.stringify(oldData[key]) !== JSON.stringify(newData[key])) {
-                        diff[key] = { from: oldData[key], to: newData[key] };
-                    }
-                });
-                changes = JSON.stringify(diff);
-            } else if (action === 'CREATE') {
-                changes = JSON.stringify(newData);
-            } else {
-                changes = JSON.stringify(oldData);
+          entityId,
+          action,
+          oldData ? JSON.stringify(oldData) : null,
+          newData ? JSON.stringify(newData) : null,
+          source,
+          metadata
+        ]);
+      } else {
+        // Generic audit logs
+        // We only store the DIFF mostly, but here for simplicity storing full blobs or diff
+        // Let's compute a simple DIFF for updates
+        let changes: string | null = null;
+        if (action === 'UPDATE' && oldData && newData) {
+          const diff: Record<string, any> = {};
+          Object.keys(newData).forEach(key => {
+            if (JSON.stringify(oldData[key]) !== JSON.stringify(newData[key])) {
+              diff[key] = { from: oldData[key], to: newData[key] };
             }
+          });
+          changes = JSON.stringify(diff);
+        } else if (action === 'CREATE') {
+          changes = JSON.stringify(newData);
+        } else {
+          changes = JSON.stringify(oldData);
+        }
 
-            await run(`
+        await run(`
                 INSERT INTO audit_logs (entity_type, entity_id, action, source, changes, metadata)
                 VALUES (?, ?, ?, ?, ?, ?)
             `, [entityType, entityId, action, source, changes, metadata]);
-        }
+      }
     } catch (e) {
-        console.error('[Audit] Failed to log:', e);
-        // Don't block the actual operation if audit fails
+      console.error('[Audit] Failed to log:', e);
+      // Don't block the actual operation if audit fails
     }
   },
 
@@ -1100,6 +1100,145 @@ export const FinanceModel = {
     }
 
     return { total: Math.round(total * 100) / 100, convertedCount, unconvertedCount, breakdown };
+  },
+
+  // =========================================================================
+  // AI LEARNING SUPPORT
+  // =========================================================================
+
+  /**
+   * Get recent category corrections made by users on AI-categorized transactions.
+   * Used to provide few-shot examples for improved AI categorization.
+   * 
+   * @param limit Maximum number of corrections to return (default: 5)
+   * @returns Array of corrections with original/corrected category and description
+   */
+  getAICategoryCorrections: async (
+    limit: number = 5
+  ): Promise<{ original: string; corrected: string; description: string }[]> => {
+    try {
+      // Find transactions where:
+      // 1. User made an UPDATE after an AI CREATE
+      // 2. The category was changed
+      const corrections = await all<{
+        old_data: string;
+        new_data: string;
+        description: string;
+      }>(`
+        SELECT h.old_data, h.new_data, t.description
+        FROM transaction_history h
+        JOIN transactions t ON h.transaction_id = t.id
+        WHERE h.action = 'UPDATE'
+          AND h.source = 'USER'
+          AND h.old_data IS NOT NULL
+          AND h.new_data IS NOT NULL
+          AND EXISTS (
+            SELECT 1 FROM transaction_history h2 
+            WHERE h2.transaction_id = h.transaction_id 
+              AND h2.action = 'CREATE' 
+              AND h2.source = 'AI'
+          )
+        ORDER BY h.changed_at DESC
+        LIMIT ?
+      `, [limit * 2]); // Fetch extra to filter for actual category changes
+
+      const result: { original: string; corrected: string; description: string }[] = [];
+
+      for (const row of corrections) {
+        if (result.length >= limit) break;
+
+        try {
+          const oldData = JSON.parse(row.old_data);
+          const newData = JSON.parse(row.new_data);
+
+          // old_data contains full previous record with .category
+          // new_data contains only changed fields - category will be present directly if changed
+          const oldCategory = oldData.category;
+          const newCategory = newData.category;
+
+          // Only include if category was actually changed
+          if (oldCategory && newCategory && oldCategory !== newCategory) {
+            result.push({
+              original: oldCategory,
+              corrected: newCategory,
+              description: row.description || '',
+            });
+          }
+        } catch {
+          // Skip rows with invalid JSON
+          continue;
+        }
+      }
+
+      return result;
+    } catch (error) {
+      console.error('[FinanceModel] Failed to get AI corrections:', error);
+      return [];
+    }
+  },
+
+  /**
+   * Get category statistics for anomaly detection
+   * Returns mean, standard deviation, and count for each expense category
+   */
+  getCategoryStats: async (): Promise<{
+    category: string;
+    count: number;
+    mean: number;
+    stdDev: number;
+    min: number;
+    max: number;
+  }[]> => {
+    try {
+      // Get statistics per category using SQL aggregation
+      const stats = await all<{
+        category: string;
+        count: number;
+        avg_amount: number;
+        min_amount: number;
+        max_amount: number;
+      }>(`
+        SELECT 
+          category,
+          COUNT(*) as count,
+          AVG(amount) as avg_amount,
+          MIN(amount) as min_amount,
+          MAX(amount) as max_amount
+        FROM transactions
+        WHERE type = 'expense' AND is_active = 1
+        GROUP BY category
+        HAVING COUNT(*) >= 3
+      `);
+
+      // Calculate standard deviation (not available in SQLite, need manual calc)
+      const result = [];
+      for (const stat of stats) {
+        const amounts = await all<{ amount: number }>(
+          `SELECT amount FROM transactions WHERE category = ? AND type = 'expense' AND is_active = 1`,
+          [stat.category]
+        );
+
+        const values = amounts.map(a => a.amount);
+        const mean = stat.avg_amount;
+        const squareDiffs = values.map(v => Math.pow(v - mean, 2));
+        const avgSquareDiff = squareDiffs.reduce((a, b) => a + b, 0) / values.length;
+        const stdDev = Math.sqrt(avgSquareDiff);
+
+        result.push({
+          category: stat.category,
+          count: stat.count,
+          mean: Math.round(mean * 100) / 100,
+          stdDev: Math.round(stdDev * 100) / 100,
+          min: stat.min_amount,
+          max: stat.max_amount
+        });
+      }
+
+      return result;
+    } catch (error) {
+      console.error('[FinanceModel] Failed to get category stats:', error);
+      return [];
+    }
   },
 
   // Import/Export

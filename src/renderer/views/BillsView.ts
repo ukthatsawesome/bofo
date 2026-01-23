@@ -38,14 +38,14 @@ export class BillsView extends BaseView {
     if (!this.element) return;
     this.element.innerHTML = `
             ${ViewHeader({
-              title: 'Bills Tracking',
-              subtitle: 'Monitor consumption and projected expenses',
-              actions: `
+      title: 'Bills Tracking',
+      subtitle: 'Monitor consumption and projected expenses',
+      actions: `
                     <button class="btn primary" onclick="app.views.bills.handleNewReading()">
                         <i data-lucide="plus"></i> New Reading
                     </button>
                 `,
-            })}
+    })}
 
             <div id="bills-summary-row" class="stats-grid mb-6"></div>
 
@@ -448,6 +448,7 @@ export class BillsView extends BaseView {
       // Group readings by month
       const monthMap: Record<string, number> = {};
       readings.forEach((r) => {
+        if (!r.reading_date) return; // Skip readings without a date
         const month = r.reading_date.slice(0, 7); // YYYY-MM
         if (!monthMap[month]) monthMap[month] = 0;
         monthMap[month] += r.cost || 0;
