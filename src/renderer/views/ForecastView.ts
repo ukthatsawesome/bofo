@@ -24,6 +24,12 @@ export class ForecastView extends BaseView {
       this.setupListeners();
       this.isInitialized = true;
     }
+
+    // Ensure we have transactions for forecasting
+    if (this.app.state.transactions.length === 0) {
+      await this.app.state.loadTransactions(true);
+    }
+
     this.render();
   }
 

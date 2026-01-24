@@ -45,10 +45,42 @@ export class SandboxView extends BaseView {
     if (!this.element) return;
     this.element.innerHTML = `
             ${ViewHeader({
-              title: 'Financial Planner',
-              subtitle: 'Plan future expenses and see how they affect your finances',
-              actions: `<div id="planner-range-container"></div>`,
-            })}
+      title: 'Financial Sandbox',
+      subtitle: 'Experiment with "what-if" scenarios to understand the impact of financial decisions',
+      actions: `<div id="planner-range-container"></div>`,
+    })}
+
+            <!-- Quick Scenario Templates -->
+            <div class="card mb-6">
+                <div class="card-header">
+                    <h3><i data-lucide="zap" class="w-4 h-4 mr-2"></i> Quick Scenarios</h3>
+                    <p class="text-xs text-text-muted mt-1">Try these common scenarios with one click</p>
+                </div>
+                <div class="card-body">
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+                        <button class="btn secondary sm flex-col items-center py-4" onclick="app.views.whatif.applyTemplate('car')">
+                            <i data-lucide="car" class="w-6 h-6 mb-2"></i>
+                            <span class="text-sm font-bold">Buy Car</span>
+                            <span class="text-xs text-text-muted">$20,000</span>
+                        </button>
+                        <button class="btn secondary sm flex-col items-center py-4" onclick="app.views.whatif.applyTemplate('vacation')">
+                            <i data-lucide="plane" class="w-6 h-6 mb-2"></i>
+                            <span class="text-sm font-bold">Vacation</span>
+                            <span class="text-xs text-text-muted">$3,000</span>
+                        </button>
+                        <button class="btn secondary sm flex-col items-center py-4" onclick="app.views.whatif.applyTemplate('emergency')">
+                            <i data-lucide="heart-pulse" class="w-6 h-6 mb-2"></i>
+                            <span class="text-sm font-bold">Emergency</span>
+                            <span class="text-xs text-text-muted">$5,000</span>
+                        </button>
+                        <button class="btn secondary sm flex-col items-center py-4" onclick="app.views.whatif.applyTemplate('raise')">
+                            <i data-lucide="trending-up" class="w-6 h-6 mb-2"></i>
+                            <span class="text-sm font-bold">Salary Raise</span>
+                            <span class="text-xs text-text-muted">+$500/mo</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
 
             <div id="planner-stats-container" class="stats-grid mb-6"></div>
 
@@ -270,6 +302,76 @@ export class SandboxView extends BaseView {
     this.updateProjection();
   }
 
+  /**
+   * Apply a predefined scenario template
+   */
+  applyTemplate(type: string): void {
+    const templates: Record<string, PlannedItem> = {
+      car: {
+        id: Date.now().toString(),
+        description: 'Car Purchase',
+        type: 'expense',
+        amount: 20000,
+        category: 'Transportation',
+        category_name: 'Transportation',
+        account_id: this.state.accounts[0]?.id || 1,
+        start_date: new Date().toISOString().split('T')[0],
+        frequency: 'once',
+        is_active: true,
+      },
+      vacation: {
+        id: Date.now().toString(),
+        description: 'Vacation Trip',
+        type: 'expense',
+        amount: 3000,
+        category: 'Travel',
+        category_name: 'Travel',
+        account_id: this.state.accounts[0]?.id || 1,
+        start_date: new Date().toISOString().split('T')[0],
+        frequency: 'once',
+        is_active: true,
+      },
+      emergency: {
+        id: Date.now().toString(),
+        description: 'Emergency Expense',
+        type: 'expense',
+        amount: 5000,
+        category: 'Healthcare',
+        category_name: 'Healthcare',
+        account_id: this.state.accounts[0]?.id || 1,
+        start_date: new Date().toISOString().split('T')[0],
+        frequency: 'once',
+        is_active: true,
+      },
+      raise: {
+        id: Date.now().toString(),
+        description: 'Salary Increase',
+        type: 'income',
+        amount: 500,
+        category: 'Salary',
+        category_name: 'Salary',
+        account_id: this.state.accounts[0]?.id || 1,
+        start_date: new Date().toISOString().split('T')[0],
+        frequency: 'monthly',
+        is_active: true,
+      },
+    };
+
+    const template = templates[type];
+    if (template) {
+      this.plannedItems.push(template);
+      this.renderPlannedItemsTable();
+      this.updateProjection();
+
+      // Show encouraging message
+      this.app.notifications.toast(
+        'Scenario Added',
+        `Added "${template.description}" to your projection. See the impact below!`,
+        'info'
+      );
+    }
+  }
+
   async clearAllItems(): Promise<void> {
     if (this.plannedItems.length === 0) return;
 
@@ -374,24 +476,24 @@ export class SandboxView extends BaseView {
             ${StatCard({ label: 'Current Balance', value: formatter.formatCurrency(currentBalance), icon: 'wallet' })}
             ${StatCard({ label: 'Without Plan', value: formatter.formatCurrency(baselineEnd), icon: 'trending-up' })}
             ${StatCard({
-              label: 'With Plan',
-              value: formatter.formatCurrency(scenarioEnd),
-              icon: 'target',
-              trend:
-                impact !== 0
-                  ? {
-                      type: impact >= 0 ? 'up' : 'down',
-                      value: (impact >= 0 ? '+' : '') + formatter.formatCurrency(impact),
-                    }
-                  : undefined,
-            })}
+      label: 'With Plan',
+      value: formatter.formatCurrency(scenarioEnd),
+      icon: 'target',
+      trend:
+        impact !== 0
+          ? {
+            type: impact >= 0 ? 'up' : 'down',
+            value: (impact >= 0 ? '+' : '') + formatter.formatCurrency(impact),
+          }
+          : undefined,
+    })}
             ${StatCard({ label: 'Planned Expenses', value: formatter.formatCurrency(plannedExpenses), icon: 'credit-card' })}
             ${StatCard({ label: 'Planned Income', value: formatter.formatCurrency(plannedIncome), icon: 'banknote' })}
             ${StatCard({
-              label: 'Net Impact',
-              value: (impact >= 0 ? '+' : '') + formatter.formatCurrency(impact),
-              icon: impact >= 0 ? 'arrow-up-circle' : 'arrow-down-circle',
-            })}
+      label: 'Net Impact',
+      value: (impact >= 0 ? '+' : '') + formatter.formatCurrency(impact),
+      icon: impact >= 0 ? 'arrow-up-circle' : 'arrow-down-circle',
+    })}
         `;
     this.refreshIcons('#planner-stats-container');
   }
@@ -611,10 +713,10 @@ Be direct, practical, and give specific advice on how to balance this plan if ne
       container.innerHTML = `
                 <div class="p-8 text-center">
                     ${EmptyState({
-                      icon: 'clipboard-list',
-                      title: 'No planned items',
-                      message: 'Add expenses or income to see how they affect your finances',
-                    })}
+        icon: 'clipboard-list',
+        title: 'No planned items',
+        message: 'Add expenses or income to see how they affect your finances',
+      })}
                 </div>
             `;
       this.refreshIcons(container);
@@ -636,21 +738,21 @@ Be direct, practical, and give specific advice on how to balance this plan if ne
                 </thead>
                 <tbody>
                     ${this.plannedItems
-                      .map((item) => {
-                        const account = this.app.state.accounts.find(
-                          (a) => a.id === item.account_id
-                        );
-                        const freqLabel =
-                          {
-                            once: 'One-time',
-                            weekly: 'Weekly',
-                            monthly: 'Monthly',
-                            yearly: 'Yearly',
-                          }[item.frequency] || item.frequency;
-                        const amountClass = item.type === 'income' ? 'text-success' : 'text-danger';
-                        const amountPrefix = item.type === 'income' ? '+' : '-';
+        .map((item) => {
+          const account = this.app.state.accounts.find(
+            (a) => a.id === item.account_id
+          );
+          const freqLabel =
+            {
+              once: 'One-time',
+              weekly: 'Weekly',
+              monthly: 'Monthly',
+              yearly: 'Yearly',
+            }[item.frequency] || item.frequency;
+          const amountClass = item.type === 'income' ? 'text-success' : 'text-danger';
+          const amountPrefix = item.type === 'income' ? '+' : '-';
 
-                        return `
+          return `
                             <tr>
                                 <td><strong>${UIUtils.escapeHTML(item.description)}</strong></td>
                                 <td>${UIUtils.escapeHTML(item.category)}</td>
@@ -667,8 +769,8 @@ Be direct, practical, and give specific advice on how to balance this plan if ne
                                 </td>
                             </tr>
                         `;
-                      })
-                      .join('')}
+        })
+        .join('')}
                 </tbody>
             </table>
         `;

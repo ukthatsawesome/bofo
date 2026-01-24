@@ -1,6 +1,9 @@
 import { BaseView } from './BaseView';
 import { $, UIUtils } from '../core/dom';
 import { StatusBadge } from '../components/common/StatusBadge';
+import { Badge } from '../components/common/Badge';
+import { StatCard } from '../components/common/StatCard';
+import { Modal } from '../components/common/Modal';
 import { SortableHeader } from '../components/tables/SortableHeader';
 import { ViewHeader } from '../components/common/ViewHeader';
 import type { App } from '../core/app';
@@ -19,6 +22,7 @@ export class RecurringChargesView extends BaseView {
       this.renderBaseTemplate();
       this.isInitialized = true;
     }
+    await this.app.state.loadRecurringCharges();
     await this.render();
   }
 
@@ -26,14 +30,14 @@ export class RecurringChargesView extends BaseView {
     if (!this.element) return;
     this.element.innerHTML = `
             ${ViewHeader({
-              title: 'Recurring Charges',
-              subtitle: 'Manage fixed monthly expenses, subscriptions, and regular bills',
-              actions: `
+      title: 'Recurring Charges',
+      subtitle: 'Manage fixed monthly expenses, subscriptions, and regular bills',
+      actions: `
                     <button class="btn primary" onclick="app.views.recurring.openRecurringChargeModal()">
                         <i data-lucide="plus"></i> Add Charge
                     </button>
                 `,
-            })}
+    })}
 
             <div id="recurring-summary-card" class="mb-6"></div>
 
@@ -58,12 +62,12 @@ export class RecurringChargesView extends BaseView {
                 </div>
             </div>
 
-            <!-- Recurring Charge Modal -->
-            <div id="recurring-charge-modal" class="modal hidden">
-                <div class="modal-content max-w-lg">
-                    <button class="close" onclick="app.views.recurring.closeRecurringChargeModal()">&times;</button>
-                    <h2 id="recurring-modal-title">Add Recurring Charge</h2>
-                    <form id="recurring-charge-form" class="mt-6">
+            <!-- Shared Modal Component -->
+            ${Modal({
+      id: 'recurring-charge-modal',
+      title: 'Add Recurring Charge',
+      content: `
+                    <form id="recurring-charge-form" class="mt-0">
                         <input type="hidden" id="recurring-id">
                         
                         <div class="form-group">
@@ -110,14 +114,20 @@ export class RecurringChargesView extends BaseView {
                         </div>
 
                         <div class="flex-row justify-end gap-3 mt-6">
-                            <button type="button" class="btn secondary" onclick="app.views.recurring.closeRecurringChargeModal()">Cancel</button>
+                            <button type="button" class="btn secondary" id="btn-cancel-recurring">Cancel</button>
                             <button type="submit" class="btn primary">Save Charge</button>
                         </div>
                     </form>
-                </div>
-            </div>
+                `,
+    })}
         `;
     this.refreshIcons();
+
+    // Bind cancel button (can't do inline onclick with component)
+    const btnCancel = $('#btn-cancel-recurring');
+    if (btnCancel) {
+      btnCancel.addEventListener('click', () => this.closeRecurringChargeModal());
+    }
   }
 
   async render(): Promise<void> {
@@ -129,23 +139,18 @@ export class RecurringChargesView extends BaseView {
     // Summary Card
     const summaryContainer = $('#recurring-summary-card');
     if (summaryContainer) {
-      summaryContainer.innerHTML = `
-                <div class="flex-row items-center justify-between p-6 rounded-xl bg-danger/10 border border-danger/20">
-                    <div class="flex-row items-center gap-6">
-                        <div class="w-14 h-14 rounded-2xl bg-danger/20 flex items-center justify-center text-danger">
-                            <i data-lucide="receipt" class="w-7 h-7"></i>
-                        </div>
-                        <div>
-                            <p class="text-sm text-text-muted uppercase tracking-wider font-bold">Monthly Recurring Burden</p>
-                            <p class="text-3xl font-black text-danger">${formatter.formatCurrency(monthlyTotal)}</p>
-                        </div>
-                    </div>
-                    <div class="text-right">
-                        <p class="text-lg font-bold">${charges.length} Total</p>
-                        <p class="text-text-muted">${charges.filter((c) => c.is_active).length} Active Subscriptions</p>
-                    </div>
-                </div>
-            `;
+      summaryContainer.innerHTML = StatCard({
+        label: 'Monthly Recurring Burden',
+        value: formatter.formatCurrency(monthlyTotal),
+        icon: 'receipt',
+        layout: 'horizontal',
+        iconColor: 'danger',
+        className: 'text-danger',
+        rightContent: `
+            <p class="text-lg font-bold">${charges.length} Total</p>
+            <p class="text-text-muted text-sm">${charges.filter((c) => c.is_active).length} Active Subscriptions</p>
+        `,
+      });
     }
 
     // Table Header
@@ -168,14 +173,14 @@ export class RecurringChargesView extends BaseView {
     const thead = $('#recurring-table-head');
     if (thead && !thead.innerHTML.trim()) {
       thead.innerHTML = `
-                <tr>
+            <tr>
                     ${SortableHeader({ label: 'Name', field: 'name', currentSort: field, direction: direction as any, onclick: 'app.views.recurring.sort' })}
                     ${SortableHeader({ label: 'Category', field: 'category', currentSort: field, direction: direction as any, onclick: 'app.views.recurring.sort' })}
                     ${SortableHeader({ label: 'Frequency', field: 'frequency', currentSort: field, direction: direction as any, onclick: 'app.views.recurring.sort' })}
                     ${SortableHeader({ label: 'Amount', field: 'amount', currentSort: field, direction: direction as any, onclick: 'app.views.recurring.sort' })}
                     <th>Status</th>
                     <th>Actions</th>
-                </tr>
+            </tr>
             `;
     }
 
@@ -191,10 +196,10 @@ export class RecurringChargesView extends BaseView {
             return `
                         <tr class="${!c.is_active ? 'opacity-40' : ''}">
                             <td><strong>${UIUtils.escapeHTML(c.name)}</strong></td>
-                            <td><span class="badge secondary">${UIUtils.escapeHTML(c.category)}</span></td>
+                            <td>${Badge({ label: UIUtils.escapeHTML(c.category), variant: 'default' })}</td>
                             <td>${freq[c.frequency]}</td>
                             <td class="amount expense font-bold">${formatter.formatCurrency(c.amount)}</td>
-                            <td>${StatusBadge({ text: c.is_active ? 'Active' : 'Paused', type: c.is_active ? 'active' : 'warning' })}</td>
+                            <td>${StatusBadge({ label: c.is_active ? 'Active' : 'Paused', variant: c.is_active ? 'active' : 'warning' })}</td>
                             <td>
                                 <div class="row-actions">
                                     <button class="action-btn" onclick="app.views.recurring.toggleStatus(${c.id}, ${!c.is_active})">

@@ -4,6 +4,8 @@
  */
 import { api } from './services/api/index';
 import './tailwind-input.css';
+import './styles/validation.css';
+import './styles/transfer-preview.css';
 import { createIcons, icons } from 'lucide';
 import Chart from 'chart.js/auto';
 import { App } from './core/app';

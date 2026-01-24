@@ -189,9 +189,31 @@ export interface API {
     monthExpense: number;
     savingsRate: number;
   }>;
-  
+  getDashboardData: (months?: number) => Promise<{
+    labels: string[];
+    income: number[];
+    expenses: number[];
+    netWorth: number[];
+  }>;
+  getCategorySpending: (startDate: string, endDate: string) => Promise<{
+    category: string;
+    amount: number;
+  }[]>;
+  getTransactionStats: (options: any) => Promise<{
+    income: number;
+    expense: number;
+    transfers: number;
+    count: number;
+    topCategories: { category: string; amount: number; percent: string }[];
+  }>;
+  getBudgetSummary: () => Promise<{ totalAmount: number; usedAmount: number }>;
+
   // Audit
   getAuditLogs: (options?: any) => Promise<any[]>;
+
+  // Anomaly Detection
+  detectAnomalies: (data: { transaction: any }) => Promise<any>;
+  getCategoryStats: () => Promise<any[]>;
 }
 
 export interface Lucide {

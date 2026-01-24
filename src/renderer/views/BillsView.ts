@@ -1,6 +1,7 @@
 import { BaseView } from './BaseView';
 import { $, UIUtils } from '../core/dom';
 import { ViewHeader } from '../components/common/ViewHeader';
+import { StatCard } from '../components/common/StatCard';
 import type { App } from '../core/app';
 import Chart from 'chart.js/auto';
 
@@ -253,35 +254,28 @@ export class BillsView extends BaseView {
     if (!container) return;
 
     container.innerHTML = `
-            <div class="card p-5">
-                <div class="flex-row align-center gap-4">
-                    <div class="icon-box primary"><i data-lucide="calendar"></i></div>
-                    <div>
-                        <p class="text-xs text-text-muted font-bold uppercase tracking-widest">Monthly Goal (Est)</p>
-                        <h2 class="mt-1">${this.app.formatter.formatCurrency(totalProjectedLimit)}</h2>
-                    </div>
-                </div>
-            </div>
-            <div class="card p-5">
-                <div class="flex-row align-center gap-4">
-                    <div class="icon-box success"><i data-lucide="receipt"></i></div>
-                    <div>
-                        <p class="text-xs text-text-muted font-bold uppercase tracking-widest">Spent This Month</p>
-                        <h2 class="mt-1">${this.app.formatter.formatCurrency(recordedThisMonth)}</h2>
-                    </div>
-                </div>
-            </div>
-            <div class="card p-5">
-                <div class="flex-row align-center gap-4">
-                    <div class="icon-box warning"><i data-lucide="trending-up"></i></div>
-                    <div>
-                        <p class="text-xs text-text-muted font-bold uppercase tracking-widest">Performance</p>
-                        <h2 class="mt-1 ${recordedThisMonth > totalProjectedLimit ? 'text-danger' : 'text-success'}">
-                            ${recordedThisMonth > totalProjectedLimit ? 'Over Budget' : 'Within Budget'}
-                        </h2>
-                    </div>
-                </div>
-            </div>
+            ${StatCard({
+      label: 'Monthly Goal (Est)',
+      value: this.app.formatter.formatCurrency(totalProjectedLimit),
+      icon: 'calendar',
+      layout: 'horizontal',
+      iconColor: 'primary',
+    })}
+            ${StatCard({
+      label: 'Spent This Month',
+      value: this.app.formatter.formatCurrency(recordedThisMonth),
+      icon: 'receipt',
+      layout: 'horizontal',
+      iconColor: 'success',
+    })}
+            ${StatCard({
+      label: 'Performance',
+      value: recordedThisMonth > totalProjectedLimit ? 'Over Budget' : 'Within Budget',
+      icon: 'trending-up',
+      layout: 'horizontal',
+      iconColor: 'warning',
+      className: recordedThisMonth > totalProjectedLimit ? 'text-danger' : 'text-success',
+    })}
         `;
     this.refreshIcons();
   }
@@ -432,7 +426,10 @@ export class BillsView extends BaseView {
       if (this.trendChart) this.trendChart.destroy();
 
       const readings = this.app.state.allBillReadings;
+      // Render trend chart with bill readings
+
       if (readings.length === 0) {
+        console.warn('[BillsView] No readings found for trend chart');
         const ctx = trendCtx;
         ctx.font = '14px Inter, sans-serif';
         ctx.fillStyle = '#a1a1aa';
@@ -555,7 +552,9 @@ export class BillsView extends BaseView {
       billTypeSelect.disabled = true; // Don't allow changing type once created
     } else {
       billTypeSelect.disabled = false;
-      dateInput.value = new Date().toISOString().split('T')[0];
+      const now = new Date();
+      const pad = (n: number) => n.toString().padStart(2, '0');
+      dateInput.value = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
       unitsInput.value = '';
       costInput.value = '';
       notesInput.value = '';

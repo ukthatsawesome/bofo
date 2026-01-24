@@ -24,6 +24,7 @@ contextBridge.exposeInMainWorld('api', {
   updateTransaction: (id: number, data: any) =>
     invokeWithTimeout('update-transaction', { id, data }),
   deleteTransaction: (id: number) => invokeWithTimeout('delete-transaction', id),
+  getTransactionStats: (options: any) => invokeWithTimeout('get-transaction-stats', options),
   calculateForecast: (data: any) => invokeWithTimeout('calculate-forecast', data),
 
   // Categories
@@ -58,6 +59,7 @@ contextBridge.exposeInMainWorld('api', {
     startDate: string,
     endDate: string
   ) => invokeWithTimeout('set-budget', { category, amount, period, startDate, endDate }),
+  getBudgetSummary: () => invokeWithTimeout('get-budget-summary'),
   updateBudget: (
     id: number,
     category: string,
@@ -157,6 +159,9 @@ contextBridge.exposeInMainWorld('api', {
 
   // Analytics
   getSummaryStats: () => invokeWithTimeout('get-summary-stats'),
+  getDashboardData: (months?: number) => invokeWithTimeout('get-dashboard-data', months),
+  getCategorySpending: (startDate: string, endDate: string) =>
+    invokeWithTimeout('get-category-spending', { startDate, endDate }),
   onNativeThemeChanged: (callback: (isDark: boolean) => void) => {
     ipcRenderer.on('native-theme-changed', (_event, isDark: boolean) => callback(isDark));
   },

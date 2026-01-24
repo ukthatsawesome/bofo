@@ -11,6 +11,7 @@ import type {
   Setting,
 } from '../../shared/types';
 import type { TransactionWithCategory } from '../../main/database/types';
+import { DateUtils } from '../../shared/utils/dateUtils';
 
 import { eventBus } from './eventBus';
 
@@ -118,11 +119,10 @@ export class StateManager {
     this.settings = settings && typeof settings === 'object' ? settings : {};
     const aiSettings = await window.api.getAISettings();
     this.aiSettings = aiSettings && typeof aiSettings === 'object' ? aiSettings : {};
-    
+
     // Initial theme application
     this.applyTheme(this.settings.theme || 'system');
-    
-    await this.loadBillTypes();
+
     await this.loadExchangeRates();
   }
 
@@ -146,59 +146,84 @@ export class StateManager {
     this.categories = Array.isArray(data) ? data : [];
   }
 
+  async goToPage(page: number): Promise<void> {
+    this.txHistoryPage = page;
+    const offset = (page - 1) * this.txHistoryPageSize;
+
+    await this.loadTransactions(false); // Reload with new page state
+  }
+
+
+
+  async loadSummaryStats(): Promise<void> {
+    try {
+      this.summaryStats = await window.api.getSummaryStats();
+    } catch (e) {
+      console.warn('Failed to load summary stats', e);
+    }
+  }
+
   async loadTransactions(reset = true): Promise<void> {
-    const options = {
-      limit: 100,
+    const options: any = {
+      limit: 50,
       offset: reset ? 0 : this.transactionMetadata.offset + this.transactionMetadata.limit,
+      sortField: this.txSortField,
+      sortOrder: this.txSortOrder,
     };
-    
+
+    if (this.txHistoryFilter !== 'all') options.type = this.txHistoryFilter;
+    if (this.txMonthFilter) {
+      // txMonthFilter is YYYY-MM
+      const [year, month] = this.txMonthFilter.split('-').map(Number);
+      const { start: startDate, end: endDate } = DateUtils.getMonthBoundariesForYearMonth(year, month);
+      options.startDate = startDate;
+      options.endDate = endDate;
+    }
+
     // Use proper typing based on new API contract
     const response = await window.api.getTransactions(options);
-    
+
     if (!this.checkResponse(response)) return;
 
     // Handle both new PaginatedResponse (object) and legacy array (fallback)
     if (response && 'data' in response && Array.isArray(response.data)) {
-        if (reset) {
-            this.transactions = response.data;
-        } else {
-            this.transactions = [...this.transactions, ...response.data];
-        }
-        
-        this.transactionMetadata = {
-            total: response.total,
-            limit: response.limit,
-            offset: response.offset,
-            hasMore: response.hasMore
-        };
+      if (reset) {
+        this.transactions = response.data;
+      } else {
+        this.transactions = [...this.transactions, ...response.data];
+      }
+
+      this.transactionMetadata = {
+        total: response.total,
+        limit: response.limit,
+        offset: response.offset,
+        hasMore: response.hasMore
+      };
     } else if (Array.isArray(response)) {
-        console.warn('Received legacy array response for transactions');
-        this.transactions = response;
-        this.transactionMetadata = { total: response.length, limit: response.length, offset: 0, hasMore: false };
+      console.warn('Received legacy array response for transactions');
+      this.transactions = response;
+      this.transactionMetadata = { total: response.length, limit: response.length, offset: 0, hasMore: false };
     } else {
-        this.transactions = [];
-        this.transactionMetadata = { total: 0, limit: 100, offset: 0, hasMore: false };
+      this.transactions = [];
+      this.transactionMetadata = { total: 0, limit: 100, offset: 0, hasMore: false };
     }
 
-    // Phase 3: Load server-side stats for dashboard accuracy
+    // Load stats concurrently if we are loading transactions specifically
+    // But now we have a separate method for it too.
     if (reset) {
-        try {
-            this.summaryStats = await window.api.getSummaryStats();
-        } catch (e) {
-            console.warn('Failed to load summary stats', e);
-        }
+      await this.loadSummaryStats();
     }
   }
 
   async loadMoreTransactions(): Promise<void> {
-      if (this.transactionMetadata.hasMore) {
-          await this.loadTransactions(false);
-      }
+    if (this.transactionMetadata.hasMore) {
+      await this.loadTransactions(false);
+    }
   }
 
   applyTheme(theme: string): void {
     this.theme = (['light', 'dark', 'system'].includes(theme) ? theme : 'system') as 'light' | 'dark' | 'system';
-    
+
     let mode = this.theme;
     if (this.theme === 'system') {
       const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
@@ -215,7 +240,7 @@ export class StateManager {
     } else {
       document.documentElement.classList.remove('dark');
     }
-    
+
     // Dispatch custom event for UI components to react (e.g., charts)
     window.dispatchEvent(new CustomEvent('theme-changed', { detail: { mode, theme: this.theme } }));
   }

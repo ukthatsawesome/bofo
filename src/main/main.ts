@@ -120,11 +120,35 @@ app.whenReady().then(async () => {
     app.setAppUserModelId('com.bofo.finance');
   }
 
-  // Wait for database to be ready (encrypted and bootstrapped)
+  // Phase 1: Create Window IMMEDIATELY (Non-blocking)
+  createWindow();
+
+  // Phase 2: Async DB Initialization
   try {
+    const windows = BrowserWindow.getAllWindows();
+    const win = windows[0];
+
+    // Inform renderer we are connecting (if it's listening)
+    if (win) {
+      win.webContents.on('did-finish-load', () => {
+        win.webContents.send('app:db-status', 'connecting');
+      });
+    }
+
+    console.log('[Main] Waiting for database...');
     await dbInitialized;
+    console.log('[Main] Database ready.');
+
+    if (win) {
+      win.webContents.send('app:db-status', 'ready');
+    }
   } catch (err) {
     console.error('[Main] Database failed to initialize:', err);
+    // Send error to UI
+    const windows = BrowserWindow.getAllWindows();
+    if (windows.length > 0) {
+      windows[0].webContents.send('app:db-status', 'error', (err as Error).message);
+    }
   }
 
   try {
@@ -161,7 +185,7 @@ app.whenReady().then(async () => {
   });
 
   setupMenu();
-  createWindow();
+  // createWindow(); // Moved to Phase 1
 
   // Start web server if enabled in settings
   startWebServer();

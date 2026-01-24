@@ -17,7 +17,8 @@
 
 import * as path from 'path';
 import * as fs from 'fs';
-import { createDbHelpers } from './helpers';
+import { DateUtils } from '../../shared/utils/dateUtils';
+
 import {
   getOrCreateEncryptionKey,
   isDatabaseEncrypted,
@@ -25,7 +26,7 @@ import {
   isDev,
   log,
 } from './encryption';
-import type { Database, DbHelpers, Migration, AppliedMigration, ColumnInfo } from './types';
+import type { Database, DbHelpers, Migration, AppliedMigration, ColumnInfo, RunResult, DbRunResult } from './types';
 import type { App } from 'electron';
 import {
   addColumnIfNotExists,
@@ -233,6 +234,37 @@ async function migrateFromBackup(backupFile: string): Promise<void> {
 // DATABASE HELPERS (Promisified)
 // =============================================================================
 
+function createDbHelpers(db: Database): DbHelpers {
+  return {
+    run(sql: string, params: unknown[] = []): Promise<DbRunResult> {
+      return new Promise((resolve, reject) => {
+        db.run(sql, params, function (this: RunResult, err: Error | null) {
+          if (err) reject(err);
+          else resolve({ id: this.lastID, changes: this.changes });
+        });
+      });
+    },
+
+    get<T = unknown>(sql: string, params: unknown[] = []): Promise<T | undefined> {
+      return new Promise((resolve, reject) => {
+        db.get(sql, params, (err: Error | null, row: T) => {
+          if (err) reject(err);
+          else resolve(row);
+        });
+      });
+    },
+
+    all<T = unknown>(sql: string, params: unknown[] = []): Promise<T[]> {
+      return new Promise((resolve, reject) => {
+        db.all(sql, params, (err: Error | null, rows: T[]) => {
+          if (err) reject(err);
+          else resolve(rows);
+        });
+      });
+    },
+  };
+}
+
 const { run, get, all } = createDbHelpers(db);
 
 // =============================================================================
@@ -300,8 +332,7 @@ const MIGRATIONS: Migration[] = [
       if (added > 0) {
         // Set defaults for existing rows
         const now = new Date();
-        const start = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
-        const end = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
+        const { start, end } = DateUtils.getMonthBoundaries();
         await run(`UPDATE budgets SET start_date = ?, end_date = ? WHERE start_date IS NULL`, [
           start,
           end,
@@ -862,7 +893,7 @@ const MIGRATIONS: Migration[] = [
         'trg_audit_tx_update',
         'trg_audit_tx_delete'
       ];
-      
+
       for (const trigger of triggers) {
         await run(`DROP TRIGGER IF EXISTS ${trigger}`);
       }
@@ -881,17 +912,17 @@ const MIGRATIONS: Migration[] = [
           created_at DATETIME DEFAULT CURRENT_TIMESTAMP
         )
       `);
-      
+
       // Index creation
       await createIndex(run, 'idx_audit_logs_entity', 'audit_logs', ['entity_type', 'entity_id']);
       await createIndex(run, 'idx_audit_logs_created_at', 'audit_logs', 'created_at DESC');
-      
+
       log('[Migration 20] Created audit_logs table.');
 
       // 3. Upgrade `transaction_history` to support Source tracking
       await addColumnIfNotExists({ run, get, all }, 'transaction_history', 'source', "TEXT DEFAULT 'USER'", log);
       await addColumnIfNotExists({ run, get, all }, 'transaction_history', 'metadata', "JSON", log);
-      
+
       log('[Migration 20] Upgraded transaction_history table.');
     }
   }

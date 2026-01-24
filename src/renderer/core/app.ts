@@ -9,6 +9,7 @@ import { NotificationModal } from '../components/notifications/NotificationModal
 import { CURRENCIES } from '../../shared/currencies';
 import { aiInsightCache } from './aiInsightCache';
 import { createFallbackGenerator, FallbackInsightGenerator } from './fallbackInsightGenerator';
+import { MilestoneTracker } from '../services/milestoneTracker';
 
 // Views
 import { DashboardView } from '../views/DashboardView';
@@ -53,6 +54,7 @@ export class App {
   notifications: NotificationManager;
   aiCache: typeof aiInsightCache;
   fallbackGenerator: FallbackInsightGenerator | null;
+  milestoneTracker: MilestoneTracker;
   views: ViewsMap;
   router: Router;
   currencies: typeof CURRENCIES;
@@ -64,6 +66,7 @@ export class App {
     this.notifications = new NotificationManager();
     this.aiCache = aiInsightCache;
     this.fallbackGenerator = null; // Initialized after formatter is ready
+    this.milestoneTracker = new MilestoneTracker();
 
     this.views = {
       dashboard: new DashboardView(this),
@@ -86,13 +89,28 @@ export class App {
     try {
       this.setLoading(true);
 
+      // Listen for DB status from Main process (Async Startup)
+      const winWithElectron = window as any;
+      if (winWithElectron.electron) {
+        winWithElectron.electron.ipcRenderer.on('app:db-status', (_: any, status: string, message?: string) => {
+          if (status === 'connecting') {
+            this.updateLoadingMessage('Connecting to Database...');
+          } else if (status === 'ready') {
+            this.updateLoadingMessage('Database Connected');
+          } else if (status === 'error') {
+            this.setLoading(false);
+            this.showInitError(new Error(message || 'Database failed to initialize'));
+          }
+        });
+      }
+
+      // Minimal Metadata Load (Accounts/Categories/Settings are O(1) mostly)
+      // Transactions/Budgets/Recurring are now Lazy Loaded
       await Promise.all([
         this.state.loadSettings(),
         this.state.loadAccounts(),
         this.state.loadCategories(),
-        this.state.loadTransactions(),
-        this.state.loadBudgets(),
-        this.state.loadRecurringCharges(),
+        this.state.loadSummaryStats(),
       ]);
 
       // Initialize fallback generator with formatter
@@ -125,25 +143,25 @@ export class App {
     const main = document.getElementById('main-content');
     if (main) {
       main.innerHTML = `
-                <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; padding: 2rem; text-align: center;">
-                    <div style="background: var(--card-bg, #fff); border-radius: 16px; padding: 2rem 3rem; box-shadow: 0 4px 24px rgba(0,0,0,0.1); max-width: 480px;">
-                        <div style="font-size: 3rem; margin-bottom: 1rem;">⚠️</div>
-                        <h2 style="margin: 0 0 0.5rem; color: var(--text-primary, #1a1a2e);">Connection Failed</h2>
-                        <p style="color: var(--text-secondary, #666); margin-bottom: 1.5rem;">
-                            Could not connect to the backend server.<br>
-                            <small style="opacity: 0.7;">${error.message || 'Unknown error'}</small>
-                        </p>
-                        <div style="display: flex; gap: 0.75rem; justify-content: center;">
-                            <button onclick="window.location.reload()" style="padding: 0.75rem 1.5rem; border-radius: 8px; border: none; background: var(--primary, #4f46e5); color: white; cursor: pointer; font-weight: 500;">
-                                Retry Connection
-                            </button>
-                            <button onclick="localStorage.removeItem('bofo_remote_host'); localStorage.removeItem('bofo_remote_key'); window.location.reload();" style="padding: 0.75rem 1.5rem; border-radius: 8px; border: 1px solid var(--border, #e5e7eb); background: transparent; cursor: pointer; font-weight: 500;">
-                                Reset Config
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            `;
+  < div style = "display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; padding: 2rem; text-align: center;" >
+    <div style="background: var(--card-bg, #fff); border-radius: 16px; padding: 2rem 3rem; box-shadow: 0 4px 24px rgba(0,0,0,0.1); max-width: 480px;" >
+      <div style="font-size: 3rem; margin-bottom: 1rem;" >⚠️</div>
+        < h2 style = "margin: 0 0 0.5rem; color: var(--text-primary, #1a1a2e);" > Connection Failed </h2>
+          < p style = "color: var(--text-secondary, #666); margin-bottom: 1.5rem;" >
+            Could not connect to the backend server.< br >
+              <small style="opacity: 0.7;" > ${error.message || 'Unknown error'} </small>
+                </p>
+                < div style = "display: flex; gap: 0.75rem; justify-content: center;" >
+                  <button onclick="window.location.reload()" style = "padding: 0.75rem 1.5rem; border-radius: 8px; border: none; background: var(--primary, #4f46e5); color: white; cursor: pointer; font-weight: 500;" >
+                    Retry Connection
+                      </button>
+                      < button onclick = "localStorage.removeItem('bofo_remote_host'); localStorage.removeItem('bofo_remote_key'); window.location.reload();" style = "padding: 0.75rem 1.5rem; border-radius: 8px; border: 1px solid var(--border, #e5e7eb); background: transparent; cursor: pointer; font-weight: 500;" >
+                        Reset Config
+                          </button>
+                          </div>
+                          </div>
+                          </div>
+                            `;
     }
   }
 
@@ -288,7 +306,7 @@ export class App {
             ${SandboxModal()}
             ${BillTypeModal()}
             ${BillReadingModal({ billTypes: (this.state.billTypes as any) || [] })}
-        `;
+`;
 
     const notificationContainer = document.getElementById('notification-modal-container');
     if (notificationContainer) {
@@ -557,14 +575,14 @@ export class App {
       if (closeBtn) {
         const modal = closeBtn.closest('.modal');
         if (modal) {
-          UIUtils.setHidden(`#${modal.id}`, true);
+          UIUtils.setHidden(`#${modal.id} `, true);
         }
         return;
       }
 
       // Backdrop click (target is the modal itself)
       if (target.classList.contains('modal')) {
-        UIUtils.setHidden(`#${target.id}`, true);
+        UIUtils.setHidden(`#${target.id} `, true);
       }
     });
   }
@@ -597,7 +615,7 @@ export class App {
       if (e.key === 'Escape') {
         const visibleModals = document.querySelectorAll('.modal:not(.hidden)');
         visibleModals.forEach((modal) => {
-          UIUtils.setHidden(`#${modal.id}`, true);
+          UIUtils.setHidden(`#${modal.id} `, true);
         });
       }
     });
@@ -631,7 +649,7 @@ export class App {
 
   populateCurrencyDropdowns() {
     const html = this.currencies
-      .map((c) => `<option value="${c.code}">${c.code} - ${c.name}</option>`)
+      .map((c) => `< option value = "${c.code}" > ${c.code} - ${c.name} </option>`)
       .join('');
     document.querySelectorAll('.currency-select').forEach((el) => {
       const select = el as HTMLSelectElement;
@@ -646,6 +664,14 @@ export class App {
     if (loader) {
       if (isLoading) loader.classList.remove('hidden');
       else loader.classList.add('hidden');
+    }
+  }
+
+  updateLoadingMessage(message: string) {
+    const loader = document.getElementById('global-loader');
+    if (loader) {
+      const text = loader.querySelector('p');
+      if (text) text.innerText = message;
     }
   }
 

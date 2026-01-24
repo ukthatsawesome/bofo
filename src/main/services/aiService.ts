@@ -29,18 +29,15 @@ interface DefaultPrompts {
 }
 
 /**
- * AI Service using Ollama
- *
- * Handles communication with local Ollama instance for:
- * - Transaction Parsing
- * - Financial Insights
- * - Sandbox Chat Simulation
+ * AI Service - Ollama Integration
+ * Handles AI-powered transaction parsing and financial insights
  *
  * Features:
  * - Circuit Breaker for reliability
  * - Retry Logic with exponential backoff
  * - Connection Health Monitoring
  */
+import { DateUtils } from '../../shared/utils/dateUtils';
 class AIService {
   private baseUrl: string;
   private model: string;
@@ -100,15 +97,27 @@ Return JSON ONLY:
     "from_account": "Account Name",
     "to_account": "Account Name"
 }`,
-      promptInsight: `You are Bofo, a precise financial analyst.
+      promptInsight: `You are Bofo, a supportive financial coach who provides actionable advice.
+
 Data: {{data}}
 
-Task: Provide ONE single, highly accurate sentence about the user's financial status or a key trend.
-Constraints:
-- STRICTLY one sentence.
-- NO markdown (no **, no #).
-- Use HTML <b>tags</b> for emphasis on numbers or key terms.
-- Be direct and professional.`,
+Provide a helpful insight in this EXACT format:
+"[Observation]. [Specific action] to [expected benefit]."
+
+Requirements:
+- ONE sentence only
+- Be specific with numbers
+- Suggest ONE concrete action
+- Mention the expected impact
+- Use HTML <b>tags</b> for emphasis on numbers
+- Be encouraging and supportive
+
+Examples:
+- "Your dining expenses are <b>40% above average</b>. Try meal prepping 3 days/week to save <b>$150/month</b>."
+- "Great job! Your savings rate improved to <b>15%</b>. Increase it to <b>20%</b> to reach your emergency fund <b>2 months faster</b>."
+- "You spent <b>$800</b> on subscriptions this month. Review and cancel unused services to save <b>$200/month</b>."
+
+Focus on ONE actionable step with measurable impact.`,
       promptChat: `You are Bofo, a professional financial analyst and simulation expert. 
 Your goal is to help users explore "What-If" financial scenarios.
 
@@ -373,7 +382,7 @@ OR
 
     const prompt = this._replaceTemplate(template, {
       input: text,
-      date: new Date().toISOString().split('T')[0],
+      date: DateUtils.today(),
       categories: categories.join(', '),
       accounts: accountNames.join(', '),
     }) + correctionsSection;

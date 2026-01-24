@@ -19,10 +19,10 @@ export const InsightCard = ({
   variant = 'primary',
 }: InsightCardProps): string => {
   const variants: Record<string, string> = {
-    primary: 'insight-card-tw', // from tailwind-input.css
-    success: 'bg-gradient-to-br from-success/10 to-success/5 border border-success/20',
-    warning: 'bg-gradient-to-br from-warning/10 to-warning/5 border border-warning/20',
-    danger: 'bg-gradient-to-br from-danger/10 to-danger/5 border border-danger/20',
+    primary: 'card border-border shadow-sm bg-card',
+    success: 'card border-success/30 shadow-sm bg-success/5',
+    warning: 'card border-warning/30 shadow-sm bg-warning/5',
+    danger: 'card border-danger/30 shadow-sm bg-danger/5',
   };
 
   const iconColors: Record<string, string> = {
@@ -36,13 +36,13 @@ export const InsightCard = ({
   const iconColor = iconColors[variant] || iconColors.primary;
 
   return `
-    <div class="${variantClass} flex items-start gap-4 p-5 rounded-lg" ${id ? `id="${id}"` : ''}>
-        <div class="w-12 h-12 rounded-xl bg-brand-primary/20 flex items-center justify-center shrink-0">
-            <i data-lucide="${icon}" class="w-6 h-6 ${iconColor}"></i>
+    <div class="${variantClass} flex items-start gap-3 p-4 rounded-lg" ${id ? `id="${id}"` : ''}>
+        <div class="w-10 h-10 rounded-xl bg-brand-primary/20 flex items-center justify-center shrink-0">
+            <i data-lucide="${icon}" class="w-5 h-5 ${iconColor}"></i>
         </div>
-        <div class="flex-1 min-w-0">
-            <h3 class="text-sm font-bold text-text-main mb-1">${title}</h3>
-            <p class="text-sm text-text-muted leading-relaxed">${message}</p>
+        <div class="flex-1 min-w-0 pt-0.5">
+            <h3 class="text-sm font-bold text-text-main mb-0.5 leading-none">${title}</h3>
+            <p class="text-sm text-text-muted leading-snug">${message}</p>
         </div>
     </div>
 `;

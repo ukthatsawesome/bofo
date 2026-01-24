@@ -45,6 +45,17 @@ export class BaseView {
   }
 
   /**
+   * Destroy the view and clean up resources
+   * This is called when the view is being removed or heavy cleanup is needed
+   */
+  destroy(): void {
+    if (this.element) {
+      this.element.innerHTML = '';
+    }
+    this.isInitialized = false;
+  }
+
+  /**
    * Lifecycle hook called when view is shown
    */
   onShow(): void | Promise<void> {

@@ -41,6 +41,7 @@ export class BudgetView extends BaseView {
       UIUtils.setHidden('#budget-month-filter-container', state.budgetViewFilter === 'active');
     }
 
+    await this.app.state.loadBudgets();
     await this.render();
   }
 
@@ -48,9 +49,9 @@ export class BudgetView extends BaseView {
     if (!this.element) return;
     this.element.innerHTML = `
             ${ViewHeader({
-              title: 'Budget Management',
-              subtitle: 'Set limits and track your spending across categories',
-              actions: `
+      title: 'Budget Management',
+      subtitle: 'Set limits and track your spending across categories',
+      actions: `
                     <div id="budget-month-filter-container" class="filter-group">
                         <input type="month" id="budget-month-filter" class="form-control sm">
                     </div>
@@ -58,7 +59,7 @@ export class BudgetView extends BaseView {
                         <i data-lucide="plus"></i> New Budget
                     </button>
                 `,
-            })}
+    })}
 
             <div id="budget-summary-container" class="stats-grid mb-6"></div>
 
@@ -141,6 +142,12 @@ export class BudgetView extends BaseView {
       });
     }
 
+    // Get spending from server for the view period
+    const spendingData = await window.api.getCategorySpending(
+      viewMonthStart.toISOString().split('T')[0],
+      viewMonthEnd.toISOString().split('T')[0]
+    );
+
     let totalBudgeted = 0;
     let totalSpent = 0;
 
@@ -153,18 +160,13 @@ export class BudgetView extends BaseView {
 
     // Calculate data for each budget
     const budgetsWithData: BudgetWithSpent[] = filteredBudgets.map((budget) => {
-      const bStart = new Date(budget.start_date);
-      const bEnd = new Date(budget.end_date);
-      const calcStart = bStart > viewMonthStart ? bStart : viewMonthStart;
-      const calcEnd = bEnd < viewMonthEnd ? bEnd : viewMonthEnd;
+      // Find spending for this category
+      // Note: This matches simple category names. If period logic is complex (e.g. weekly),
+      // we might need more granular server queries or handling.
+      // For now, assuming monthly aggregation matches the budget period reasonably well for "Monthly" view.
 
-      const spent = state.transactions
-        .filter((t) => t.category_name === budget.category && t.type === 'expense')
-        .filter((t) => {
-          const tDate = new Date(t.start_date);
-          return tDate >= calcStart && tDate <= calcEnd;
-        })
-        .reduce((sum, t) => sum + t.amount, 0);
+      const categorySpend = spendingData.find((s: any) => s.category === budget.category);
+      const spent = categorySpend ? categorySpend.amount : 0;
 
       return { ...budget, spent };
     });
@@ -259,26 +261,26 @@ export class BudgetView extends BaseView {
 
     container.innerHTML = `
             ${StatCard({
-              label: 'Total Budgeted',
-              value: fmt.formatCurrency(budgeted),
-              icon: 'piggy-bank',
-              trend: { type: 'neutral', value: 'Monthly target' },
-            })}
+      label: 'Total Budgeted',
+      value: fmt.formatCurrency(budgeted),
+      icon: 'piggy-bank',
+      trend: { type: 'neutral', value: 'Monthly target' },
+    })}
             ${StatCard({
-              label: 'Total Spent',
-              value: fmt.formatCurrency(spent),
-              icon: 'shopping-cart',
+      label: 'Total Spent',
+      value: fmt.formatCurrency(spent),
+      icon: 'shopping-cart',
 
-            })}
+    })}
             ${StatCard({
-              label: 'Remaining',
-              value: fmt.formatCurrency(Math.abs(remaining)),
-              icon: remaining < 0 ? 'alert-circle' : 'check-circle',
-              trend: { 
-                type: remaining < 0 ? 'down' : 'up', 
-                value: remaining < 0 ? 'Over budget' : 'Under budget' 
-              },
-            })}
+      label: 'Remaining',
+      value: fmt.formatCurrency(Math.abs(remaining)),
+      icon: remaining < 0 ? 'alert-circle' : 'check-circle',
+      trend: {
+        type: remaining < 0 ? 'down' : 'up',
+        value: remaining < 0 ? 'Over budget' : 'Under budget'
+      },
+    })}
         `;
     this.refreshIcons(container);
   }

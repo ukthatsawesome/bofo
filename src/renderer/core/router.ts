@@ -54,6 +54,10 @@ export class Router {
     // Hide current view
     if (this.currentView && this.views[this.currentView]) {
       this.views[this.currentView].hide();
+      // Strict lifestyle management: destroy to free memory
+      if (typeof this.views[this.currentView].destroy === 'function') {
+        this.views[this.currentView].destroy();
+      }
     }
 
     // Show new view

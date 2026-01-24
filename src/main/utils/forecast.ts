@@ -4,6 +4,8 @@
  * Simulates historical + future financial position day-by-day
  */
 
+import { DateUtils } from '../../shared/utils/dateUtils';
+
 export interface Transaction {
   id?: number;
   type: string;
@@ -462,11 +464,8 @@ export class ForecastEngine {
   }
 
   private _toDateString(date: Date): string {
-    // High-volume call.
-    // Date.toISOString().split('T')[0] is robust.
-    // Alternative: manual construction is faster but date libs are safer.
-    // Sticking to ISO for consistency.
-    return date.toISOString().split('T')[0];
+    // Use centralized DateUtils for consistency
+    return DateUtils.toDateString(date);
   }
 
   private _addMonths(date: Date, months: number): Date {

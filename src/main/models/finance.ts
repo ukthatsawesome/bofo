@@ -9,6 +9,7 @@
 import { db } from '../database/db';
 import { createDbHelpers } from '../database/helpers';
 import { EntityValidators, validateAmount, sanitizeData } from '../utils/validators';
+import { DateUtils } from '../../shared/utils/dateUtils';
 import type {
   Account,
   Transaction,
@@ -294,9 +295,6 @@ export const FinanceModel = {
     const oldData = await FinanceModel.getById(entityType, id);
 
     const result = await run(sql, values);
-
-    // Post-write hooks
-    if (schema.afterWrite) await schema.afterWrite({ ...sanitized, id });
 
     // Post-write hooks
     if (schema.afterWrite) await schema.afterWrite({ ...sanitized, id });
@@ -736,7 +734,7 @@ export const FinanceModel = {
             SELECT COALESCE(SUM(amount), 0) as total FROM transactions 
             WHERE type = 'income' AND start_date >= ? AND is_active = 1
         `,
-      [threeMonthsAgo.toISOString().split('T')[0]]
+      [DateUtils.toDateString(threeMonthsAgo)]
     );
 
     const avgMonthlyIncome = (incomeData?.total || 0) / 3;
@@ -778,28 +776,42 @@ export const FinanceModel = {
     filters: { bill_type_id?: number; year?: number; month?: number } = {}
   ) => {
     let sql = `
-            SELECT r.*, t.name as bill_name, t.unit_name, t.cost_per_unit as current_cost_per_unit, 
-                   t.color, t.icon, t.category_name
-            FROM bill_readings r
-            JOIN bill_types t ON r.bill_type_id = t.id
-        `;
+      SELECT
+        r.id,
+        r.bill_type_id,
+        r.date as reading_date,
+        r.units_used as usage_amount,
+        r.total_cost as cost,
+        0 as is_paid,
+        NULL as paid_at,
+        r.notes,
+        r.created_at,
+        t.name as bill_name,
+        t.unit_name,
+        t.cost_per_unit as current_cost_per_unit,
+        t.color,
+        t.icon,
+        t.category_name
+      FROM bill_readings r
+      JOIN bill_types t ON r.bill_type_id = t.id
+    `;
     const params: any[] = [];
     const where: string[] = [];
 
     if (filters.bill_type_id) {
-      where.push(`r.bill_type_id = ?`);
+      where.push(`r.bill_type_id = ? `);
       params.push(filters.bill_type_id);
     }
     if (filters.year && filters.year != 0) {
-      where.push(`strftime('%Y', r.date) = ?`);
+      where.push(`strftime('%Y', r.date) = ? `);
       params.push(String(filters.year));
     }
     if (filters.month && filters.month != 0) {
-      where.push(`strftime('%m', r.date) = ?`);
+      where.push(`strftime('%m', r.date) = ? `);
       params.push(String(filters.month).padStart(2, '0'));
     }
 
-    if (where.length > 0) sql += ` WHERE ${where.join(' AND ')}`;
+    if (where.length > 0) sql += ` WHERE ${where.join(' AND ')} `;
     sql += ` ORDER BY r.date DESC`;
     return await all(sql, params);
   },
@@ -819,33 +831,33 @@ export const FinanceModel = {
     const params: any[] = [];
 
     if (options.bill_type_id) {
-      where.push(`r.bill_type_id = ?`);
+      where.push(`r.bill_type_id = ? `);
       params.push(options.bill_type_id);
     }
     if (options.year && options.year != 0) {
-      where.push(`strftime('%Y', r.date) = ?`);
+      where.push(`strftime('%Y', r.date) = ? `);
       params.push(String(options.year));
     }
     if (options.month && options.month != 0) {
-      where.push(`strftime('%m', r.date) = ?`);
+      where.push(`strftime('%m', r.date) = ? `);
       params.push(String(options.month).padStart(2, '0'));
     }
 
-    const whereClause = where.length > 0 ? `WHERE ${where.join(' AND ')}` : '';
+    const whereClause = where.length > 0 ? `WHERE ${where.join(' AND ')} ` : '';
     const countResult = await get<{ total: number }>(
-      `SELECT COUNT(*) as total FROM bill_readings r ${whereClause}`,
+      `SELECT COUNT(*) as total FROM bill_readings r ${whereClause} `,
       params
     );
     const data = await all(
       `
-            SELECT r.*, t.name as bill_name, t.unit_name, t.cost_per_unit as current_cost_per_unit, 
-                   t.color, t.icon, t.category_name
+            SELECT r.*, t.name as bill_name, t.unit_name, t.cost_per_unit as current_cost_per_unit,
+      t.color, t.icon, t.category_name
             FROM bill_readings r
             JOIN bill_types t ON r.bill_type_id = t.id
             ${whereClause}
             ORDER BY r.date DESC
-            LIMIT ? OFFSET ?
-        `,
+    LIMIT ? OFFSET ?
+      `,
       [...params, limit, offset]
     );
 
@@ -871,15 +883,15 @@ export const FinanceModel = {
     const projections = [];
     for (const type of billTypes) {
       const stats = await get<{ avg_units: number; avg_cost: number }>(
-        `SELECT AVG(units_used) as avg_units, AVG(total_cost) as avg_cost FROM bill_readings WHERE bill_type_id = ?`,
+        `SELECT AVG(units_used) as avg_units, AVG(total_cost) as avg_cost FROM bill_readings WHERE bill_type_id = ? `,
         [type.id]
       );
       const lastActual = await get<{ total: number }>(
-        `SELECT SUM(total_cost) as total FROM bill_readings WHERE bill_type_id = ? AND strftime('%Y', date) = ? AND strftime('%m', date) = ?`,
+        `SELECT SUM(total_cost) as total FROM bill_readings WHERE bill_type_id = ? AND strftime('%Y', date) = ? AND strftime('%m', date) = ? `,
         [type.id, String(lastYear), String(lastMonth).padStart(2, '0')]
       );
       const currentActual = await get<{ total: number }>(
-        `SELECT SUM(total_cost) as total FROM bill_readings WHERE bill_type_id = ? AND strftime('%Y', date) = ? AND strftime('%m', date) = ?`,
+        `SELECT SUM(total_cost) as total FROM bill_readings WHERE bill_type_id = ? AND strftime('%Y', date) = ? AND strftime('%m', date) = ? `,
         [type.id, String(curYear), String(curMonth).padStart(2, '0')]
       );
 
@@ -909,14 +921,14 @@ export const FinanceModel = {
 
     // Try direct rate
     const direct = await get<ExchangeRate>(
-      `SELECT rate FROM exchange_rates WHERE from_currency = ? AND to_currency = ?`,
+      `SELECT rate FROM exchange_rates WHERE from_currency = ? AND to_currency = ? `,
       [fromCurrency, toCurrency]
     );
     if (direct) return direct.rate;
 
     // Try inverse rate
     const inverse = await get<ExchangeRate>(
-      `SELECT rate FROM exchange_rates WHERE from_currency = ? AND to_currency = ?`,
+      `SELECT rate FROM exchange_rates WHERE from_currency = ? AND to_currency = ? `,
       [toCurrency, fromCurrency]
     );
     if (inverse && inverse.rate > 0) return 1 / inverse.rate;
@@ -997,13 +1009,30 @@ export const FinanceModel = {
     if (rate <= 0) throw new Error('Exchange rate must be positive');
     return await run(
       `
-            INSERT INTO exchange_rates (from_currency, to_currency, rate, source, updated_at)
-            VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
-            ON CONFLICT(from_currency, to_currency) DO UPDATE SET 
-                rate = ?, source = ?, updated_at = CURRENT_TIMESTAMP
-        `,
+            INSERT INTO exchange_rates(from_currency, to_currency, rate, source, updated_at)
+    VALUES(?, ?, ?, ?, CURRENT_TIMESTAMP)
+            ON CONFLICT(from_currency, to_currency) DO UPDATE SET
+    rate = ?, source = ?, updated_at = CURRENT_TIMESTAMP
+      `,
       [fromCurrency, toCurrency, rate, source, rate, source]
     );
+  },
+
+  // Budgets (Optimized for Dashboard)
+  getBudgetSummary: async (): Promise<{ totalAmount: number; usedAmount: number }> => {
+    const today = DateUtils.today();
+
+    // Get total allocated budget for currently active budgets
+    const budgetResult = await get<{ total: number }>(`
+      SELECT SUM(amount) as total 
+      FROM budgets 
+      WHERE start_date <= ? AND end_date >= ? AND deleted_at IS NULL
+    `, [today, today]);
+
+    return {
+      totalAmount: budgetResult?.total || 0,
+      usedAmount: 0 // Placeholder for future expansion
+    };
   },
 
   setExchangeRatesBulk: async (
@@ -1132,14 +1161,14 @@ export const FinanceModel = {
           AND h.source = 'USER'
           AND h.old_data IS NOT NULL
           AND h.new_data IS NOT NULL
-          AND EXISTS (
-            SELECT 1 FROM transaction_history h2 
+          AND EXISTS(
+        SELECT 1 FROM transaction_history h2 
             WHERE h2.transaction_id = h.transaction_id 
               AND h2.action = 'CREATE' 
               AND h2.source = 'AI'
-          )
+      )
         ORDER BY h.changed_at DESC
-        LIMIT ?
+    LIMIT ?
       `, [limit * 2]); // Fetch extra to filter for actual category changes
 
       const result: { original: string; corrected: string; description: string }[] = [];
@@ -1178,8 +1207,8 @@ export const FinanceModel = {
   },
 
   /**
-   * Get category statistics for anomaly detection
-   * Returns mean, standard deviation, and count for each expense category
+   * Get category statistics for anomaly detection (Optimized)
+   * Uses E[X^2] - (E[X])^2 formula for single-pass Standard Deviation
    */
   getCategoryStats: async (): Promise<{
     category: string;
@@ -1190,53 +1219,278 @@ export const FinanceModel = {
     max: number;
   }[]> => {
     try {
-      // Get statistics per category using SQL aggregation
+      // Calculate Count, Sum, SumSq, Min, Max in one go
       const stats = await all<{
         category: string;
         count: number;
-        avg_amount: number;
+        sum_amount: number;
+        sum_sq_amount: number;
         min_amount: number;
         max_amount: number;
       }>(`
-        SELECT 
-          category,
-          COUNT(*) as count,
-          AVG(amount) as avg_amount,
-          MIN(amount) as min_amount,
-          MAX(amount) as max_amount
+        SELECT
+    category,
+      COUNT(*) as count,
+      SUM(amount) as sum_amount,
+      SUM(amount * amount) as sum_sq_amount,
+      MIN(amount) as min_amount,
+      MAX(amount) as max_amount
         FROM transactions
         WHERE type = 'expense' AND is_active = 1
         GROUP BY category
         HAVING COUNT(*) >= 3
       `);
 
-      // Calculate standard deviation (not available in SQLite, need manual calc)
-      const result = [];
-      for (const stat of stats) {
-        const amounts = await all<{ amount: number }>(
-          `SELECT amount FROM transactions WHERE category = ? AND type = 'expense' AND is_active = 1`,
-          [stat.category]
-        );
+      return stats.map(s => {
+        const mean = s.sum_amount / s.count;
+        const variance = (s.sum_sq_amount / s.count) - (mean * mean);
+        const stdDev = Math.sqrt(Math.max(0, variance)); // Ensure no negative variance due to float precision
 
-        const values = amounts.map(a => a.amount);
-        const mean = stat.avg_amount;
-        const squareDiffs = values.map(v => Math.pow(v - mean, 2));
-        const avgSquareDiff = squareDiffs.reduce((a, b) => a + b, 0) / values.length;
-        const stdDev = Math.sqrt(avgSquareDiff);
-
-        result.push({
-          category: stat.category,
-          count: stat.count,
+        return {
+          category: s.category,
+          count: s.count,
           mean: Math.round(mean * 100) / 100,
           stdDev: Math.round(stdDev * 100) / 100,
-          min: stat.min_amount,
-          max: stat.max_amount
-        });
-      }
-
-      return result;
+          min: s.min_amount,
+          max: s.max_amount
+        };
+      });
     } catch (error) {
       console.error('[FinanceModel] Failed to get category stats:', error);
+      return [];
+    }
+  },
+
+  /**
+   * Get pre-calculated dashboard data
+   * Groups by month for graph and calculates totals
+   */
+  getDashboardData: async (months: number = 6) => {
+    try {
+      // Helper for local YYYY-MM-DD
+      const toLocalDate = (d: Date) => {
+        const pad = (n: number) => n.toString().padStart(2, '0');
+        return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+      };
+
+      // 1. Get Monthly History (Income/Expense)
+      const now = new Date();
+      // Start from 1st day of (current month - months + 1)
+      const startObj = new Date(now.getFullYear(), now.getMonth() - months + 1, 1);
+      const endObj = new Date(now.getFullYear(), now.getMonth() + 1, 0); // Last day of current month
+
+      const startDate = toLocalDate(startObj);
+      const endDate = toLocalDate(endObj);
+
+      // Date range for query
+
+      const monthlyData = await all<{
+        month_key: string;
+        type: string;
+        total: number;
+      }>(`
+    SELECT
+    strftime('%Y-%m', start_date) as month_key,
+      type,
+      SUM(amount) as total
+        FROM transactions
+        WHERE is_active = 1
+    AND(type = 'income' OR type = 'expense')
+          AND start_date >= ? AND start_date <= ?
+      GROUP BY strftime('%Y-%m', start_date), type
+        ORDER BY month_key ASC
+      `, [startDate, endDate]);
+
+      // Process monthly aggregates
+
+      // 2. Get Net Worth (Current & Historical)
+      const accounts = await all<{ type: string; balance: number }>(`
+        SELECT type, balance FROM accounts WHERE status = 'active'
+      `);
+
+      let currentNetWorth = accounts.reduce((acc, a) => {
+        const isAsset = ['bank', 'wallet', 'investment'].includes(a.type);
+        return acc + (isAsset ? a.balance : -a.balance);
+      }, 0);
+
+      // Calculate net worth history
+
+      // Process monthly data into arrays
+      const labels: string[] = [];
+      const income: number[] = [];
+      const expenses: number[] = [];
+
+      // We need to support 'months' number of data points.
+      // Generate the expected month keys first.
+      const expectedMonths: string[] = [];
+      for (let i = months - 1; i >= 0; i--) {
+        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        const mon = d.toLocaleString('default', { month: 'short' });
+        const key = toLocalDate(d).slice(0, 7); // YYYY-MM
+        labels.push(mon);
+        expectedMonths.push(key);
+      }
+
+      // Populate Income/Expense arrays based on expected keys
+      for (const key of expectedMonths) {
+        const mIncome = monthlyData.find(r => r.month_key === key && r.type === 'income')?.total || 0;
+        const mExpense = monthlyData.find(r => r.month_key === key && r.type === 'expense')?.total || 0;
+        income.push(mIncome);
+        expenses.push(mExpense);
+      }
+
+      // 3. Net Worth History (Backwards Calculation)
+      // Get all changes >= startDate
+      const allMonthlyChanges = await all<{ month_key: string; change: number }>(`
+    SELECT
+    strftime('%Y-%m', start_date) as month_key,
+      SUM(CASE WHEN type IN('income', 'asset') THEN amount ELSE - amount END) as change
+        FROM transactions
+        WHERE is_active = 1 AND start_date >= ?
+      GROUP BY month_key
+        `, [startDate]);
+
+      // Future changes (strictly > endDate)
+      const futureChange = await get<{ total: number }>(`
+        SELECT SUM(CASE WHEN type IN('income', 'asset') THEN amount ELSE - amount END) as total
+        FROM transactions WHERE is_active = 1 AND start_date > ?
+      `, [endDate]);
+
+      let subtractAccumulator = futureChange?.total || 0;
+      const resultNetWorth: number[] = [];
+
+      // Iterate from NEWEST (last in array) to OLDEST (first in array) 
+      // array index i corresponds to expectedMonths[i]
+      // expectedMonths is [Oldest, ..., Newest]
+      // We must calculate NW for each month-end.
+
+      // NW[Newest] = CurrentNW - (Future Changes)
+      // NW[Newest-1] = NW[Newest] - (Changes in Newest Month)
+
+      // So let's iterate backwards through the array indices
+      const nwMap = new Map<number, number>(); // index -> nw
+
+      for (let i = months - 1; i >= 0; i--) {
+        const monthKey = expectedMonths[i];
+
+        // NW at end of month i is:
+        const nwAtEnd = currentNetWorth - subtractAccumulator;
+        nwMap.set(i, nwAtEnd);
+
+        // Update accumulator for the next step (moving backwards in time)
+        // We add the change that happened in THIS month, effectively undoing it.
+        const chg = allMonthlyChanges.find(r => r.month_key === monthKey)?.change || 0;
+        subtractAccumulator += chg;
+      }
+
+      // Fill the result array in correct order
+      for (let i = 0; i < months; i++) {
+        resultNetWorth.push(nwMap.get(i) || 0);
+      }
+
+      return {
+        labels,
+        income,
+        expenses,
+        netWorth: resultNetWorth
+      };
+
+    } catch (e) {
+      console.error('[FinanceModel] Failed Dashboard Data', e);
+      return { labels: [], income: [], expenses: [], netWorth: [] };
+    }
+  },
+
+  /**
+   * Get aggregated statistics for filtered transactions
+   * Used by TransactionsView to show totals without loading all rows
+   */
+  getTransactionStats: async (options: {
+    startDate?: string;
+    endDate?: string;
+    type?: string;
+    category?: string;
+    accountId?: number;
+    search?: string;
+  } = {}) => {
+    try {
+      const conditions: string[] = ['is_active = 1'];
+      const params: any[] = [];
+
+      if (options.startDate) { conditions.push('start_date >= ?'); params.push(options.startDate); }
+      if (options.endDate) { conditions.push('start_date <= ?'); params.push(options.endDate); }
+      if (options.type && options.type !== 'all') { conditions.push('type = ?'); params.push(options.type); }
+      if (options.category) { conditions.push('category = ?'); params.push(options.category); }
+      if (options.accountId) { conditions.push('(account_id = ? OR to_account_id = ?)'); params.push(options.accountId, options.accountId); }
+      if (options.search) { conditions.push('description LIKE ?'); params.push(`% ${options.search}% `); }
+
+      const whereClause = conditions.length ? `WHERE ${conditions.join(' AND ')} ` : '';
+
+      const stats = await get<{
+        income: number;
+        expense: number;
+        transfers: number;
+        count: number;
+      }>(`
+    SELECT
+    COALESCE(SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END), 0) as income,
+      COALESCE(SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END), 0) as expense,
+      COALESCE(SUM(CASE WHEN type = 'transfer' THEN amount ELSE 0 END), 0) as transfers,
+      COUNT(*) as count
+        FROM transactions
+        ${whereClause}
+    `, params);
+
+      // Top Categories (for the filtered range)
+      const topCategories = await all<{ category: string; amount: number }>(`
+        SELECT category, SUM(amount) as amount
+        FROM transactions
+        ${whereClause} AND type = 'expense'
+        GROUP BY category
+        ORDER BY amount DESC
+        LIMIT 3
+      `, params);
+
+      // Calculate percentages
+      const totalExpense = stats?.expense || 1;
+      const topCatsWithPercent = topCategories.map(c => ({
+        category: c.category,
+        amount: c.amount,
+        percent: ((c.amount / totalExpense) * 100).toFixed(0)
+      }));
+
+      return {
+        ...stats,
+        topCategories: topCatsWithPercent
+      };
+
+    } catch (e) {
+      console.error('[FinanceModel] Failed to get transaction stats:', e);
+      return { income: 0, expense: 0, transfers: 0, count: 0, topCategories: [] };
+    }
+  },
+
+  /**
+   * Get category statistics for anomaly detection
+   * Aggregates data efficiently in DB where possible
+   */
+
+
+
+  /**
+   * Get category spending for a specific period
+   * Used by BudgetView to check limits
+   */
+  getCategorySpending: async (startDate: string, endDate: string) => {
+    try {
+      return await all<{ category: string; amount: number }>(`
+        SELECT category, SUM(amount) as amount
+        FROM transactions
+        WHERE type = 'expense' AND is_active = 1
+          AND start_date >= ? AND start_date <= ?
+      GROUP BY category
+      `, [startDate, endDate]);
+    } catch (e) {
       return [];
     }
   },
@@ -1275,12 +1529,12 @@ export const FinanceModel = {
         'settings',
         'budgets',
       ];
-      for (const table of tables) await run(`DELETE FROM ${table}`);
+      for (const table of tables) await run(`DELETE FROM ${table} `);
 
       // Restore data (simplified, using direct SQL for performance)
       for (const acc of data.accounts || []) {
         await run(
-          `INSERT INTO accounts (id, name, type, balance, initial_balance, currency, status) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+          `INSERT INTO accounts(id, name, type, balance, initial_balance, currency, status) VALUES(?, ?, ?, ?, ?, ?, ?)`,
           [
             acc.id,
             acc.name,
@@ -1294,7 +1548,7 @@ export const FinanceModel = {
       }
       for (const cat of data.categories || []) {
         await run(
-          `INSERT INTO categories (id, type, name, status, is_default, color, icon) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+          `INSERT INTO categories(id, type, name, status, is_default, color, icon) VALUES(?, ?, ?, ?, ?, ?, ?)`,
           [
             cat.id,
             cat.type,
@@ -1308,7 +1562,7 @@ export const FinanceModel = {
       }
       for (const t of data.transactions || []) {
         await run(
-          `INSERT INTO transactions (id, account_id, to_account_id, type, category, amount, description, attachment, frequency, start_date, end_date, currency, tags, is_active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          `INSERT INTO transactions(id, account_id, to_account_id, type, category, amount, description, attachment, frequency, start_date, end_date, currency, tags, is_active) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             t.id,
             t.account_id,
@@ -1328,20 +1582,20 @@ export const FinanceModel = {
         );
       }
       for (const key in data.settings || {}) {
-        await run(`INSERT INTO settings (key, value, category) VALUES (?, ?, 'general')`, [
+        await run(`INSERT INTO settings(key, value, category) VALUES(?, ?, 'general')`, [
           key,
           data.settings[key],
         ]);
       }
       for (const b of data.budgets || []) {
         await run(
-          `INSERT INTO budgets (id, category, amount, period, start_date, end_date, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+          `INSERT INTO budgets(id, category, amount, period, start_date, end_date, created_at) VALUES(?, ?, ?, ?, ?, ?, ?)`,
           [b.id, b.category, b.amount, b.period, b.start_date, b.end_date, b.created_at]
         );
       }
       for (const g of data.goals || []) {
         await run(
-          `INSERT INTO goals (id, name, description, target_amount, current_amount, monthly_contribution, icon, color, priority, target_date, status, auto_contribute, created_at, completed_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          `INSERT INTO goals(id, name, description, target_amount, current_amount, monthly_contribution, icon, color, priority, target_date, status, auto_contribute, created_at, completed_at) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             g.id,
             g.name,
@@ -1362,13 +1616,13 @@ export const FinanceModel = {
       }
       for (const gc of data.goalContributions || []) {
         await run(
-          `INSERT INTO goal_contributions (id, goal_id, amount, source, notes, contributed_at) VALUES (?, ?, ?, ?, ?, ?)`,
+          `INSERT INTO goal_contributions(id, goal_id, amount, source, notes, contributed_at) VALUES(?, ?, ?, ?, ?, ?)`,
           [gc.id, gc.goal_id, gc.amount, gc.source, gc.notes, gc.contributed_at]
         );
       }
       for (const rc of data.recurringCharges || []) {
         await run(
-          `INSERT INTO recurring_charges (id, category, name, amount, frequency, due_day, next_due_date, is_active, notes, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          `INSERT INTO recurring_charges(id, category, name, amount, frequency, due_day, next_due_date, is_active, notes, created_at) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             rc.id,
             rc.category,
@@ -1385,7 +1639,7 @@ export const FinanceModel = {
       }
       for (const bt of data.billTypes || []) {
         await run(
-          `INSERT INTO bill_types (id, name, unit_name, cost_per_unit, category_name, account_id, auto_transaction, icon, color, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          `INSERT INTO bill_types(id, name, unit_name, cost_per_unit, category_name, account_id, auto_transaction, icon, color, created_at) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             bt.id,
             bt.name,
@@ -1402,7 +1656,7 @@ export const FinanceModel = {
       }
       for (const br of data.billReadings || []) {
         await run(
-          `INSERT INTO bill_readings (id, bill_type_id, date, units_used, total_cost, notes, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+          `INSERT INTO bill_readings(id, bill_type_id, date, units_used, total_cost, notes, created_at) VALUES(?, ?, ?, ?, ?, ?, ?)`,
           [br.id, br.bill_type_id, br.date, br.units_used, br.total_cost, br.notes, br.created_at]
         );
       }

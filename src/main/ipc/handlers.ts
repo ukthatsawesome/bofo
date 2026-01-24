@@ -8,7 +8,8 @@
 import { ipcMain, dialog, app, IpcMainInvokeEvent } from 'electron';
 import * as fs from 'fs';
 import * as path from 'path';
-import * as XLSX from 'xlsx';
+import { DateUtils } from '../../shared/utils/dateUtils';
+
 
 // =============================================================================
 // FINANCE MODEL (Lazy Loaded to avoid circular dependency)
@@ -181,6 +182,7 @@ export const SIMPLE_ROUTES: Record<string, HandlerFunction> = {
   'get-available-for-goals': () => getFinanceModel().getAvailableForGoals(),
 
   // Recurring Charges (using generic CRUD)
+  'get-budget-summary': () => getFinanceModel().getBudgetSummary(),
   'get-recurring-charges': () => getFinanceModel().getAllRecurringCharges(),
   'get-active-recurring-charges': () =>
     getFinanceModel().getAll('recurringCharge', { where: { is_active: 1 } }),
@@ -478,7 +480,7 @@ export function registerIpcHandlers(excludeChannels: string[] = []): void {
       const data = await getFinanceModel().exportData();
       const { filePath } = await dialog.showSaveDialog({
         buttonLabel: 'Export Data',
-        defaultPath: `bofo-export-${new Date().toISOString().split('T')[0]}.json`,
+        defaultPath: `bofo-export-${DateUtils.today()}.json`,
         filters: [{ name: 'JSON', extensions: ['json'] }],
       });
       if (filePath) {
@@ -521,6 +523,7 @@ export function registerIpcHandlers(excludeChannels: string[] = []): void {
   // Export Excel
   ipcMain.handle('export-excel', async () => {
     try {
+      const XLSX = await import('xlsx');
       const model = getFinanceModel();
       const workbook = XLSX.utils.book_new();
       const addSheet = (data: any[], name: string, headers: string[]) => {
@@ -611,7 +614,7 @@ export function registerIpcHandlers(excludeChannels: string[] = []): void {
 
       const { filePath, canceled } = await dialog.showSaveDialog({
         buttonLabel: 'Export Excel',
-        defaultPath: `bofo-export-${new Date().toISOString().split('T')[0]}.xlsx`,
+        defaultPath: `bofo-export-${DateUtils.today()}.xlsx`,
         filters: [{ name: 'Excel Workbook', extensions: ['xlsx'] }],
       });
 
