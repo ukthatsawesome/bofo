@@ -181,6 +181,7 @@ export class ForecastView extends BaseView {
 
     this.refreshIcons('#forecast-stats-container');
     this.refreshIcons('#forecast-insights-container');
+    this.refreshIcons('#forecast-view-toggle');
   }
 
   handleRangeChange(val: string): void {
