@@ -28,6 +28,8 @@
 *.webp binary
 *.svg text
 *.db binary
+*.db-shm binary
+*.db-wal binary
 *.sqlite binary
 *.xlsx binary
 *.pdf binary

@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+### 🚀 New Features
+- **Activity Log**: Comprehensive audit trail tracking all user and AI actions within the app.
+- **Anomaly Detection**: Intelligent system that flags unusual spending, duplicate transactions, and subscription price increases.
+
+### 🛡️ Security
+- **Enhanced Remote Access**: Strict rate limiting, origin validation, and improved CORS configuration.
+
 ## [1.1.1] - 2026-01-15
 
 ### 🚀 New Features

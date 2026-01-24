@@ -11,6 +11,8 @@ Bofo is a sleek, modern, and powerful personal finance application built with **
 - **🚀 AI Insights & Categorization**: Local AI (Ollama) automatically categorizes transactions and provides personalized financial advice tailored to your spending habits.
 - **🧪 Financial Sandbox**: Simulate future scenarios (e.g., "Buying a car", "Salary hike") to see how they impact your net worth over time.
 - **📊 Interactive Dashboard**: A reimagined dashboard with AI-driven summaries, quick transaction entry, and real-time spending breakdowns.
+- **🛡️ Activity Log**: Full audit trail of every change in your financial data, tracking both user and AI actions.
+- **🧠 Anomaly Detection**: Proactive alerts for unusual spending patterns, double charges, and subscription hikes.
 - **🧾 Advanced Bill Tracking**: Dedicated tracking for utility bills with usage history, cost-per-unit analysis, and payment reminders.
 - **🔮 Wealth Forecasting**: Projection engine that visualizes your financial future based on current trends and recurring expenses.
 - **🎯 Smart Goals**: Set specific savings targets and track progress visually.

@@ -14,14 +14,14 @@ Bofo uses a **Main-Renderer** architecture typical of Electron apps, but with a 
   - **Routing**: Hashtag-based router in `src/renderer/core/router.ts`.
   - **View Architecture**:
     - `BaseView`: Abstract base class for all pages.
-    - **Mixins**: Complex views (like `SettingsView`) use Mixins (`src/renderer/views/settings/`) to separate logic into manageable chunks.
+    - **Mixins**: Complex views (like `SettingsView`) use Mixins (`src/renderer/views/settings/`) to separate logic into manageable chunks (e.g., `AuditSettings` for activity logs).
 
 - **Backend (Main Process)**:
   - Located in `src/main/`
   - **Node.js Environment**: Full access to file system, database, and OS APIs.
   - **Database**: SQLCipher (SQLite with encryption) via `src/main/database/`.
   - **IPC**: Handlers in `src/main/ipc/` receive requests from the frontend.
-  - **Services**: `aiService`, `currencyService`, and `financeService` encapsulate complex business logic.
+  - **Services**: `aiService`, `currencyService`, `financeService`, and `anomalyService` encapsulate complex business logic.
 
 - **Shared**:
   - `src/shared/`: Types and constants shared between both processes.

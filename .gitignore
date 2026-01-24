@@ -27,6 +27,8 @@ src/renderer/tailwind.css
 *.db-journal
 *.sqlite
 *.sqlite3
+*.db-shm
+*.db-wal
 bofo-backup-*.json
 bofo-export-*.json
 bofo-full-export-*.csv

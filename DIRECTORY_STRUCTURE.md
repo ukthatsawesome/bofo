@@ -29,7 +29,7 @@ The "Backend" of the application, running in a Node.js environment.
 - `database/`: Database initialization, encryption, and migrations.
 - `ipc/`: Inter-Process Communication handlers for frontend requests.
 - `models/`: Data Access Objects (DAO) and business logic for specific entities.
-- `services/`: External integrations (AI, Exchange Rates, etc.).
+- `services/`: External integrations (AI, Exchange Rates, etc.) and `anomalyService.ts`.
 - `utils/`: shared utility functions for the main process.
 - `main.ts`: Entry point for the Electron application.
 - `preload.ts`: Secure bridge between Main and Renderer processes.
@@ -44,7 +44,7 @@ The "Frontend" of the application, running in a Chromium environment.
 - `modals/`: Interactive modal dialogs (BillType, Transaction, Budget, etc.).
 - `services/`: Frontend-specific service logic.
 - `views/`: Main page-level components.
-  - `settings/`: Modular settings pages (Accounts, Backup, Bills, Remote, etc.).
+  - `settings/`: Modular settings pages (Accounts, Backup, Bills, Remote, AuditSettings, etc.).
   - `DashboardView.ts`: Main hub with AI insights.
   - `SandboxView.ts`: Financial scenario planning.
   - `BillsView.ts`: Utility bill tracking.

@@ -118,7 +118,7 @@ Bofo includes an optional feature to view your financial dashboard from other de
 2.  **Access Key Authentication**: A user-defined Access Key (password) is required to view any data.
     - The key is stored in the encrypted settings database.
     - All requests must include this key in the Authorization header or query parameter.
-3.  **Read-Only Mode**: By default, remote sessions are read-only to prevent unauthorized data modification.
+3.  **Full Access Control**: The remote API provides full capability to manage your finances, including adding transactions. Treat your Access Key like a password.
 
 ### Risks & Mitigations
 
@@ -126,6 +126,7 @@ Bofo includes an optional feature to view your financial dashboard from other de
 |------|------------|
 | **Man-in-the-Middle** | The local server runs on HTTP. **Only enable this on trusted private networks (Home LAN).** Do not use on public Wi-Fi. |
 | **Brute Force** | The server implements rate-limiting to prevent password guessing attacks. |
+| **Unauthorized Write** | The API requires authentication for ALL operations. No unauthenticated writes are possible. |
 | **Exposure** | The feature is **disabled by default**. You must explicitly turn it on in Settings. |
 
 ---
