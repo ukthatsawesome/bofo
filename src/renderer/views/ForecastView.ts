@@ -104,8 +104,8 @@ export class ForecastView extends BaseView {
         id: 'forecast-view-mode',
         onchange: 'app.views.forecast.handleViewToggle',
         options: [
-          { label: '<i data-lucide="line-chart"></i> Chart', value: 'chart', active: this.viewMode === 'chart' },
-          { label: '<i data-lucide="calendar"></i> Calendar', value: 'calendar', active: this.viewMode === 'calendar' },
+          { label: 'Chart', value: 'chart', active: this.viewMode === 'chart' },
+          { label: 'Calendar', value: 'calendar', active: this.viewMode === 'calendar' },
         ],
       });
     }

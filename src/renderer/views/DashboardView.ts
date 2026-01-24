@@ -325,18 +325,17 @@ export class DashboardView extends BaseView {
                     </div>
                 </div>
                 <div class="card-body flex-col gap-4">
-                    <!-- Transfer Balance Preview (compact, color-coded) -->
-                    <div id="transfer-balance-preview" class="transfer-preview-horizontal hidden">
-                        <span id="transfer-from-label">—</span>
-                        <span class="transfer-balance decrease" id="transfer-from-balance">$0 → $0</span>
-                        <span class="transfer-separator">→</span>
-                        <span id="transfer-to-label">—</span>
-                        <span class="transfer-balance increase" id="transfer-to-balance">$0 → $0</span>
-                    </div>
+                    <!-- Unit: Amount & Preview -->
+                    <div>
+                        <!-- Balance Preview (Unified) with reserved height -->
+                        <div id="quick-tx-balance-preview-container" class="balance-preview-container min-h-[20px] flex items-center justify-center text-xs text-text-muted transition-all duration-200">
+                            <!-- Content will be injected here -->
+                        </div>
 
-                    <div class="quick-tx-amount-container">
-                        <span class="currency-prefix text-text-muted">$</span>
-                        <input type="number" id="quick-tx-amount" placeholder="0.00" step="0.01" class="amount-input" title="Enter the transaction amount. For expenses, this will be deducted from your account.">
+                        <div class="quick-tx-amount-container">
+                            <span class="currency-prefix text-text-muted">$</span>
+                            <input type="number" id="quick-tx-amount" placeholder="0.00" step="0.01" class="amount-input" title="Enter the transaction amount. For expenses, this will be deducted from your account.">
+                        </div>
                     </div>
 
                     <div class="form-grid-condensed">
@@ -369,7 +368,13 @@ export class DashboardView extends BaseView {
 
                     <div class="form-group mb-0">
                         <label class="text-[10px] font-bold uppercase text-text-muted mb-1">Description</label>
-                        <input type="text" id="quick-tx-desc" placeholder="Notes..." class="form-control sm" title="Add a description or notes for this transaction">
+                        <div class="relative">
+                            <input type="text" id="quick-tx-desc" placeholder="Notes..." class="form-control sm pr-8" title="Add a description or notes for this transaction">
+                            <button id="btn-attach-file" class="absolute right-2 top-1/2 -translate-y-1/2 text-text-muted hover:text-brand-primary transition-colors" title="Attach File">
+                                <i data-lucide="paperclip" class="w-4 h-4"></i>
+                            </button>
+                            <input type="file" id="quick-tx-attachment" class="hidden">
+                        </div>
                     </div>
 
                     <button class="btn secondary w-full py-3 font-bold mt-2" id="btn-quick-save">
@@ -469,23 +474,46 @@ export class DashboardView extends BaseView {
     const amountInput = $('#quick-tx-amount') as HTMLInputElement;
     const accountSelect = $('#quick-tx-account') as HTMLSelectElement;
     const toAccountSelect = $('#quick-tx-to-account') as HTMLSelectElement;
-    const transferPreview = $('#transfer-balance-preview');
+    const previewContainer = $('#quick-tx-balance-preview-container');
+
+    // Attachment Logic
+    const btnAttach = $('#btn-attach-file');
+    const fileInput = $('#quick-tx-attachment') as HTMLInputElement;
+
+    if (btnAttach && fileInput) {
+      btnAttach.addEventListener('click', () => fileInput.click());
+
+      fileInput.addEventListener('change', () => {
+        if (fileInput.files && fileInput.files.length > 0) {
+          btnAttach.classList.add('text-brand-primary');
+          btnAttach.classList.remove('text-text-muted');
+          this.app.notifications.toast('File Attached', fileInput.files[0].name, 'success');
+        } else {
+          btnAttach.classList.remove('text-brand-primary');
+          btnAttach.classList.add('text-text-muted');
+        }
+      });
+    }
 
     const updateBalancePreview = async () => {
+      if (!previewContainer) return;
+
       const amount = parseFloat(amountInput?.value) || 0;
       const accountId = parseInt(accountSelect?.value);
       const account = this.state.accounts.find(a => a.id === accountId);
       const type = this.quickTxType;
 
-      // Handle transfer preview separately
-      if (type === 'transfer' && transferPreview) {
+      // Clear previous content
+      previewContainer.innerHTML = '';
+
+      if (!account) return;
+
+      // Handle transfer preview
+      if (type === 'transfer') {
         const toAccountId = parseInt(toAccountSelect?.value);
         const toAccount = this.state.accounts.find(a => a.id === toAccountId);
 
-        if (account && toAccount && amount > 0 && accountId !== toAccountId) {
-          // Show transfer preview
-          transferPreview.classList.remove('hidden');
-
+        if (toAccount && amount > 0 && accountId !== toAccountId) {
           // Check if currencies are different
           const fromCurrency = account.currency || 'USD';
           const toCurrency = toAccount.currency || 'USD';
@@ -495,7 +523,6 @@ export class DashboardView extends BaseView {
           let toAmount = amount;
 
           if (isDifferentCurrency) {
-            // Fetch actual exchange rate
             try {
               const rate = await window.api.getExchangeRate(fromCurrency, toCurrency);
               if (rate) {
@@ -507,45 +534,34 @@ export class DashboardView extends BaseView {
             }
           }
 
-          // Update from account (decrease - red) - compact format
           const fromAfter = account.balance - amount;
-          $('#transfer-from-label')!.textContent = account.name;
-          $('#transfer-from-balance')!.textContent =
-            `${this.formatter.formatCurrency(account.balance)} → ${this.formatter.formatCurrency(fromAfter)}`;
-
-          // Update to account (increase - green) - compact format
           const toAfter = toAccount.balance + toAmount;
-          $('#transfer-to-label')!.textContent = toAccount.name;
-          const toBalanceText = isDifferentCurrency && exchangeRate !== 1
-            ? `${this.formatter.formatCurrency(toAccount.balance)} → ${this.formatter.formatCurrency(toAfter)} (${exchangeRate.toFixed(4)}×)`
-            : `${this.formatter.formatCurrency(toAccount.balance)} → ${this.formatter.formatCurrency(toAfter)}`;
-          $('#transfer-to-balance')!.textContent = toBalanceText;
-        } else {
-          transferPreview.classList.add('hidden');
+
+          previewContainer.innerHTML = `
+            <div class="flex items-center gap-2">
+                <span class="font-semibold text-danger">${account.name}: ${this.formatter.formatCurrency(account.balance)} → ${this.formatter.formatCurrency(fromAfter)}</span>
+                <i data-lucide="arrow-right" class="w-3 h-3 text-text-muted"></i>
+                <span class="font-semibold text-success">${toAccount.name}: ${this.formatter.formatCurrency(toAccount.balance)} → ${this.formatter.formatCurrency(toAfter)}</span>
+                ${isDifferentCurrency ? `<span class="text-[10px] text-text-muted ml-1">(${exchangeRate.toFixed(4)}×)</span>` : ''}
+            </div>
+          `;
+          this.refreshIcons(previewContainer);
         }
-      } else if (transferPreview) {
-        // Hide transfer preview for non-transfer types
-        transferPreview.classList.add('hidden');
-
-        // Show inline preview for income/expense
-        if (account && amount > 0 && accountSelect) {
+      } else {
+        // Handle Income/Expense preview
+        if (amount > 0) {
           let newBalance = account.balance;
-
           if (type === 'expense') {
             newBalance = account.balance - amount;
           } else if (type === 'income') {
             newBalance = account.balance + amount;
           }
 
-          // Update dropdown text to show preview
-          const selectedOption = accountSelect.querySelector(`option[value="${accountId}"]`) as HTMLOptionElement;
-          if (selectedOption) {
-            const balanceIndicator = newBalance >= 0 ? '→' : '⚠️';
-            selectedOption.textContent = `${account.name} (${this.formatter.formatCurrency(account.balance)}) ${balanceIndicator} ${this.formatter.formatCurrency(newBalance)}`;
-          }
-        } else if (accountSelect) {
-          // Reset to original text
-          this.populateQuickTxDropdowns();
+          previewContainer.innerHTML = `
+            <span class="font-semibold ${type === 'income' ? 'text-success' : type === 'expense' ? 'text-danger' : ''}">
+                ${account.name}: ${this.formatter.formatCurrency(account.balance)} → ${this.formatter.formatCurrency(newBalance)}
+            </span>
+          `;
         }
       }
     };
@@ -615,6 +631,14 @@ export class DashboardView extends BaseView {
     const catInput = $('#quick-tx-category') as HTMLSelectElement;
     const descInput = $('#quick-tx-desc') as HTMLInputElement;
     const freqInput = $('#quick-tx-frequency') as HTMLSelectElement;
+    const fileInput = $('#quick-tx-attachment') as HTMLInputElement;
+
+    let attachmentPath = null;
+    if (fileInput && fileInput.files && fileInput.files.length > 0) {
+      // In Electron, file.path gives the full path. 
+      // We use 'any' cast because TS DOM File type doesn't include 'path' property by default
+      attachmentPath = (fileInput.files[0] as any).path;
+    }
 
     const tx: any = {
       start_date: dateInput.value,
@@ -624,6 +648,7 @@ export class DashboardView extends BaseView {
       amount,
       type,
       frequency: freqInput?.value || 'once',
+      attachment: attachmentPath,
     };
 
     if (type === 'transfer') {

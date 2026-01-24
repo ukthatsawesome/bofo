@@ -1,49 +1,30 @@
-/* Transfer Balance Preview - Compact Horizontal with Color Coding */
-.transfer-preview-horizontal {
-    display: flex;
-    align-items: center;
-    gap: 0.4rem;
-    padding: 0.4rem 0.6rem;
-    background: var(--surface-secondary);
-    border-radius: 4px;
-    border: 1px solid var(--border);
-    margin-bottom: 0.5rem;
-    font-size: 11px;
-    flex-wrap: wrap;
-    /* Smooth height transition */
-    max-height: 50px;
-    opacity: 1;
-    overflow: hidden;
-    transition: max-height 0.2s ease-out, opacity 0.2s ease-out, margin 0.2s ease-out, padding 0.2s ease-out;
+/* Balance Preview */
+.balance-preview-container {
+    padding: 0 0.5rem;
+    color: var(--text-muted);
 }
 
-.transfer-preview-horizontal.hidden {
-    max-height: 0;
-    opacity: 0;
-    margin: 0;
-    padding: 0;
-    border: none;
-}
-
-.transfer-preview-horizontal>span {
-    white-space: nowrap;
-}
-
-.transfer-balance {
-    font-weight: 600;
-    font-variant-numeric: tabular-nums;
-}
-
-.transfer-balance.decrease {
-    color: var(--danger);
-}
-
-.transfer-balance.increase {
+.balance-preview-container .text-success {
     color: var(--success);
 }
 
-.transfer-separator {
+.balance-preview-container .text-danger {
+    color: var(--danger);
+}
+
+.balance-preview-container .text-text-muted {
     color: var(--text-muted);
-    opacity: 0.6;
-    font-size: 14px;
+}
+
+.balance-preview-container .font-semibold {
+    font-weight: 600;
+}
+
+.balance-preview-container .text-xs {
+    font-size: 0.75rem;
+}
+
+/* Keep minimal legacy support if needed, or remove completely if old components are gone */
+.transfer-preview-horizontal {
+    display: none;
 }
