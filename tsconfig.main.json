@@ -10,7 +10,8 @@
         "noEmitOnError": false
     },
     "include": [
-        "src/main/**/*"
+        "src/main/**/*",
+        "src/shared/**/*"
     ],
     "exclude": [
         "src/renderer"

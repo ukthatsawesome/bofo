@@ -1,6 +1,6 @@
 {
   "name": "bofo",
-  "version": "1.1.1",
+  "version": "2.0.0",
   "description": "Bofo - Personal AI-Powered Finance Manager",
   "main": "dist/main/main.js",
   "author": {
@@ -73,6 +73,7 @@
     "files": [
       "dist/main/**/*",
       "dist/renderer/**/*",
+      "dist/shared/**/*",
       "assets/**/*",
       "package.json"
     ],
@@ -107,7 +108,10 @@
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
-      "createStartMenuShortcut": true
+      "createStartMenuShortcut": true,
+      "installerIcon": "assets/icons/icon.ico",
+      "uninstallerIcon": "assets/icons/icon.ico",
+      "installerHeaderIcon": "assets/icons/icon.ico"
     }
   }
 }
