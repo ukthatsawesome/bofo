@@ -99,15 +99,25 @@ Expose your data to the frontend:
 
 ### Coding Standards
 - **Clean Code**: Follow industry best practices. Create minimal, efficient, and readable code.
-- **Type Safety**: Avoid `any`. Define interfaces in `src/shared/types.ts` or local files.
-- **Modular Design**: Prefer small, single-responsibility files (Mixins, Components, Dedicated Views) over monolithic structures.
+- **Type Safety**:
+    - **No `any`**: Use specific interfaces (e.g., `TransactionPayload`, `TransactionFilter`) from `src/shared/types.ts`.
+    - **DOM Types**: Do not unsafe cast. Use `UIUtils.getInputValue('#id')` instead of `(document.getElementById('id') as ...).value`.
+- **Modular Design**: Prefer small, single-responsibility files (Mixins, Components, Dedicated Views).
 - **Async/Await**: Use async/await for all asynchronous operations.
-- **Comments**: Document complex logic, especially in the AI and Calculation engines.
+
+### Accessibility (A11y) Standards
+- **Modals**: Must include `role="dialog"`, `aria-modal="true"`, and manage focus. (Handled by `Modal` component and `App.ts` Focus Trap).
+- **Forms**: Use `FormGroup` to ensure every input has a matching `for/id` label association.
+- **Keyboard**: Ensure all interactive elements are reachable via Tab and activatable via Enter/Space. Modals must close on Escape.
+
+### Performance Guidelines
+- **Pagination**: Never request "all" records (e.g., `getTransactions()`). Always pass `{ limit, offset }`.
+- **Cleanup**: Views must implement `destroy()` to remove event listeners and destroy Chart instances using `this.app.chartManager.destroyChart()`.
+- **Listeners**: Use `this.addListener(el, 'click', fn)` in `BaseView` subclasses to ensure automatic cleanup.
 
 ### UI/UX Standards
 - **Soft UI Design**: Maintain clean, light surfaces with subtle shadows.
 - **Performance**: Ensure smooth animations (60fps) and minimal main-thread blocking.
-- **Accessibility**: Use semantic HTML and ensure high contrast ratios.
 
 ## 📖 Related Documents
 - [README.md](README.md)

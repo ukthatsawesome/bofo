@@ -49,7 +49,9 @@ export function log(message: string): void {
       const logPath = path.join(app.getPath('userData'), 'bofo.log');
       fs.appendFileSync(logPath, logMessage);
     }
-  } catch (e) { }
+  } catch {
+    // Intentionally empty: Log file write failure should not crash the app
+  }
 }
 
 /**
@@ -321,17 +323,11 @@ function loadKey(keyDir: string): string | null {
  */
 export function getOrCreateEncryptionKey(): string {
   try {
-    console.log('[Encryption] DEBUG: Entering getOrCreateEncryptionKey');
-    require('fs').writeFileSync('encryption_debug.txt', 'Entering getOrCreateEncryptionKey\n');
     log(`[Encryption] Init - isDev: ${isDev}, isPackaged: ${app ? app.isPackaged : 'N/A'}`);
-    require('fs').appendFileSync('encryption_debug.txt', 'After Init log\n');
     log('[Encryption] Checking safeStorage...');
-    require('fs').appendFileSync('encryption_debug.txt', 'After SafeStorage log\n');
 
     if (isDev) {
-      console.log('[Encryption] DEBUG: isDev branch');
       const devKey = crypto.createHash('sha256').update(DEV_KEY_SALT).digest('hex');
-      console.log('[Encryption] DEBUG: devKey generated');
       log('[Encryption] Using dev key');
       return devKey;
     }

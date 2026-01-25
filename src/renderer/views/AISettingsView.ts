@@ -1,6 +1,7 @@
 import { BaseView } from './BaseView';
 import { $ } from '../core/dom';
 import { ViewHeader } from '../components/common/ViewHeader';
+import { DEFAULT_OLLAMA_URL } from '../../shared/constants';
 import type { App } from '../core/app';
 
 interface AISettings {
@@ -42,9 +43,9 @@ export class AISettingsView extends BaseView {
 
     this.element.innerHTML = `
             ${ViewHeader({
-              title: 'AI Configuration',
-              subtitle: 'Configure Ollama connection and AI prompts',
-            })}
+      title: 'AI Configuration',
+      subtitle: 'Configure Ollama connection and AI prompts',
+    })}
 
             <div class="card">
                 <div class="card-body">
@@ -56,7 +57,7 @@ export class AISettingsView extends BaseView {
                         <div class="form-group">
                             <label>Ollama Server URL</label>
                             <div class="flex-row gap-2">
-                                <input type="text" id="set-ai-url" class="form-control" placeholder="http://localhost:11434">
+                                <input type="text" id="set-ai-url" class="form-control" placeholder="${DEFAULT_OLLAMA_URL}">
                                 <button class="btn secondary" id="btn-refresh-models" title="Fetch Models">
                                     <i data-lucide="refresh-cw"></i>
                                 </button>
@@ -142,7 +143,7 @@ export class AISettingsView extends BaseView {
     this.updateStatusBadge(null); // Start with unknown
 
     // Populate form values
-    ($('#set-ai-url') as HTMLInputElement).value = aiSettings.url || 'http://localhost:11434';
+    ($('#set-ai-url') as HTMLInputElement).value = aiSettings.url || DEFAULT_OLLAMA_URL;
     ($('#set-ai-enabled') as HTMLInputElement).checked = aiSettings.enabled !== false;
 
     // Use saved prompts or fall back to defaults
@@ -198,7 +199,7 @@ export class AISettingsView extends BaseView {
 
     if (!urlInput || !modelSelect) return;
 
-    const url = urlInput.value.trim() || 'http://localhost:11434';
+    const url = urlInput.value.trim() || DEFAULT_OLLAMA_URL;
 
     try {
       refreshBtn?.querySelector('i')?.classList.add('animate-spin');
@@ -289,16 +290,15 @@ export class AISettingsView extends BaseView {
                         <p class="text-sm text-muted mb-1">Model</p>
                         <p class="font-medium text-sm">${health.model || 'None selected'}</p>
                     </div>
-                    ${
-                      health.lastError
-                        ? `
+                    ${health.lastError
+          ? `
                         <div class="p-3 rounded-lg bg-danger/10 col-span-2">
                             <p class="text-sm text-muted mb-1">Last Error</p>
                             <p class="font-medium text-danger text-sm">${health.lastError}</p>
                         </div>
                     `
-                        : ''
-                    }
+          : ''
+        }
                 </div>
             `;
     } catch (error: any) {
@@ -310,7 +310,7 @@ export class AISettingsView extends BaseView {
 
   async saveSettings(): Promise<void> {
     const settings: AISettings = {
-      url: ($('#set-ai-url') as HTMLInputElement)?.value.trim() || 'http://localhost:11434',
+      url: ($('#set-ai-url') as HTMLInputElement)?.value.trim() || DEFAULT_OLLAMA_URL,
       model: ($('#set-ai-model') as HTMLSelectElement)?.value || '',
       enabled: ($('#set-ai-enabled') as HTMLInputElement)?.checked ?? true,
       promptTx: ($('#set-ai-prompt-tx') as HTMLTextAreaElement)?.value || '',

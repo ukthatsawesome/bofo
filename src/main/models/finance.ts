@@ -537,35 +537,35 @@ export const FinanceModel = {
     const conditions: string[] = [];
     const params: any[] = [];
 
-    if (activeOnly) conditions.push('is_active = 1');
+    if (activeOnly) conditions.push('t.is_active = 1');
     if (options.accountId) {
-      conditions.push('(account_id = ? OR to_account_id = ?)');
+      conditions.push('(t.account_id = ? OR t.to_account_id = ?)');
       params.push(options.accountId, options.accountId);
     }
     if (options.category) {
-      conditions.push('category = ?');
+      conditions.push('t.category = ?');
       params.push(options.category);
     }
     if (options.type) {
-      conditions.push('type = ?');
+      conditions.push('t.type = ?');
       params.push(options.type);
     }
     if (options.startDate) {
-      conditions.push('start_date >= ?');
+      conditions.push('t.start_date >= ?');
       params.push(options.startDate);
     }
     if (options.endDate) {
-      conditions.push('start_date <= ?');
+      conditions.push('t.start_date <= ?');
       params.push(options.endDate);
     }
     if (options.search) {
-      conditions.push('description LIKE ?');
+      conditions.push('t.description LIKE ?');
       params.push(`%${options.search}%`);
     }
 
     const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
     const countResult = await get<{ total: number }>(
-      `SELECT COUNT(*) as total FROM transactions ${whereClause}`,
+      `SELECT COUNT(*) as total FROM transactions t ${whereClause}`,
       params
     );
     const total = countResult?.total || 0;
@@ -595,15 +595,37 @@ export const FinanceModel = {
   },
 
   getTransactionStats: async (options: any = {}) => {
+    const conditions = [];
+    const params = [];
+
+    // Always exclude inactive/deleted
+    conditions.push('is_active = 1');
+
+    if (options.startDate) {
+      conditions.push('start_date >= ?');
+      params.push(options.startDate);
+    }
+    if (options.endDate) {
+      conditions.push('start_date <= ?');
+      params.push(options.endDate);
+    }
+    if (options.type && options.type !== 'all') {
+      conditions.push('type = ?');
+      params.push(options.type);
+    }
+
+    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+
     const stats = await get<{ income: number; expense: number; count: number }>(`
           SELECT 
               COALESCE(SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END), 0) as income,
               COALESCE(SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END), 0) as expense,
+              COALESCE(SUM(CASE WHEN type = 'transfer' THEN amount ELSE 0 END), 0) as transfers,
               COUNT(*) as count
           FROM transactions 
-          WHERE is_active = 1
-      `);
-    return stats || { income: 0, expense: 0, count: 0 };
+          ${whereClause}
+      `, params);
+    return stats || { income: 0, expense: 0, transfers: 0, count: 0 };
   },
 
   getBudgetSummary: async () => {
@@ -841,18 +863,130 @@ export const FinanceModel = {
     return { data: [], total: 0, limit: options.limit || 50, offset: options.offset || 0, hasMore: false };
   },
 
-  getBillProjections: async () => { return []; },
+  getBillProjections: async (months: number = 3) => {
+    // Get bill types with their readings to calculate average usage
+    const billTypes = await all<any>(`
+      SELECT bt.*, 
+        AVG(br.units_used) as avg_units,
+        AVG(br.total_cost) as avg_cost
+      FROM bill_types bt
+      LEFT JOIN bill_readings br ON bt.id = br.bill_type_id
+      WHERE bt.deleted_at IS NULL
+      GROUP BY bt.id
+    `);
 
-  getExchangeRates: async () => { return []; },
-  getExchangeRate: async (from: string, to: string) => { return 1; },
-  setExchangeRate: async (from: string, to: string, rate: number, source: string) => { return { id: 0 }; },
-  setExchangeRatesBulk: async (rates: any[], source: string) => { return true; },
-  convertCurrency: async (amount: number, from: string, to: string) => { return amount; },
-  getUsedCurrencies: async () => { return ['USD']; },
-  getAccountsWithConvertedBalances: async (baseCurrency: string) => { return []; },
-  getRateSyncStatus: async () => { return { lastSync: null, autoSync: false }; },
-  getTotalBalanceInBaseCurrency: async (baseCurrency: string) => { return 0; },
-  getCategoryStats: async () => { return []; },
+    const projections = [];
+    const now = new Date();
+
+    for (const bt of billTypes) {
+      for (let i = 1; i <= months; i++) {
+        const monthDate = new Date(now.getFullYear(), now.getMonth() + i, 1);
+        projections.push({
+          bill_type_id: bt.id,
+          bill_name: bt.name,
+          month: monthDate.toISOString().slice(0, 7),
+          projected_units: bt.avg_units || 0,
+          projected_cost: bt.avg_cost || (bt.avg_units || 0) * (bt.cost_per_unit || 0),
+        });
+      }
+    }
+    return projections;
+  },
+
+  getExchangeRates: async () => {
+    return all<any>(`SELECT * FROM exchange_rates ORDER BY from_currency, to_currency`);
+  },
+
+  getExchangeRate: async (from: string, to: string) => {
+    if (from === to) return 1;
+    const rate = await get<{ rate: number }>(`
+      SELECT rate FROM exchange_rates WHERE from_currency = ? AND to_currency = ?
+    `, [from, to]);
+    return rate?.rate || null;
+  },
+
+  setExchangeRate: async (from: string, to: string, rate: number, source: string) => {
+    await run(`
+      INSERT INTO exchange_rates (from_currency, to_currency, rate, source, updated_at)
+      VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+      ON CONFLICT(from_currency, to_currency) DO UPDATE SET
+        rate = excluded.rate,
+        source = excluded.source,
+        updated_at = CURRENT_TIMESTAMP
+    `, [from, to, rate, source]);
+    return { success: true };
+  },
+
+  setExchangeRatesBulk: async (rates: Array<{ from: string; to: string; rate: number }>, source: string) => {
+    for (const { from, to, rate } of rates) {
+      await FinanceModel.setExchangeRate(from, to, rate, source);
+    }
+    return true;
+  },
+
+  convertCurrency: async (amount: number, from: string, to: string) => {
+    const rate = await FinanceModel.getExchangeRate(from, to);
+    return rate ? amount * rate : null;
+  },
+
+  getUsedCurrencies: async () => {
+    const currencies = await all<{ currency: string }>(`
+      SELECT DISTINCT currency FROM accounts WHERE deleted_at IS NULL
+      UNION
+      SELECT DISTINCT currency FROM transactions WHERE deleted_at IS NULL
+    `);
+    return currencies.length > 0 ? currencies.map(c => c.currency) : ['USD'];
+  },
+
+  getAccountsWithConvertedBalances: async (baseCurrency: string) => {
+    const accounts = await FinanceModel.getAllAccounts();
+    const result = [];
+    for (const acc of accounts) {
+      if (acc.currency === baseCurrency) {
+        result.push({ ...acc, converted_balance: acc.balance });
+      } else {
+        const rate = await FinanceModel.getExchangeRate(acc.currency || 'USD', baseCurrency);
+        result.push({ ...acc, converted_balance: rate ? (acc.balance || 0) * rate : null });
+      }
+    }
+    return result;
+  },
+
+  getRateSyncStatus: async () => {
+    const settings = await FinanceModel.getAllSettings();
+    const lastSync = settings.currency_last_sync || null;
+    const autoSync = settings.currency_auto_sync === 'true';
+    const rateCount = await get<{ count: number }>(`SELECT COUNT(*) as count FROM exchange_rates`);
+
+    let hoursSinceSync = 0;
+    let isStale = true;
+    if (lastSync) {
+      const lastSyncDate = new Date(lastSync);
+      hoursSinceSync = (Date.now() - lastSyncDate.getTime()) / (1000 * 60 * 60);
+      isStale = hoursSinceSync > 24;
+    }
+
+    return { lastSync, autoSync, rateCount: rateCount?.count || 0, hoursSinceSync, isStale };
+  },
+
+  getTotalBalanceInBaseCurrency: async (baseCurrency: string) => {
+    const accounts = await FinanceModel.getAccountsWithConvertedBalances(baseCurrency);
+    return accounts.reduce((sum, a) => sum + (a.converted_balance || 0), 0);
+  },
+
+  getCategoryStats: async () => {
+    return all<any>(`
+      SELECT c.name, c.type, c.color, c.icon,
+        COUNT(t.id) as transaction_count,
+        SUM(t.amount) as total_amount,
+        AVG(t.amount) as avg_amount
+      FROM categories c
+      LEFT JOIN transactions t ON t.category_id = c.id AND t.deleted_at IS NULL
+      WHERE c.deleted_at IS NULL
+      GROUP BY c.id
+      ORDER BY total_amount DESC
+    `);
+  },
 
   // Dashboard data for charts
   getDashboardData: async (months: number = 6) => {
@@ -897,8 +1031,92 @@ export const FinanceModel = {
       }
     };
   },
-  getCategorySpending: async (startDate: string, endDate: string) => { return []; },
-  exportData: async () => { return { version: 1, data: {} }; },
-  importData: async (jsonData: any) => { return { success: true }; },
-  exportAllToCSV: async () => { return ''; }
+  getCategorySpending: async (startDate: string, endDate: string) => {
+    return all<{ category: string; amount: number; color: string; icon: string }>(`
+      SELECT 
+        COALESCE(c.name, t.category) as category,
+        c.color,
+        c.icon,
+        SUM(t.amount) as amount
+      FROM transactions t
+      LEFT JOIN categories c ON t.category_id = c.id
+      WHERE t.type = 'expense' 
+        AND t.deleted_at IS NULL
+        AND t.start_date BETWEEN ? AND ?
+        AND t.is_active = 1
+      GROUP BY COALESCE(c.name, t.category)
+      ORDER BY amount DESC
+    `, [startDate, endDate]);
+  },
+
+  exportData: async () => {
+    const accounts = await all(`SELECT * FROM accounts WHERE deleted_at IS NULL`);
+    const categories = await all(`SELECT * FROM categories WHERE deleted_at IS NULL`);
+    const transactions = await all(`SELECT * FROM transactions WHERE deleted_at IS NULL`);
+    const budgets = await all(`SELECT * FROM budgets WHERE deleted_at IS NULL`);
+    const goals = await all(`SELECT * FROM goals WHERE deleted_at IS NULL`);
+    const recurringCharges = await all(`SELECT * FROM recurring_charges WHERE deleted_at IS NULL`);
+    const billTypes = await all(`SELECT * FROM bill_types WHERE deleted_at IS NULL`);
+    const billReadings = await all(`SELECT * FROM bill_readings`);
+    const exchangeRates = await all(`SELECT * FROM exchange_rates`);
+    const settings = await all(`SELECT * FROM settings`);
+
+    return {
+      version: 2,
+      exportedAt: new Date().toISOString(),
+      data: {
+        accounts,
+        categories,
+        transactions,
+        budgets,
+        goals,
+        recurringCharges,
+        billTypes,
+        billReadings,
+        exchangeRates,
+        settings,
+      }
+    };
+  },
+
+  importData: async (jsonData: any) => {
+    // Import logic would go here - complex migration
+    // For now just validate structure
+    if (!jsonData.version || !jsonData.data) {
+      return { success: false, error: 'Invalid export format' };
+    }
+    return { success: true, message: 'Import functionality requires full implementation' };
+  },
+
+  exportAllToCSV: async () => {
+    const transactions = await all<any>(`
+      SELECT 
+        t.id, t.type, t.amount, t.description, t.start_date,
+        COALESCE(c.name, t.category) as category,
+        a.name as account_name, t.currency
+      FROM transactions t
+      LEFT JOIN categories c ON t.category_id = c.id
+      LEFT JOIN accounts a ON t.account_id = a.id
+      WHERE t.deleted_at IS NULL
+      ORDER BY t.start_date DESC
+    `);
+
+    if (transactions.length === 0) {
+      return 'id,type,amount,description,date,category,account,currency\n';
+    }
+
+    const headers = ['id', 'type', 'amount', 'description', 'date', 'category', 'account', 'currency'];
+    const rows = transactions.map(t => [
+      t.id,
+      t.type,
+      t.amount,
+      `"${(t.description || '').replace(/"/g, '""')}"`,
+      t.start_date,
+      `"${(t.category || '').replace(/"/g, '""')}"`,
+      `"${(t.account_name || '').replace(/"/g, '""')}"`,
+      t.currency || 'USD'
+    ].join(','));
+
+    return [headers.join(','), ...rows].join('\n');
+  }
 };

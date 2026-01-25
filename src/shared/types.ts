@@ -170,3 +170,124 @@ export interface TransactionListDTO {
   type: TransactionType; // Required for UI logic (colors/signs)
   icon?: string;         // Optional resolved icon
 }
+
+// =============================================================================
+// IPC PAYLOAD INTERFACES
+// =============================================================================
+
+export interface TransactionPayload {
+  id?: number;
+  amount: number;
+  type: 'income' | 'expense' | 'transfer';
+  category?: string;
+  category_id?: number;
+  account_id: number;
+  to_account_id?: number;
+  description?: string;
+  start_date: string;
+  is_recurring?: boolean;
+  recurrence_rule?: string;
+  exchange_rate?: number;
+  to_amount?: number;
+  currency?: string;
+  frequency?: string;
+}
+
+export interface CategoryPayload {
+  id?: number;
+  name: string;
+  type: 'income' | 'expense';
+  icon?: string;
+  color?: string;
+  budget_limit?: number;
+  is_system?: boolean;
+}
+
+export interface AccountPayload {
+  id?: number;
+  name: string;
+  type: 'bank' | 'wallet' | 'credit_card' | 'loan' | 'investment';
+  balance: number;
+  currency: string;
+  color?: string;
+  icon?: string;
+}
+
+export interface BillTypePayload {
+  id?: number;
+  name: string;
+  unit_name: string;
+  cost_per_unit: number;
+  auto_transaction?: boolean;
+}
+
+export interface BillReadingPayload {
+  id?: number;
+  bill_type_id: number;
+  reading_date: string;
+  units_used: number;
+  total_cost: number;
+  notes?: string;
+  is_paid?: boolean;
+}
+
+export interface GoalPayload {
+  id?: number;
+  name: string;
+  target_amount: number;
+  current_amount?: number;
+  deadline?: string;
+  icon?: string;
+  color?: string;
+}
+
+export interface RecurringChargePayload {
+  id?: number;
+  name: string;
+  amount: number;
+  start_date: string;
+  next_due_date?: string;
+  frequency: 'daily' | 'weekly' | 'monthly' | 'yearly';
+  account_id?: number;
+  category?: string;
+  notes?: string;
+  active?: boolean;
+}
+
+export interface AppSettings {
+  language?: string;
+  theme?: 'light' | 'dark' | 'system';
+  currency?: string;
+  [key: string]: string | number | boolean | undefined;
+}
+
+export interface AISettings {
+  url?: string;
+  model?: string;
+  enabled?: boolean;
+  promptTx?: string;
+  promptInsight?: string;
+  promptChat?: string;
+}
+
+export interface AIHealth {
+  isConnected: boolean;
+  circuitOpen: boolean;
+  baseUrl?: string;
+  model?: string;
+  lastError?: string;
+}
+
+export interface TransactionFilter {
+  limit?: number;
+  offset?: number;
+  activeOnly?: boolean;
+  sortBy?: string;
+  sortOrder?: 'ASC' | 'DESC';
+  accountId?: number;
+  category?: string;
+  type?: string;
+  startDate?: string;
+  endDate?: string;
+  search?: string;
+}

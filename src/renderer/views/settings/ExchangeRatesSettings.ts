@@ -1,4 +1,5 @@
 import { $ } from '../../core/dom';
+import { FormGroup } from '../../components/common/FormGroup';
 import type { SettingsView } from '../SettingsView';
 
 import type { ExchangeRate } from '../../../shared/types';
@@ -295,23 +296,29 @@ export const ExchangeRatesSettingsMixin = {
       title: isEdit ? 'Edit Exchange Rate' : 'Add Exchange Rate',
       content: `
                 <div class="form-grid">
-                    <div class="form-group">
-                        <label>From Currency</label>
+                    ${FormGroup({
+        label: 'From Currency',
+        forId: 'rate-from',
+        content: `
                         <select id="rate-from" class="form-control" ${isEdit ? 'disabled' : ''}>
                             ${currencies.map((c) => `<option value="${c}" ${rate?.from_currency === c ? 'selected' : ''}>${c}</option>`).join('')}
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label>To Currency</label>
+                        </select>`
+      })}
+                    ${FormGroup({
+        label: 'To Currency',
+        forId: 'rate-to',
+        content: `
                         <select id="rate-to" class="form-control" ${isEdit ? 'disabled' : ''}>
                             ${currencies.map((c) => `<option value="${c}" ${rate?.to_currency === c ? 'selected' : ''}>${c}</option>`).join('')}
-                        </select>
-                    </div>
-                    <div class="form-group full-width">
-                        <label>Exchange Rate</label>
+                        </select>`
+      })}
+                    ${FormGroup({
+        label: 'Exchange Rate',
+        forId: 'rate-value',
+        content: `
                         <input type="number" id="rate-value" class="form-control" step="0.000001" value="${rate?.rate || 1}">
-                        <small class="text-muted">1 [From] = [Rate] [To]</small>
-                    </div>
+                        <small class="text-muted">1 [From] = [Rate] [To]</small>`
+      })}
                 </div>
             `,
       confirmText: isEdit ? 'Save Rate' : 'Add Rate',

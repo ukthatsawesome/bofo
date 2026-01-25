@@ -74,9 +74,24 @@ export class ChartManager {
 
   /* ==================== HELPERS ==================== */
 
+  public destroyChart(canvasId: string): void {
+    if (this.charts[canvasId]) {
+      this.charts[canvasId].destroy();
+      delete this.charts[canvasId];
+    }
+  }
+
+  public destroyAll(): void {
+    Object.keys(this.charts).forEach(id => this.destroyChart(id));
+  }
+
   private _getContext(canvasId: string): CanvasRenderingContext2D | null {
     const canvas = document.getElementById(canvasId) as HTMLCanvasElement;
-    if (!canvas) return null;
+    if (!canvas) {
+      // If canvas is gone but chart exists, destroy it to free memory
+      this.destroyChart(canvasId);
+      return null;
+    }
 
     if (this.charts[canvasId]) {
       this.charts[canvasId].destroy();

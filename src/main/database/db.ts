@@ -1347,7 +1347,7 @@ async function processMigrations(): Promise<void> {
 
   for (const migration of MIGRATIONS) {
     if (!appliedIds.has(migration.id)) {
-      console.log(`[DB] Running Migration ${migration.id}: ${migration.name}`);
+      log(`[DB] Running Migration ${migration.id}: ${migration.name}`);
       try {
         await run('BEGIN TRANSACTION');
         await migration.up();
@@ -1356,10 +1356,10 @@ async function processMigrations(): Promise<void> {
           migration.name,
         ]);
         await run('COMMIT');
-        console.log(`[DB] Migration ${migration.id} complete.`);
+        log(`[DB] Migration ${migration.id} complete.`);
       } catch (err) {
         await run('ROLLBACK');
-        console.error(`[DB] Migration ${migration.id} failed:`, err);
+        log(`[DB] Migration ${migration.id} failed: ${(err as Error).message}`);
         throw err;
       }
     }

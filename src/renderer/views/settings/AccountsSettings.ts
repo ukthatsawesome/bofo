@@ -1,4 +1,5 @@
 import { SortableHeader } from '../../components/tables/SortableHeader';
+import { FormGroup } from '../../components/common/FormGroup';
 import type { SettingsView } from '../SettingsView';
 
 export const AccountsSettingsMixin = {
@@ -58,15 +59,14 @@ export const AccountsSettingsMixin = {
                         <button class="action-btn" onclick="app.views.settings.handleEditAccount(${acc.id})" title="Edit">
                             <i data-lucide="edit-3"></i>
                         </button>
-                        ${
-                          acc.status === 'archived'
-                            ? `<button class="action-btn success" onclick="app.views.settings.handleUnarchiveAccount(${acc.id})" title="Restore">
+                        ${acc.status === 'archived'
+            ? `<button class="action-btn success" onclick="app.views.settings.handleUnarchiveAccount(${acc.id})" title="Restore">
                                 <i data-lucide="archive-restore"></i>
                                </button>`
-                            : `<button class="action-btn warning" onclick="app.views.settings.handleArchiveAccount(${acc.id})" title="Archive">
+            : `<button class="action-btn warning" onclick="app.views.settings.handleArchiveAccount(${acc.id})" title="Archive">
                                 <i data-lucide="archive"></i>
                                </button>`
-                        }
+          }
                         <button class="action-btn danger" onclick="app.views.settings.handleDeleteAccount(${acc.id})" title="Delete">
                             <i data-lucide="trash-2"></i>
                         </button>
@@ -107,30 +107,36 @@ export const AccountsSettingsMixin = {
     notifications.modal({
       title: isEdit ? 'Edit Account' : 'New Account',
       content: `
-                <div class="form-group">
-                    <label>Account Name</label>
-                    <input type="text" id="setting-acc-name" class="form-control" value="${account?.name || ''}" placeholder="e.g. Main Bank">
-                </div>
-                <div class="form-group">
-                    <label>Account Type</label>
+                ${FormGroup({
+        label: 'Account Name',
+        forId: 'setting-acc-name',
+        content: `<input type="text" id="setting-acc-name" class="form-control" value="${account?.name || ''}" placeholder="e.g. Main Bank">`
+      })}
+                ${FormGroup({
+        label: 'Account Type',
+        forId: 'setting-acc-type',
+        content: `
                     <select id="setting-acc-type" class="form-control">
                         <option value="bank" ${account?.type === 'bank' ? 'selected' : ''}>Bank Account</option>
                         <option value="wallet" ${account?.type === 'wallet' ? 'selected' : ''}>Wallet</option>
                         <option value="credit_card" ${account?.type === 'credit_card' ? 'selected' : ''}>Credit Card</option>
                         <option value="loan" ${account?.type === 'loan' ? 'selected' : ''}>Loan</option>
                         <option value="investment" ${account?.type === 'investment' ? 'selected' : ''}>Investment</option>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label>${isEdit ? 'Starting Balance' : 'Initial Balance'}</label>
-                    <input type="number" id="setting-acc-balance" class="form-control" step="0.01" value="${account?.initial_balance || 0}">
-                </div>
-                <div class="form-group">
-                    <label>Currency</label>
+                    </select>`
+      })}
+                ${FormGroup({
+        label: isEdit ? 'Starting Balance' : 'Initial Balance',
+        forId: 'setting-acc-balance',
+        content: `<input type="number" id="setting-acc-balance" class="form-control" step="0.01" value="${account?.initial_balance || 0}">`
+      })}
+                ${FormGroup({
+        label: 'Currency',
+        forId: 'setting-acc-currency',
+        content: `
                     <select id="setting-acc-currency" class="form-control currency-select">
                         ${this.getCurrencyOptions(account?.currency)}
-                    </select>
-                </div>
+                    </select>`
+      })}
             `,
       confirmText: isEdit ? 'Save Changes' : 'Create Account',
       onConfirm: async () => {

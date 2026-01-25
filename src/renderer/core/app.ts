@@ -198,7 +198,7 @@ export class App {
     });
 
     // Poll for connection status (cache handles throttling)
-    // This ensures the red icon turns green without page reload
+    // Note: This interval runs for app lifetime - intentional as App is a singleton
     setInterval(() => this.updateAIStatusIndicator(), 5000);
 
     // Click handler - navigate directly to AI settings view
@@ -610,13 +610,42 @@ export class App {
       this.aiCache.invalidate(); // Clear all cached insights
     });
 
-    // Global Escape key to close modals
+    // Global Escape key to close modals and Focus Trap
     window.addEventListener('keydown', (e) => {
+      // Escape to close
       if (e.key === 'Escape') {
         const visibleModals = document.querySelectorAll('.modal:not(.hidden)');
         visibleModals.forEach((modal) => {
           UIUtils.setHidden(`#${modal.id} `, true);
         });
+        return;
+      }
+
+      // Tab for Focus Trap
+      if (e.key === 'Tab') {
+        const visibleModal = document.querySelector('.modal:not(.hidden)') as HTMLElement;
+        if (!visibleModal) return;
+
+        const focusableElements = visibleModal.querySelectorAll(
+          'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+        );
+
+        if (focusableElements.length === 0) return;
+
+        const firstElement = focusableElements[0] as HTMLElement;
+        const lastElement = focusableElements[focusableElements.length - 1] as HTMLElement;
+
+        if (e.shiftKey) { // Shift + Tab
+          if (document.activeElement === firstElement) {
+            lastElement.focus();
+            e.preventDefault();
+          }
+        } else { // Tab
+          if (document.activeElement === lastElement) {
+            firstElement.focus();
+            e.preventDefault();
+          }
+        }
       }
     });
 

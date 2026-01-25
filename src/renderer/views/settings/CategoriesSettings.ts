@@ -1,6 +1,7 @@
 import { SortableHeader } from '../../components/tables/SortableHeader';
 import { SegmentedControl } from '../../components/common/SegmentedControl';
 import { TypePill } from '../../components/common/TypePill';
+import { FormGroup } from '../../components/common/FormGroup';
 import type { SettingsView } from '../SettingsView';
 
 export const CategoriesSettingsMixin = {
@@ -75,24 +76,22 @@ export const CategoriesSettingsMixin = {
                         <button class="action-btn" onclick="app.views.settings.handleEditCategory(${cat.id})" title="Edit">
                             <i data-lucide="edit-3"></i>
                         </button>
-                        ${
-                          cat.status === 'archived'
-                            ? `<button class="action-btn success" onclick="app.views.settings.handleUnarchiveCategory(${cat.id})" title="Restore">
+                        ${cat.status === 'archived'
+            ? `<button class="action-btn success" onclick="app.views.settings.handleUnarchiveCategory(${cat.id})" title="Restore">
                                 <i data-lucide="archive-restore"></i>
                                </button>`
-                            : `<button class="action-btn warning" onclick="app.views.settings.handleArchiveCategory(${cat.id})" title="Archive">
+            : `<button class="action-btn warning" onclick="app.views.settings.handleArchiveCategory(${cat.id})" title="Archive">
                                 <i data-lucide="archive"></i>
                                </button>`
-                        }
-                        ${
-                          !cat.is_default
-                            ? `
+          }
+                        ${!cat.is_default
+            ? `
                             <button class="action-btn danger" onclick="app.views.settings.handleDeleteCategory(${cat.id})" title="Delete">
                                 <i data-lucide="trash-2"></i>
                             </button>
                         `
-                            : ''
-                        }
+            : ''
+          }
                     </div>
                 </td>
             </tr>
@@ -135,21 +134,25 @@ export const CategoriesSettingsMixin = {
     notifications.modal({
       title: isEdit ? 'Edit Category' : 'New Category',
       content: `
-                <div class="form-group">
-                    <label>Category Name</label>
-                    <input type="text" id="cat-name" class="form-control" value="${category?.name || ''}" placeholder="e.g. Groceries">
-                </div>
-                <div class="form-group">
-                    <label>Type</label>
+                ${FormGroup({
+        label: 'Category Name',
+        forId: 'cat-name',
+        content: `<input type="text" id="cat-name" class="form-control" value="${category?.name || ''}" placeholder="e.g. Groceries">`
+      })}
+                ${FormGroup({
+        label: 'Type',
+        forId: 'cat-type',
+        content: `
                     <select id="cat-type" class="form-control" ${isEdit ? 'disabled' : ''}>
                         <option value="income" ${category?.type === 'income' ? 'selected' : ''}>Income</option>
                         <option value="expense" ${category?.type === 'expense' ? 'selected' : ''}>Expense</option>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label>Icon (emoji)</label>
-                    <input type="text" id="cat-icon" class="form-control" value="${category?.icon || '📂'}" maxlength="4">
-                </div>
+                    </select>`
+      })}
+                ${FormGroup({
+        label: 'Icon (emoji)',
+        forId: 'cat-icon',
+        content: `<input type="text" id="cat-icon" class="form-control" value="${category?.icon || '📂'}" maxlength="4">`
+      })}
             `,
       confirmText: isEdit ? 'Save Changes' : 'Create Category',
       onConfirm: async () => {

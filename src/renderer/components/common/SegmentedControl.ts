@@ -33,8 +33,8 @@ export const SegmentedControl = ({
   return `
     <div class="inline-flex bg-surface-input rounded-xl p-1 gap-1" id="${id}">
         ${options
-          .map(
-            (item) => `
+      .map(
+        (item) => `
             <button 
                 class="segment ${sizeClass} rounded-lg font-semibold transition-all duration-200
                        ${item.active ? 'active' : ''}" 
@@ -44,8 +44,8 @@ export const SegmentedControl = ({
                 ${item.label}
             </button>
         `
-          )
-          .join('')}
+      )
+      .join('')}
     </div>
 `;
 };

@@ -1,5 +1,9 @@
 export const APP_NAME = 'Bofo';
-export const VERSION = '1.0.0';
+export const VERSION = '1.1.2';
+
+// AI Configuration
+export const DEFAULT_OLLAMA_URL = 'http://localhost:11434';
+export const AI_REQUEST_TIMEOUT_MS = 30000;
 
 export const VIEW_IDS = {
   DASHBOARD: 'dashboard',
@@ -23,3 +27,4 @@ export const ACCOUNT_TYPES = {
   LOAN: 'loan',
   INVESTMENT: 'investment',
 } as const;
+

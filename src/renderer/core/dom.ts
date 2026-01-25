@@ -64,4 +64,35 @@ export const UIUtils = {
       .replace(/"/g, '&quot;')
       .replace(/'/g, '&#039;');
   },
+
+  /**
+   * Safely get value from input/select/textarea without type casting
+   */
+  getInputValue(selector: string): string {
+    const el = document.querySelector(selector);
+    if (!el) return '';
+    if (
+      el instanceof HTMLInputElement ||
+      el instanceof HTMLSelectElement ||
+      el instanceof HTMLTextAreaElement
+    ) {
+      return el.value;
+    }
+    return '';
+  },
+
+  /**
+   * Safely set value for input/select/textarea
+   */
+  setInputValue(selector: string, value: string | number | null | undefined): void {
+    const el = document.querySelector(selector);
+    if (!el) return;
+    if (
+      el instanceof HTMLInputElement ||
+      el instanceof HTMLSelectElement ||
+      el instanceof HTMLTextAreaElement
+    ) {
+      el.value = value === null || value === undefined ? '' : String(value);
+    }
+  },
 };

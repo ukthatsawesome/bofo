@@ -1,6 +1,15 @@
 import type { App } from '../core/app';
 
 /**
+ * Tracked event listener for cleanup
+ */
+interface TrackedListener {
+  element: Element | Window | Document;
+  type: string;
+  handler: EventListener;
+}
+
+/**
  * Base View class that all views inherit from
  */
 export class BaseView {
@@ -8,6 +17,7 @@ export class BaseView {
   protected id: string;
   protected element: HTMLElement | null;
   protected isInitialized: boolean = false;
+  protected listeners: TrackedListener[] = [];
 
   constructor(app: App, elementId: string) {
     this.app = app;
@@ -23,6 +33,25 @@ export class BaseView {
   }
   get chartManager() {
     return this.app.chartManager;
+  }
+
+  /**
+   * Add an event listener that will be automatically cleaned up on destroy
+   */
+  addListener(element: Element | Window | Document | null, type: string, handler: EventListener): void {
+    if (!element) return;
+    element.addEventListener(type, handler);
+    this.listeners.push({ element, type, handler });
+  }
+
+  /**
+   * Remove all tracked event listeners
+   */
+  removeAllListeners(): void {
+    for (const { element, type, handler } of this.listeners) {
+      element.removeEventListener(type, handler);
+    }
+    this.listeners = [];
   }
 
   /**
@@ -42,6 +71,8 @@ export class BaseView {
     if (this.element) {
       this.element.classList.remove('active');
     }
+    // Clean up listeners when hiding to prevent memory leaks
+    this.removeAllListeners();
   }
 
   /**
@@ -49,6 +80,7 @@ export class BaseView {
    * This is called when the view is being removed or heavy cleanup is needed
    */
   destroy(): void {
+    this.removeAllListeners();
     if (this.element) {
       this.element.innerHTML = '';
     }

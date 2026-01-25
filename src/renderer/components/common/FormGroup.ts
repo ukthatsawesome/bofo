@@ -10,6 +10,7 @@ interface FormGroupProps {
   icon?: string;
   required?: boolean;
   hint?: string;
+  forId?: string;
 }
 
 export const FormGroup = ({
@@ -19,19 +20,19 @@ export const FormGroup = ({
   icon = '',
   required = false,
   hint = '',
+  forId = '',
 }: FormGroupProps): string => `
     <div class="mb-6 ${className}">
-        ${
-          label
-            ? `
-            <label class="flex items-center gap-2 text-[0.85rem] font-bold uppercase tracking-wider text-text-muted mb-2.5">
+        ${label
+    ? `
+            <label ${forId ? `for="${forId}"` : ''} class="flex items-center gap-2 text-[0.85rem] font-bold uppercase tracking-wider text-text-muted mb-2.5">
                 ${icon ? `<i data-lucide="${icon}" class="w-4 h-4"></i>` : ''}
                 ${label}
                 ${required ? '<span class="text-danger">*</span>' : ''}
             </label>
         `
-            : ''
-        }
+    : ''
+  }
         ${content}
         ${hint ? `<p class="text-xs text-text-muted mt-1.5 opacity-70">${hint}</p>` : ''}
     </div>
@@ -101,14 +102,14 @@ export const Select = ({
         class="select-field ${className}"
     >
         ${options
-          .map(
-            (opt) => `
+    .map(
+      (opt) => `
             <option value="${opt.value}" ${opt.value === value ? 'selected' : ''}>
                 ${opt.label}
             </option>
         `
-          )
-          .join('')}
+    )
+    .join('')}
     </select>
 `;
 

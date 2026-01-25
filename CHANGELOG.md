@@ -13,9 +13,18 @@ All notable changes to this project will be documented in this file.
 - **Web Server Security**: Default binding changed from `0.0.0.0` to `localhost` (127.0.0.1). External access requires explicit opt-in.
 - **Debug Log Cleanup**: Removed debug console.log statements from production code paths.
 
+### 🏛️ Architecture & Quality
+- **Type Safety**: Strictly typed IPC payloads with `TransactionFilter`, `TransactionPayload`, etc. Removed `any` usage in `preload.ts` and `financeService.ts`.
+- **Accessibility (A11y)**:
+    - Added `role="dialog"` and `aria-modal="true"` to all modals.
+    - Implemented global **Focus Trap** to cycle focus within active modals (Tab/Shift+Tab).
+    - Standardized forms with accessible `FormGroup` components (explicit label association).
+- **DOM Safety**: Introduced `UIUtils.getInputValue()` helper to safely cast DOM elements without unsafe type assertions.
+
 ### ⚡ Performance
-- **Startup Optimization**: Database initialization now skips schema execution on already-initialized databases (improved from ~5s to ~6ms on subsequent launches).
-- **Timing Infrastructure**: Added startup timing logs for future performance profiling.
+- **Smart Startup**: Database initialization now skips schema execution on already-initialized databases (improved from ~5s to ~6ms on subsequent launches).
+- **Memory Optimization**: Fixed critical bug in transaction loader that ignored pagination options. Now correctly defaults to fetching only 100 items.
+- **Chart Cleanup**: Implemented automatic chart instance destruction in `ChartManager` to prevent canvas memory leaks.
 
 ### 🛠 Improvements
 - **Dashboard Charts**: Fixed property name mismatch between backend and frontend for chart data.

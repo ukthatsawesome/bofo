@@ -27,7 +27,7 @@ export class ForecastView extends BaseView {
 
     // Ensure we have transactions for forecasting
     if (this.app.state.transactions.length === 0) {
-      await this.app.state.loadTransactions(true);
+      await this.app.state.loadTransactions();
     }
 
     this.render();

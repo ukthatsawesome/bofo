@@ -77,7 +77,7 @@ export class StateManager {
     this.theme = 'system';
     this.txHistoryFilter = 'all';
     this.txHistoryPage = 1;
-    this.txHistoryPageSize = 10;
+    this.txHistoryPageSize = 100;
     this.txMonthFilter = ''; // Empty means all time
     this.txSortField = 'start_date';
     this.txSortOrder = 'desc'; // 'asc' or 'desc'
@@ -148,9 +148,7 @@ export class StateManager {
 
   async goToPage(page: number): Promise<void> {
     this.txHistoryPage = page;
-    const offset = (page - 1) * this.txHistoryPageSize;
-
-    await this.loadTransactions(false); // Reload with new page state
+    await this.loadTransactions();
   }
 
 
@@ -163,10 +161,10 @@ export class StateManager {
     }
   }
 
-  async loadTransactions(reset = true): Promise<void> {
+  async loadTransactions(): Promise<void> {
     const options: any = {
-      limit: 50,
-      offset: reset ? 0 : this.transactionMetadata.offset + this.transactionMetadata.limit,
+      limit: this.txHistoryPageSize,
+      offset: (this.txHistoryPage - 1) * this.txHistoryPageSize,
       sortField: this.txSortField,
       sortOrder: this.txSortOrder,
     };
@@ -187,12 +185,7 @@ export class StateManager {
 
     // Handle both new PaginatedResponse (object) and legacy array (fallback)
     if (response && 'data' in response && Array.isArray(response.data)) {
-      if (reset) {
-        this.transactions = response.data;
-      } else {
-        this.transactions = [...this.transactions, ...response.data];
-      }
-
+      this.transactions = response.data;
       this.transactionMetadata = {
         total: response.total,
         limit: response.limit,
@@ -208,16 +201,12 @@ export class StateManager {
       this.transactionMetadata = { total: 0, limit: 100, offset: 0, hasMore: false };
     }
 
-    // Load stats concurrently if we are loading transactions specifically
-    // But now we have a separate method for it too.
-    if (reset) {
-      await this.loadSummaryStats();
-    }
+    await this.loadSummaryStats();
   }
 
   async loadMoreTransactions(): Promise<void> {
     if (this.transactionMetadata.hasMore) {
-      await this.loadTransactions(false);
+      await this.loadTransactions();
     }
   }
 

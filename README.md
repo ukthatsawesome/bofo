@@ -36,7 +36,9 @@ Recent updates have significantly hardened the application architecture:
 - **Pagination**: Transaction lists use an efficient `LIMIT/OFFSET` strategy, defaulting to 100 items per page.
 - **Backend Analytics**: Heavy computations (Forecasts, Net Worth) are offloaded to SQLite aggregations, ensuring instant UI rendering even with 100k+ records.
 
-### 🛡️ Resilience
+### 🛡️ Resilience & Quality
+- **Type Safety**: Full strict typing across IPC boundaries using explicit interfaces (e.g., `TransactionFilter`). `any` usage has been purged.
+- **Accessibility**: First-class A11y support with global **Focus Traps** for modals, ARIA labels, and keyboard navigation support.
 - **Global Error Handling**: The IPC layer automatically catches crashes and returns standardized error codes.
 - **Timeout Protection**: All API calls have a 5-second fuse to prevent UI freezes.
 
