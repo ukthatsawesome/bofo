@@ -9,6 +9,7 @@ import { ipcMain, dialog, app, IpcMainInvokeEvent } from 'electron';
 import * as fs from 'fs';
 import * as path from 'path';
 import { DateUtils } from '../../shared/utils/dateUtils';
+import { Logger } from '../utils/logger';
 
 
 // =============================================================================
@@ -192,6 +193,35 @@ export const SIMPLE_ROUTES: Record<string, HandlerFunction> = {
   'delete-recurring-charge': (_, id) => getFinanceModel().delete('recurringCharge', id, true),
   'get-monthly-recurring-total': () => getFinanceModel().getMonthlyRecurringTotal(),
 
+  // Dashboard & Analytics
+  'get-dashboard-data': (_, months) => getFinanceModel().getDashboardData(months || 6),
+  'get-summary-stats': async () => {
+    const model = getFinanceModel();
+    const accounts = await model.getAllAccounts();
+    const totalBalance = accounts.reduce((sum, a) => sum + (a.balance || 0), 0);
+    const netWorth = totalBalance; // Simplified - in real version would subtract liabilities
+
+    // Get current month stats
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+    const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
+    const monthlyTotals = await model.getMonthlyTotals(monthStart, monthEnd);
+
+    const savingsRate = monthlyTotals.income > 0
+      ? ((monthlyTotals.income - monthlyTotals.expense) / monthlyTotals.income) * 100
+      : 0;
+
+    return {
+      totalBalance,
+      netWorth,
+      monthIncome: monthlyTotals.income,
+      monthExpense: monthlyTotals.expense,
+      savingsRate,
+    };
+  },
+  'get-category-spending': (_, { startDate, endDate }) =>
+    getFinanceModel().getCategorySpending(startDate, endDate),
+
   // Bills (using generic CRUD)
   'get-bill-types': () => getFinanceModel().getBillTypes(),
   'add-bill-type': (_, data) => getFinanceModel().create('billType', data),
@@ -253,7 +283,7 @@ export const SIMPLE_ROUTES: Record<string, HandlerFunction> = {
       if (url) ai.baseUrl = url;
       return await ai.getInstalledModels();
     } catch (e: any) {
-      console.warn('[IPC] get-ai-models failed:', e.message);
+      Logger.warn('[IPC] get-ai-models failed:', e.message);
       return [];
     }
   },
@@ -291,7 +321,7 @@ export const SIMPLE_ROUTES: Record<string, HandlerFunction> = {
       );
       return { success: true, data: result };
     } catch (e: any) {
-      console.warn('[IPC] parse-transaction-ai failed:', e.message);
+      Logger.warn('[IPC] parse-transaction-ai failed:', e.message);
       return { success: false, error: e.message, data: null };
     }
   },
@@ -299,7 +329,7 @@ export const SIMPLE_ROUTES: Record<string, HandlerFunction> = {
     try {
       return await getAIService().getFinancialInsight(summary);
     } catch (e: any) {
-      console.warn('[IPC] get-ai-insight failed:', e.message);
+      Logger.warn('[IPC] get-ai-insight failed:', e.message);
       return 'Keep tracking your spending to stay on top of your goals!';
     }
   },
@@ -368,7 +398,7 @@ export const SIMPLE_ROUTES: Record<string, HandlerFunction> = {
       // Non-streaming version for HTTP calls
       return await getAIService().chatSandbox(text, context, null, null);
     } catch (e: any) {
-      console.warn('[IPC] chat-sandbox failed:', e.message);
+      Logger.warn('[IPC] chat-sandbox failed:', e.message);
       if (e.message.includes('timed out')) return 'The AI is taking too long to respond.';
       return "I'm having trouble connecting to the AI engine.";
     }
@@ -415,7 +445,7 @@ export const SIMPLE_ROUTES: Record<string, HandlerFunction> = {
     try {
       return await getFinanceModel().getCategoryStats();
     } catch (e: any) {
-      console.warn('[IPC] get-category-stats failed:', e.message);
+      Logger.warn('[IPC] get-category-stats failed:', e.message);
       return [];
     }
   },
@@ -437,8 +467,20 @@ export const SIMPLE_ROUTES: Record<string, HandlerFunction> = {
 
       return { success: true, anomalies };
     } catch (e: any) {
-      console.warn('[IPC] detect-anomalies failed:', e.message);
+      Logger.warn('[IPC] detect-anomalies failed:', e.message);
       return { success: false, anomalies: [], error: e.message };
+    }
+  },
+
+  'seed-db': async () => {
+    try {
+      // Dynamic import to avoid loading seed logic unless requested
+      const { seedDatabase } = require('../scripts/seed');
+      await seedDatabase();
+      return { success: true };
+    } catch (e: any) {
+      Logger.error('[IPC] seed-db failed:', e);
+      return { success: false, error: e.message };
     }
   },
 };
@@ -464,7 +506,7 @@ export function registerIpcHandlers(excludeChannels: string[] = []): void {
       try {
         return await handler(event, data);
       } catch (error: any) {
-        console.error(`[IPC] ${channel} error:`, error.message);
+        Logger.error(`[IPC] ${channel} error:`, error.message);
         throw error;
       }
     });
@@ -489,7 +531,7 @@ export function registerIpcHandlers(excludeChannels: string[] = []): void {
       }
       return false;
     } catch (err) {
-      console.error('Export error:', err);
+      Logger.error('Export error:', err);
       return false;
     }
   });
@@ -515,7 +557,7 @@ export function registerIpcHandlers(excludeChannels: string[] = []): void {
       await getFinanceModel().importData(data);
       return { success: true, message: 'Data imported successfully!' };
     } catch (err: any) {
-      console.error('Import error:', err);
+      Logger.error('Import error:', err);
       return { success: false, message: `Import failed: ${err.message}` };
     }
   });
@@ -523,13 +565,42 @@ export function registerIpcHandlers(excludeChannels: string[] = []): void {
   // Export Excel
   ipcMain.handle('export-excel', async () => {
     try {
-      const XLSX = await import('xlsx');
+      const ExcelJS = await import('exceljs');
       const model = getFinanceModel();
-      const workbook = XLSX.utils.book_new();
+      const workbook = new ExcelJS.Workbook();
+      workbook.creator = 'Bofo Finance Manager';
+      workbook.created = new Date();
+
       const addSheet = (data: any[], name: string, headers: string[]) => {
-        const sheetData = data?.length ? data.map((row) => headers.map((h) => row[h] ?? '')) : [];
-        const ws = XLSX.utils.aoa_to_sheet([headers, ...sheetData]);
-        XLSX.utils.book_append_sheet(workbook, ws, name);
+        const sheet = workbook.addWorksheet(name);
+        // Add headers
+        sheet.getRow(1).values = headers;
+        sheet.getRow(1).font = { bold: true };
+
+        // Add data
+        if (data && data.length > 0) {
+          data.forEach(row => {
+            const rowData = headers.map(h => row[h] ?? '');
+            sheet.addRow(rowData);
+          });
+        }
+
+        // Auto-width columns (simple estimation)
+        if (sheet.columns) {
+          sheet.columns.forEach(column => {
+            if (!column) return;
+            let maxLength = 0;
+            if (column.eachCell) {
+              column.eachCell({ includeEmpty: true }, (cell) => {
+                const columnLength = cell.value ? cell.value.toString().length : 10;
+                if (columnLength > maxLength) {
+                  maxLength = columnLength;
+                }
+              });
+            }
+            column.width = maxLength < 10 ? 10 : maxLength + 2;
+          });
+        }
       };
 
       addSheet(await model.getAllAccounts(), 'Accounts', [
@@ -619,10 +690,11 @@ export function registerIpcHandlers(excludeChannels: string[] = []): void {
       });
 
       if (canceled || !filePath) return false;
-      XLSX.writeFile(workbook, filePath);
+
+      await workbook.xlsx.writeFile(filePath);
       return true;
     } catch (err) {
-      console.error('Excel export error:', err);
+      Logger.error('Excel export error:', err);
       return false;
     }
   });
@@ -636,7 +708,7 @@ export function registerIpcHandlers(excludeChannels: string[] = []): void {
 
       return await getAIService().chatSandbox(text, context, null, streamCallback);
     } catch (e: any) {
-      console.warn('[IPC] chat-sandbox failed:', e.message);
+      Logger.warn('[IPC] chat-sandbox failed:', e.message);
       if (e.message.includes('timed out')) return 'The AI is taking too long to respond.';
       return "I'm having trouble connecting to the AI engine.";
     }
@@ -690,6 +762,6 @@ export async function performAutoBackup() {
     );
     await model.updateSetting('auto_backup_last', new Date().toISOString());
   } catch (err) {
-    console.error('Auto-backup failed:', err);
+    Logger.error('Auto-backup failed:', err);
   }
 }

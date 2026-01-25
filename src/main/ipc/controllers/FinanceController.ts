@@ -1,4 +1,5 @@
 import { IpcMainInvokeEvent } from 'electron';
+import { Logger } from '../../utils/logger';
 import { IController } from '../router';
 import { FinanceModel } from '../../models/finance';
 import { ForecastEngine } from '../../utils/forecast';
@@ -53,7 +54,7 @@ export class FinanceController implements IController {
           : 0
       };
     } catch (err: any) {
-      console.error('Failed to calculate summary stats:', err);
+      Logger.error('Failed to calculate summary stats:', err);
       return { netWorth: 0, totalBalance: 0, monthIncome: 0, monthExpense: 0, savingsRate: 0 };
     }
   }
@@ -80,7 +81,7 @@ export class FinanceController implements IController {
       return engine.generateForecast(data.months || 6);
 
     } catch (e) {
-      console.error('Forecast error:', e);
+      Logger.error('Forecast error:', e);
       return { timeline: [], summary: {}, insights: [] };
     }
   }

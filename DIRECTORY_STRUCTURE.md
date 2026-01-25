@@ -29,11 +29,12 @@ The "Backend" of the application, running in a Node.js environment.
 - `database/`: Database initialization, encryption, and migrations.
 - `ipc/`: Inter-Process Communication handlers for frontend requests.
 - `models/`: Data Access Objects (DAO) and business logic for specific entities.
+- `scripts/`: Development utilities (`seed.ts` for populating test data).
 - `services/`: External integrations (AI, Exchange Rates, etc.) and `anomalyService.ts`.
 - `utils/`: shared utility functions for the main process.
 - `main.ts`: Entry point for the Electron application.
 - `preload.ts`: Secure bridge between Main and Renderer processes.
-- `webServer.ts`: Optional local web server for certain features.
+- `webServer.ts`: Optional local web server for remote access feature.
 
 ### 🎨 Renderer Process (`src/renderer/`)
 The "Frontend" of the application, running in a Chromium environment.

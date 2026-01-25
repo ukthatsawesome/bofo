@@ -1,5 +1,6 @@
 
 import { ipcMain, IpcMainInvokeEvent } from 'electron';
+import { Logger } from '../utils/logger';
 
 export interface IController {
   registerRoutes(): Record<string, (event: IpcMainInvokeEvent, ...args: any[]) => Promise<any> | any>;
@@ -18,7 +19,7 @@ export class IpcRouter {
       const routes = controller.registerRoutes();
       for (const [channel, handler] of Object.entries(routes)) {
         if (this.registeredChannels.has(channel)) {
-          console.warn(`[IpcRouter] Duplicate channel detected: ${channel}. Skipping.`);
+          Logger.warn(`[IpcRouter] Duplicate channel detected: ${channel}. Skipping.`);
           continue;
         }
 
@@ -27,7 +28,7 @@ export class IpcRouter {
              // Bind context if not already bound, but we expect registerRoutes to return bound methods or arrow funcs
              return await handler(event, ...args);
           } catch (error: any) {
-             console.error(`[IpcRouter] Error in ${channel}:`, error);
+             Logger.error(`[IpcRouter] Error in ${channel}:`, error);
              
              let code = 'INTERNAL_ERROR';
              // Map known errors
@@ -41,7 +42,7 @@ export class IpcRouter {
         });
         
         this.registeredChannels.add(channel);
-        console.log(`[IpcRouter] Registered ${channel}`);
+        Logger.info(`[IpcRouter] Registered ${channel}`);
       }
     }
   }

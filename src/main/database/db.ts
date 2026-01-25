@@ -66,7 +66,7 @@ log(`[DB] Environment: ${isDev ? 'DEVELOPMENT' : 'PRODUCTION'}`);
 // =============================================================================
 
 const dbPath = isDev
-  ? path.join(__dirname, '../../finance.dev.db')
+  ? path.join(__dirname, '../../../finance.dev.db')
   : path.join(app!.getPath('userData'), 'finance.db');
 
 log(`[DB] Path: ${dbPath}`);
@@ -111,7 +111,7 @@ const dbInitialized = new Promise<void>((resolve, reject) => {
 });
 
 // Create database connection
-const db = new sqlite3.Database(dbPath, async (err) => {
+export const dbInstance = new sqlite3.Database(dbPath, async (err) => {
   if (err) {
     log(`[DB] FAILED to open: ${err.message}`);
     dbReject(err);
@@ -147,21 +147,21 @@ async function configureEncryption(): Promise<void> {
   ];
 
   return new Promise((resolve, reject) => {
-    db.serialize(() => {
+    dbInstance.serialize(() => {
       for (const pragma of pragmas) {
-        db.run(pragma, (err: Error | null) => {
+        dbInstance.run(pragma, (err: Error | null) => {
           if (err) console.error(`[DB] Pragma failed: ${pragma}`, err);
         });
       }
 
       // Enable foreign key enforcement (critical for data integrity)
-      db.run('PRAGMA foreign_keys = ON', (err: Error | null) => {
+      dbInstance.run('PRAGMA foreign_keys = ON', (err: Error | null) => {
         if (err) console.error('[DB] Failed to enable foreign keys:', err);
         else log('[DB] Foreign key enforcement enabled');
       });
 
       // Verify key
-      db.get('SELECT count(*) FROM sqlite_master', (err: Error | null) => {
+      dbInstance.get('SELECT count(*) FROM sqlite_master', (err: Error | null) => {
         if (err) reject(err);
         else resolve();
       });
@@ -180,20 +180,20 @@ async function migrateFromBackup(backupFile: string): Promise<void> {
   console.log('[DB] Importing data from plaintext backup...');
 
   return new Promise((resolve, reject) => {
-    db.serialize(() => {
+    dbInstance.serialize(() => {
       // Attach plaintext backup with empty key
-      db.run(`ATTACH DATABASE ? AS backup KEY ''`, [backupFile], (err: Error | null) => {
+      dbInstance.run(`ATTACH DATABASE ? AS backup KEY ''`, [backupFile], (err: Error | null) => {
         if (err) return reject(err);
 
         // Get all tables from backup
-        db.all(
+        dbInstance.all(
           "SELECT name, sql FROM backup.sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'",
           [],
           async (err: Error | null, tables: Array<{ name: string; sql: string }>) => {
             if (err) return reject(err);
 
             try {
-              db.run('BEGIN TRANSACTION');
+              dbInstance.run('BEGIN TRANSACTION');
 
               for (const table of tables) {
                 if (table.name === 'android_metadata') continue;
@@ -201,26 +201,26 @@ async function migrateFromBackup(backupFile: string): Promise<void> {
                 console.log(`[DB] Migrating table: ${table.name}`);
 
                 await new Promise<void>((res, rej) => {
-                  db.run(table.sql, (e: Error | null) => (e ? rej(e) : res()));
+                  dbInstance.run(table.sql, (e: Error | null) => (e ? rej(e) : res()));
                 });
 
                 await new Promise<void>((res, rej) => {
-                  db.run(
+                  dbInstance.run(
                     `INSERT INTO main.${table.name} SELECT * FROM backup.${table.name}`,
                     (e: Error | null) => (e ? rej(e) : res())
                   );
                 });
               }
 
-              db.run('COMMIT');
+              dbInstance.run('COMMIT');
 
               // Detach backup
-              db.run('DETACH DATABASE backup', (e: Error | null) => {
+              dbInstance.run('DETACH DATABASE backup', (e: Error | null) => {
                 if (e) reject(e);
                 else resolve();
               });
             } catch (migrationErr) {
-              db.run('ROLLBACK');
+              dbInstance.run('ROLLBACK');
               reject(migrationErr);
             }
           }
@@ -265,7 +265,8 @@ function createDbHelpers(db: Database): DbHelpers {
   };
 }
 
-const { run, get, all } = createDbHelpers(db);
+export const dbHelpers = createDbHelpers(dbInstance);
+const { run, get, all } = dbHelpers;
 
 // =============================================================================
 // MIGRATION DEFINITIONS
@@ -929,17 +930,78 @@ const MIGRATIONS: Migration[] = [
 ];
 
 // =============================================================================
+// STARTUP TIMING INFRASTRUCTURE
+// =============================================================================
+
+const startupTimings: { step: string; duration: number }[] = [];
+let lastTimestamp = Date.now();
+
+function logTiming(step: string): void {
+  const now = Date.now();
+  const duration = now - lastTimestamp;
+  startupTimings.push({ step, duration });
+  log(`[DB:Perf] ${step}: ${duration}ms`);
+  lastTimestamp = now;
+}
+
+function printTimingSummary(): void {
+  const total = startupTimings.reduce((sum, t) => sum + t.duration, 0);
+  log(`[DB:Perf] Total startup time: ${total}ms`);
+  if (isDev) {
+    console.log('[DB:Perf] Startup breakdown:', startupTimings);
+  }
+}
+
+// =============================================================================
 // DATABASE BOOTSTRAP
 // =============================================================================
 
 /**
+ * Check if database is already initialized (has migrations applied)
+ */
+async function isDbInitialized(): Promise<boolean> {
+  return new Promise((resolve) => {
+    dbInstance.get(
+      "SELECT name FROM sqlite_master WHERE type='table' AND name='migrations'",
+      (err, row) => {
+        if (err || !row) {
+          resolve(false);
+        } else {
+          // Check if any migrations have been applied
+          dbInstance.get('SELECT COUNT(*) as count FROM migrations', (err2, countRow: any) => {
+            resolve(!err2 && countRow && countRow.count > 0);
+          });
+        }
+      }
+    );
+  });
+}
+
+/**
  * Bootstrap the database by running the schema and pending migrations
+ * Optimized to skip schema execution if database is already initialized
  */
 async function bootstrapDb(): Promise<void> {
+  // Reset timing baseline at actual bootstrap start
+  lastTimestamp = Date.now();
+  logTiming('Bootstrap start');
+
   try {
-    // 1. Run Base Schema (Idempotent)
-    // 1. Run Base Schema (Idempotent)
-    // Inline schema to avoid issues with missing .sql files in dist/
+    // Check if database is already initialized
+    const initialized = await isDbInitialized();
+    logTiming('Initialization check');
+
+    if (initialized) {
+      log('[DB] Database already initialized - skipping schema');
+      // Only run pending migrations (if any new ones were added)
+      await processMigrations();
+      logTiming('Migration check (fast path)');
+      printTimingSummary();
+      return;
+    }
+
+    log('[DB] Fresh database - running full schema');
+    // Full schema for new databases
     const schema = `
 CREATE TABLE IF NOT EXISTS accounts (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -1246,7 +1308,7 @@ CREATE INDEX IF NOT EXISTS idx_transactions_base_currency ON transactions(base_c
 `;
 
     await new Promise<void>((resolve, reject) => {
-      db.exec(schema, (err: Error | null) => {
+      dbInstance.exec(schema, (err: Error | null) => {
         if (err) reject(err);
         else resolve();
       });
@@ -1261,14 +1323,17 @@ CREATE INDEX IF NOT EXISTS idx_transactions_base_currency ON transactions(base_c
             )
         `);
 
+    logTiming('Schema execution');
+
     // 3. Run Pending Migrations
     await processMigrations();
+    logTiming('Migrations');
 
-    console.log('[DB] Database bootstrapping complete.');
-
+    log('[DB] Database bootstrapping complete.');
+    printTimingSummary();
 
   } catch (error) {
-    console.error('[DB] Database bootstrap failed:', error);
+    log(`[DB] Database bootstrap failed: ${(error as Error).message}`);
     throw error;
   }
 }
@@ -1305,5 +1370,6 @@ async function processMigrations(): Promise<void> {
 // EXPORTS
 // =============================================================================
 
-export default db;
-export { db, dbInitialized, run, get, all };
+// Initialization complete - timing logged above
+export default dbInstance;
+export { dbInstance as db, dbInitialized, run, get, all };

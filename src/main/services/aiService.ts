@@ -38,6 +38,7 @@ interface DefaultPrompts {
  * - Connection Health Monitoring
  */
 import { DateUtils } from '../../shared/utils/dateUtils';
+import { Logger } from '../utils/logger';
 class AIService {
   private baseUrl: string;
   private model: string;
@@ -180,11 +181,11 @@ OR
     const timeSinceFailure = Date.now() - this._circuit.lastFailure;
     if (timeSinceFailure >= this.config.circuitBreakerReset) {
       this._resetCircuit();
-      console.log('[AI] Circuit breaker reset - retrying connection');
+      Logger.info('[AI] Circuit breaker reset - retrying connection');
       return true;
     }
 
-    console.log(
+    Logger.info(
       `[AI] Circuit breaker open - ${Math.ceil((this.config.circuitBreakerReset - timeSinceFailure) / 1000)}s until retry`
     );
     return false;
@@ -198,7 +199,7 @@ OR
 
     if (this._circuit.failures >= this.config.circuitBreakerThreshold) {
       this._circuit.isOpen = true;
-      console.log('[AI] Circuit breaker opened due to repeated failures');
+      Logger.info('[AI] Circuit breaker opened due to repeated failures');
     }
   }
 
@@ -244,7 +245,7 @@ OR
         return result;
       } catch (error) {
         lastError = error;
-        console.warn(`[AI] Attempt ${attempt + 1} failed:`, (error as Error).message);
+        Logger.warn(`[AI] Attempt ${attempt + 1} failed:`, (error as Error).message);
 
         if (attempt < retries) {
           await new Promise((resolve) => setTimeout(resolve, delay));
@@ -356,7 +357,7 @@ OR
       this._recordSuccess();
       return data.models || [];
     } catch (error) {
-      console.warn('[AI] Failed to fetch models:', (error as Error).message);
+      Logger.warn('[AI] Failed to fetch models:', (error as Error).message);
       return [];
     }
   }
@@ -392,7 +393,7 @@ OR
       const data = (await response.json()) as { response: string };
       return JSON.parse(data.response) as ParsedTransaction;
     } catch (error) {
-      console.error('AI Parse Failed:', error);
+      Logger.error('AI Parse Failed:', error);
       throw error;
     }
   }
@@ -411,7 +412,7 @@ OR
       const data = (await response.json()) as { response: string };
       return data.response.replace(/^"|"$/g, '').trim();
     } catch (error: any) {
-      console.warn('[AI] Insight generation failed, using fallback:', error.message);
+      Logger.warn('[AI] Insight generation failed, using fallback:', error.message);
       // Simple fallback logic since we don't have the full FallbackGenerator linked here
       return 'Keep tracking your spending to stay on top of your goals!';
     }
@@ -468,7 +469,7 @@ OR
         return data.response;
       }
     } catch (error: any) {
-      console.error('[AI] Chat sandbox failed:', error.message);
+      Logger.error('[AI] Chat sandbox failed:', error.message);
       if (error.message.includes('timed out')) {
         return 'The AI is taking too long to respond. Try a simpler question or check if Ollama is running.';
       } else if (error.message.includes('temporarily unavailable')) {

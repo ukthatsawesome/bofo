@@ -3,12 +3,25 @@
 All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
-### 🚀 New Features
-- **Activity Log**: Comprehensive audit trail tracking all user and AI actions within the app.
-- **Anomaly Detection**: Intelligent system that flags unusual spending, duplicate transactions, and subscription price increases.
 
-### 🛡️ Security
-- **Enhanced Remote Access**: Strict rate limiting, origin validation, and improved CORS configuration.
+### 🚀 New Features
+- **Database Seeding**: Dev tool to populate database with demo data for testing via `window.api.seedDatabase()`.
+
+### 🛡️ Security (v1.1.2 Audit)
+- **Dependency Update**: Replaced `xlsx` package with `exceljs` to address CVE-2024-22363 (prototype pollution vulnerability).
+- **Content Security Policy**: Hardened CSP headers with stricter `script-src` and removed unsafe patterns.
+- **Web Server Security**: Default binding changed from `0.0.0.0` to `localhost` (127.0.0.1). External access requires explicit opt-in.
+- **Debug Log Cleanup**: Removed debug console.log statements from production code paths.
+
+### ⚡ Performance
+- **Startup Optimization**: Database initialization now skips schema execution on already-initialized databases (improved from ~5s to ~6ms on subsequent launches).
+- **Timing Infrastructure**: Added startup timing logs for future performance profiling.
+
+### 🛠 Improvements
+- **Dashboard Charts**: Fixed property name mismatch between backend and frontend for chart data.
+- **IPC Handlers**: Added missing `get-dashboard-data`, `get-summary-stats`, and `get-category-spending` handlers.
+
+---
 
 ## [1.1.1] - 2026-01-15
 

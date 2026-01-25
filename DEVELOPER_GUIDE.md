@@ -18,6 +18,15 @@ Bofo uses a **Main-Renderer** architecture typical of Electron apps, but with a 
 
 - **Backend (Main Process)**:
   - Located in `src/main/`
+  - `database/`: Database initialization, encryption, and migrations.
+  - `ipc/`: Inter-Process Communication handlers for frontend requests.
+  - `models/`: Data Access Objects (DAO) and business logic for specific entities.
+  - `scripts/`: Development utilities (e.g., `seed.ts` for populating test data).
+  - `services/`: External integrations (AI, Exchange Rates, etc.) and `anomalyService.ts`.
+  - `utils/`: shared utility functions for the main process.
+  - `main.ts`: Entry point for the Electron application.
+  - `preload.ts`: Secure bridge between Main and Renderer processes.
+  - `webServer.ts`: Optional local web server for remote access feature.
   - **Node.js Environment**: Full access to file system, database, and OS APIs.
   - **Database**: SQLCipher (SQLite with encryption) via `src/main/database/`.
   - **IPC**: Handlers in `src/main/ipc/` receive requests from the frontend.

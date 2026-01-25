@@ -227,10 +227,13 @@ For developers and security reviewers:
 - [x] **Key Migration**: Automatic upgrade from legacy to safeStorage format
 - [x] **SQL Injection**: Parameterized queries throughout
 - [x] **XSS Prevention**: DOM sanitization in all user-facing inputs
-- [x] **CSP Headers**: Content Security Policy enabled
+- [x] **CSP Headers**: Content Security Policy enabled (hardened in v1.1.2)
 - [x] **Dev/Prod Isolation**: Separate database files and keys
 - [x] **No Hardcoded Secrets**: Keys generated at runtime
 - [x] **Secure IPC**: contextIsolation and nodeIntegration settings
+- [x] **Dependency Audit**: Replaced vulnerable `xlsx` with `exceljs` (CVE-2024-22363)
+- [x] **Web Server Security**: Default localhost binding, explicit opt-in for external access
+- [x] **Debug Log Cleanup**: Removed debug console.log statements from production paths
 
 ---
 

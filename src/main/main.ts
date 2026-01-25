@@ -8,6 +8,7 @@ import {
   nativeTheme,
 } from 'electron';
 import * as path from 'path';
+import { Logger } from './utils/logger';
 import { registerIpcHandlers, performAutoBackup } from './ipc/handlers';
 import { IpcRouter } from './ipc/router';
 import { SettingsController } from './ipc/controllers/SettingsController';
@@ -135,15 +136,15 @@ app.whenReady().then(async () => {
       });
     }
 
-    console.log('[Main] Waiting for database...');
+    Logger.info('[Main] Waiting for database...');
     await dbInitialized;
-    console.log('[Main] Database ready.');
+    Logger.info('[Main] Database ready.');
 
     if (win) {
       win.webContents.send('app:db-status', 'ready');
     }
   } catch (err) {
-    console.error('[Main] Database failed to initialize:', err);
+    Logger.error('[Main] Database failed to initialize:', err);
     // Send error to UI
     const windows = BrowserWindow.getAllWindows();
     if (windows.length > 0) {
@@ -160,14 +161,14 @@ app.whenReady().then(async () => {
 
     // Register new controller routes
     router.registerAll();
-    console.log('[Main] IPC Router initialized successfully.');
+    Logger.info('[Main] IPC Router initialized successfully.');
 
     // Identify which channels were handled to prevent duplication in legacy
     const handled = router.getRegisteredChannels();
     registerIpcHandlers(handled);
 
   } catch (err) {
-    console.error('[Main] IPC Router failed to initialize, falling back to legacy handlers:', err);
+    Logger.error('[Main] IPC Router failed to initialize, falling back to legacy handlers:', err);
     // Fallback: register everything via legacy method
     registerIpcHandlers();
   }
@@ -216,11 +217,11 @@ async function performStartupRateSync(): Promise<void> {
     // Check if rates are stale
     const syncStatus = await FinanceModel.getRateSyncStatus();
     if (!syncStatus.isStale) {
-      console.log('[Main] Exchange rates are up to date, skipping startup sync');
+      Logger.info('[Main] Exchange rates are up to date, skipping startup sync');
       return;
     }
 
-    console.log('[Main] Exchange rates are stale, performing startup sync...');
+    Logger.info('[Main] Exchange rates are stale, performing startup sync...');
 
     const CurrencyService = require('./services/currencyService').CurrencyService;
     const provider = settings.currency_api_provider || 'frankfurter';
@@ -235,9 +236,9 @@ async function performStartupRateSync(): Promise<void> {
     await FinanceModel.setExchangeRatesBulk(relevantRates, 'api');
     await FinanceModel.updateSetting('currency_last_sync', new Date().toISOString());
 
-    console.log(`[Main] Synced ${relevantRates.length} exchange rates on startup`);
+    Logger.info(`[Main] Synced ${relevantRates.length} exchange rates on startup`);
   } catch (err) {
-    console.warn('[Main] Startup rate sync failed:', (err as Error).message);
+    Logger.warn('[Main] Startup rate sync failed:', (err as Error).message);
   }
 }
 

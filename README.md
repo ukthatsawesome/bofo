@@ -32,6 +32,7 @@ Recent updates have significantly hardened the application architecture:
 - **SQLCipher**: Database is encrypted at rest using AES-256.
 
 ### 🚀 Performance
+- **Smart Startup**: Database initialization uses a fast-path that skips schema execution on initialized databases (~6ms vs 5s on subsequent launches).
 - **Pagination**: Transaction lists use an efficient `LIMIT/OFFSET` strategy, defaulting to 100 items per page.
 - **Backend Analytics**: Heavy computations (Forecasts, Net Worth) are offloaded to SQLite aggregations, ensuring instant UI rendering even with 100k+ records.
 

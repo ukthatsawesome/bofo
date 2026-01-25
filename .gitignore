@@ -77,3 +77,16 @@ build_app.ps1
 
 # Agent
 .agent/
+
+# Debug & Test Files
+debug_*.js
+debug_*.txt
+test_*.js
+test_*.xlsx
+encryption_debug.txt
+finance_backup.js
+build_errors.txt
+seed*.log
+
+# Old dist backup
+dist_old/

@@ -43,13 +43,13 @@ const DEV_KEY_SALT = 'bofo-dev-environment-salt-2025';
 export function log(message: string): void {
   const timestamp = new Date().toISOString();
   const logMessage = `[${timestamp}] ${message}\n`;
-  console.log(message);
+  if (isDev) console.log(message);
   try {
     if (app) {
       const logPath = path.join(app.getPath('userData'), 'bofo.log');
       fs.appendFileSync(logPath, logMessage);
     }
-  } catch (e) {}
+  } catch (e) { }
 }
 
 /**
@@ -320,40 +320,47 @@ function loadKey(keyDir: string): string | null {
  * Gets or creates the database encryption key
  */
 export function getOrCreateEncryptionKey(): string {
-  log(`[Encryption] Init - isDev: ${isDev}, isPackaged: ${app ? app.isPackaged : 'N/A'}`);
-  log(`[Encryption] safeStorage available: ${isSafeStorageAvailable()}`);
+  try {
+    console.log('[Encryption] DEBUG: Entering getOrCreateEncryptionKey');
+    require('fs').writeFileSync('encryption_debug.txt', 'Entering getOrCreateEncryptionKey\n');
+    log(`[Encryption] Init - isDev: ${isDev}, isPackaged: ${app ? app.isPackaged : 'N/A'}`);
+    require('fs').appendFileSync('encryption_debug.txt', 'After Init log\n');
+    log('[Encryption] Checking safeStorage...');
+    require('fs').appendFileSync('encryption_debug.txt', 'After SafeStorage log\n');
 
-  if (isDev) {
-    const devKey = crypto.createHash('sha256').update(DEV_KEY_SALT).digest('hex');
-    log('[Encryption] Using dev key');
-    return devKey;
+    if (isDev) {
+      console.log('[Encryption] DEBUG: isDev branch');
+      const devKey = crypto.createHash('sha256').update(DEV_KEY_SALT).digest('hex');
+      console.log('[Encryption] DEBUG: devKey generated');
+      log('[Encryption] Using dev key');
+      return devKey;
+    }
+
+    const keyDir = getKeyDirectory();
+    const existingKey = loadKey(keyDir);
+    if (existingKey) {
+      return existingKey;
+    }
+
+    log('[Encryption] No existing key found, generating new production key...');
+    const newKey = generateSecureKey();
+
+    if (!fs.existsSync(keyDir)) {
+      fs.mkdirSync(keyDir, { recursive: true });
+      log(`[Encryption] Created key directory: ${keyDir}`);
+    }
+
+    if (saveKey(newKey, keyDir)) {
+      log('[Encryption] New key saved successfully');
+    } else {
+      log('[Encryption] WARNING: Failed to save key - data may be lost on restart!');
+    }
+
+    return newKey;
+  } catch (err: any) {
+    console.error('[Encryption] FATAL ERROR in getOrCreateEncryptionKey:', err);
+    throw err;
   }
-
-  const keyDir = getKeyDirectory();
-
-  // Try to load existing key
-  const existingKey = loadKey(keyDir);
-  if (existingKey) {
-    return existingKey;
-  }
-
-  // Generate and save new key
-  log('[Encryption] No existing key found, generating new production key...');
-  const newKey = generateSecureKey();
-
-  // Ensure directory exists
-  if (!fs.existsSync(keyDir)) {
-    fs.mkdirSync(keyDir, { recursive: true });
-    log(`[Encryption] Created key directory: ${keyDir}`);
-  }
-
-  if (saveKey(newKey, keyDir)) {
-    log('[Encryption] New key saved successfully');
-  } else {
-    log('[Encryption] WARNING: Failed to save key - data may be lost on restart!');
-  }
-
-  return newKey;
 }
 
 /**

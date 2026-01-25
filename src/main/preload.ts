@@ -172,6 +172,7 @@ contextBridge.exposeInMainWorld('api', {
   // Anomaly Detection
   detectAnomalies: (data: { transaction: any }) => invokeWithTimeout('detect-anomalies', data),
   getCategoryStats: () => invokeWithTimeout('get-category-stats'),
+  seedDatabase: () => invokeWithTimeout('seed-db'),
 
   version: '1.1.1',
 });

@@ -187,8 +187,12 @@ function readBody(req: IncomingMessage, maxSize: number): Promise<string> {
 // WEB SERVER
 // =============================================================================
 
+import { Logger } from './utils/logger';
+
+// ... imports
+
 export async function startWebServer(): Promise<void> {
-  console.log('[Web Server] Checking configuration...');
+  Logger.info('[Web Server] Checking configuration...');
   if (server) return;
 
   try {
@@ -214,9 +218,9 @@ export async function startWebServer(): Promise<void> {
       allowedOrigins.add('http://127.0.0.1:5173');
     }
 
-    console.log(`[Web Server] Config: Port=${port}, Enabled=${enabled} (Dev=${isDev})`);
+    Logger.info(`[Web Server] Config: Port=${port}, Enabled=${enabled} (Dev=${isDev})`);
     const originsList = [...allowedOrigins].join(', ') || '(dev mode: localhost)';
-    console.log(`[Web Server] Allowed origins: ${originsList}`);
+    Logger.info(`[Web Server] Allowed origins: ${originsList}`);
 
     if (!enabled) return;
 
@@ -364,22 +368,25 @@ export async function startWebServer(): Promise<void> {
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify(result));
       } catch (err) {
-        console.error(`[Web Server] Error from ${clientIP}:`, (err as Error).message);
+        Logger.error(`[Web Server] Error from ${clientIP}:`, (err as Error).message);
         res.writeHead(500, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: sanitizeError(err) }));
       }
     });
 
-    server.listen(port, '0.0.0.0', () => {
-      console.log(`[Web Server] Remote access enabled on port ${port}`);
+    // Check if external access is explicitly enabled
+    const bindAddress = settings.remote_access_external === 'true' ? '0.0.0.0' : '127.0.0.1';
+
+    server.listen(port, bindAddress, () => {
+      Logger.info(`[Web Server] Remote access enabled on ${bindAddress}:${port}`);
     });
 
     server.on('error', (err) => {
-      console.error('[Web Server] Error:', err.message);
+      Logger.error('[Web Server] Error:', err.message);
       server = null;
     });
   } catch (err) {
-    console.error('[Web Server] Startup error:', err);
+    Logger.error('[Web Server] Startup error:', err);
   }
 }
 
@@ -391,7 +398,7 @@ export function stopWebServer(): void {
     server.close();
     server = null;
     rateLimitStore.clear();
-    console.log('[Web Server] Remote access disabled');
+    Logger.info('[Web Server] Remote access disabled');
   }
 }
 
