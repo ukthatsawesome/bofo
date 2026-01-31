@@ -34,7 +34,7 @@ export class FinanceController implements IController {
       const assets = accounts.filter(a => ['bank', 'wallet', 'investment'].includes((a.type || '').toLowerCase()))
         .reduce((sum, a) => sum + (a.balance || 0), 0);
       const liabilities = accounts.filter(a => !['bank', 'wallet', 'investment'].includes((a.type || '').toLowerCase()))
-        .reduce((sum, a) => sum + (a.balance || 0), 0);
+        .reduce((sum, a) => sum + Math.abs(a.balance || 0), 0);
 
       const netWorth = assets - liabilities; // Assuming balance is positive for liability accounts implies debt size
 

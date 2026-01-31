@@ -4,10 +4,7 @@
         "outDir": "dist",
         "rootDir": "src",
         "module": "CommonJS",
-        "moduleResolution": "Node",
-        "target": "ES2022",
-        "noEmit": false,
-        "noEmitOnError": false
+        "moduleResolution": "Node"
     },
     "include": [
         "src/main/**/*",

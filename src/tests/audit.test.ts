@@ -28,7 +28,8 @@ describe('Audit System Integration', () => {
         // Load modules dynamically
         const dbModule = await import('../main/database/db');
         db = dbModule.db;
-        run = dbModule.run; // Exported from db.ts
+        run = dbModule.run;
+        await dbModule.dbInitialized;
 
         // Load FinanceModel
         const financeModule = await import('../main/models/finance');
@@ -37,64 +38,13 @@ describe('Audit System Integration', () => {
         // Mock Side Effects
         FinanceModel.syncAccountBalance = vi.fn().mockResolvedValue(true);
 
-        // Init DB tables manually for test (since we bypass full bootstrap)
-        await run(`CREATE TABLE IF NOT EXISTS transactions (
-            id INTEGER PRIMARY KEY AUTOINCREMENT, 
-            account_id INTEGER, 
-            to_account_id INTEGER,
-            amount INTEGER, 
-            category TEXT, 
-            description TEXT, 
-            type TEXT,
-            attachment TEXT,
-            frequency TEXT,
-            start_date TEXT,
-            end_date TEXT,
-            currency TEXT,
-            exchange_rate REAL,
-            to_amount INTEGER,
-            tags TEXT,
-            is_active INTEGER
-        )`);
-
-        await run(`CREATE TABLE IF NOT EXISTS transaction_history (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            transaction_id INTEGER NOT NULL,
-            action TEXT CHECK(action IN ('CREATE', 'UPDATE', 'DELETE')) NOT NULL,
-            old_data TEXT,
-            new_data TEXT,
-            source TEXT DEFAULT 'USER',
-            metadata TEXT,
-            changed_by TEXT DEFAULT 'system',
-            changed_at DATETIME DEFAULT CURRENT_TIMESTAMP
-        )`);
-
-        await run(`CREATE TABLE IF NOT EXISTS audit_logs (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            entity_type TEXT NOT NULL,
-            entity_id INTEGER NOT NULL,
-            action TEXT CHECK(action IN ('CREATE', 'UPDATE', 'DELETE')) NOT NULL,
-            source TEXT DEFAULT 'USER',
-            changes JSON,
-            metadata JSON,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-        )`);
-
-        await run(`CREATE TABLE IF NOT EXISTS accounts (
-            id INTEGER PRIMARY KEY AUTOINCREMENT, 
-            name TEXT, 
-            type TEXT, 
-            balance INTEGER,
-            currency TEXT DEFAULT 'USD',
-            is_archived INTEGER DEFAULT 0
-        )`);
+        // Tables are initialized by db.ts bootstrap
 
         // Verify tables exist
         // await run("INSERT INTO transactions (amount) VALUES (1)");
     });
 
     afterAll(() => {
-        if (db) db.close();
         if (fs.existsSync(dbPath)) fs.unlinkSync(dbPath);
     });
 

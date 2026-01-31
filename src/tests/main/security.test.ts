@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { validateSafePath } from './security';
+import { validateSafePath } from '../../main/utils/security';
 import * as path from 'path';
 
 describe('Security Utils - validateSafePath', () => {
@@ -30,13 +30,13 @@ describe('Security Utils - validateSafePath', () => {
     // Our util implementation relies on path.normalize(). 
     // If user inputs "C:\Users\Guest\..\..\Windows", normalize makes it "C:\Windows".
     // Then sensitive check kicks in.
-    
+
     if (process.platform === 'win32') {
-       const sneaky = 'C:\\Users\\Guest\\..\\..\\Windows\\System32';
-       expect(validateSafePath(sneaky, 'dir')).toBe(false); 
+      const sneaky = 'C:\\Users\\Guest\\..\\..\\Windows\\System32';
+      expect(validateSafePath(sneaky, 'dir')).toBe(false);
     } else {
-       const sneaky = '/home/user/../../etc/passwd';
-       expect(validateSafePath(sneaky, 'file')).toBe(false);
+      const sneaky = '/home/user/../../etc/passwd';
+      expect(validateSafePath(sneaky, 'file')).toBe(false);
     }
   });
 });

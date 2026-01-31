@@ -4,8 +4,8 @@ import * as path from 'path';
 
 // Force Dev Mode BEFORE looking at any DB logic
 process.env.NODE_ENV = 'development';
-const dbPath = path.join(__dirname, 'test_ai_learning.db');
-process.env.TEST_DB_PATH = dbPath;
+const dbPath = path.resolve(__dirname, 'test_ai_learning.db');
+process.env.DATABASE_PATH = dbPath;
 
 // Mock Electron
 vi.mock('electron', () => ({
@@ -20,6 +20,7 @@ describe('AI Learning Feedback', () => {
     let FinanceModel: any;
     let db: any;
     let run: any;
+    let all: any;
 
     beforeAll(async () => {
         // Cleanup
@@ -29,6 +30,8 @@ describe('AI Learning Feedback', () => {
         const dbModule = await import('../main/database/db');
         db = dbModule.db;
         run = dbModule.run;
+        all = dbModule.all;
+        await dbModule.dbInitialized;
 
         // Load FinanceModel
         const financeModule = await import('../main/models/finance');
@@ -36,51 +39,13 @@ describe('AI Learning Feedback', () => {
 
         // Mock Side Effects
         FinanceModel.syncAccountBalance = vi.fn().mockResolvedValue(true);
-
-        // Init DB tables manually for test
-        await run(`CREATE TABLE IF NOT EXISTS transactions (
-        id INTEGER PRIMARY KEY AUTOINCREMENT, 
-        account_id INTEGER, 
-        to_account_id INTEGER,
-        amount INTEGER, 
-        category TEXT, 
-        description TEXT, 
-        type TEXT,
-        attachment TEXT,
-        frequency TEXT,
-        start_date TEXT,
-        end_date TEXT,
-        currency TEXT,
-        exchange_rate REAL,
-        to_amount INTEGER,
-        tags TEXT,
-        is_active INTEGER
-    )`);
-
-        await run(`CREATE TABLE IF NOT EXISTS transaction_history (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        transaction_id INTEGER NOT NULL,
-        action TEXT CHECK(action IN ('CREATE', 'UPDATE', 'DELETE')) NOT NULL,
-        old_data TEXT,
-        new_data TEXT,
-        source TEXT DEFAULT 'USER',
-        metadata TEXT,
-        changed_by TEXT DEFAULT 'system',
-        changed_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    )`);
-
-        await run(`CREATE TABLE IF NOT EXISTS accounts (
-        id INTEGER PRIMARY KEY AUTOINCREMENT, 
-        name TEXT, 
-        type TEXT, 
-        balance INTEGER,
-        currency TEXT DEFAULT 'USD',
-        is_archived INTEGER DEFAULT 0
-    )`);
+        // Tables are initialized by db.ts bootstrap
     });
 
-    afterAll(() => {
-        if (db) db.close();
+    afterAll(async () => {
+        if (db) {
+            await new Promise<void>((resolve) => db.close(() => resolve()));
+        }
         if (fs.existsSync(dbPath)) fs.unlinkSync(dbPath);
     });
 
@@ -169,7 +134,7 @@ describe('AI Learning Feedback', () => {
             // Request only 2 corrections
             const corrections = await FinanceModel.getAICategoryCorrections(2);
 
-            expect(corrections.length).toBeLessThanOrEqual(2);
+            expect(corrections.length).toBe(2);
         });
     });
 });

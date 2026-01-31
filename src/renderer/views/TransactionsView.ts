@@ -430,7 +430,7 @@ export class TransactionsView extends BaseView {
         this.state.goToPage(this.state.txHistoryPage),
       ]);
 
-      if (this.app.updateAccountDropdowns) this.app.updateAccountDropdowns();
+      this.app.forms.updateAccountDropdowns();
       this.render();
       this.loadInsights();
       this.app.notifications.toast('Success', 'Transaction updated', 'success');

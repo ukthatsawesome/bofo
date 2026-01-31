@@ -196,8 +196,8 @@ export class BillsView extends BaseView {
     // Add years from data
     if (this.app.state.allBillReadings) {
       this.app.state.allBillReadings.forEach((r) => {
-        if (!r.reading_date) return;
-        const year = parseInt(r.reading_date.split('-')[0]);
+        if (!r.date) return;
+        const year = parseInt(r.date.split('-')[0]);
         if (year) years.add(year);
       });
     }
@@ -316,7 +316,7 @@ export class BillsView extends BaseView {
       (r: BillReading) => {
         return `
                 <tr class="hover:bg-brand-primary/5 transition-colors border-b border-border last:border-0">
-                    <td class="px-5 py-4 text-sm text-text-secondary">${r.reading_date}</td>
+                    <td class="px-5 py-4 text-sm text-text-secondary">${r.date}</td>
                     <td class="px-5 py-4 text-sm font-bold text-text-primary">
                          <div class="flex-row align-center gap-2">
                              <div class="icon-box xs" style="background: ${(r as any).color || '#7c3aed'}20; color: ${(r as any).color || '#7c3aed'}">
@@ -326,8 +326,8 @@ export class BillsView extends BaseView {
                              ${(r as any).category_name ? `<span class="badge xs" style="background: var(--brand-primary)15; color: var(--brand-primary); border: 1px solid var(--brand-primary)30; font-size: 10px;">${UIUtils.escapeHTML((r as any).category_name)}</span>` : ''}
                          </div>
                     </td>
-                    <td class="px-5 py-4 text-sm font-medium">${r.usage_amount || 0} ${UIUtils.escapeHTML((r as any).unit_name || '')}</td>
-                    <td class="px-5 py-4 text-sm font-bold text-text-primary">${this.app.formatter.formatCurrency(r.cost || 0)}</td>
+                     <td class="px-5 py-4 text-sm font-medium">${r.units_used || 0} ${UIUtils.escapeHTML((r as any).unit_name || '')}</td>
+                    <td class="px-5 py-4 text-sm font-bold text-text-primary">${this.app.formatter.formatCurrency(r.total_cost || 0)}</td>
                     <td class="px-5 py-4 text-right">
                         <div class="flex-row gap-1 justify-end">
                             <button class="action-btn p-1 hover:text-brand-primary transition-colors" onclick="app.views.bills.handleEditReading('${r.id}')">
@@ -445,10 +445,10 @@ export class BillsView extends BaseView {
       // Group readings by month
       const monthMap: Record<string, number> = {};
       readings.forEach((r) => {
-        if (!r.reading_date) return; // Skip readings without a date
-        const month = r.reading_date.slice(0, 7); // YYYY-MM
+        if (!r.date) return; // Skip readings without a date
+        const month = r.date.slice(0, 7); // YYYY-MM
         if (!monthMap[month]) monthMap[month] = 0;
-        monthMap[month] += r.cost || 0;
+        monthMap[month] += r.total_cost || 0;
       });
 
       const labels = Object.keys(monthMap).sort();
@@ -520,7 +520,7 @@ export class BillsView extends BaseView {
   }
 
   showReadingModal(reading: any = null): void {
-    this.app.renderDynamicModals();
+    this.app.modals.renderDynamicModals();
     const modal = $('#bill-reading-modal');
     if (!modal) return;
 
@@ -545,9 +545,9 @@ export class BillsView extends BaseView {
     // Pre-fill if editing
     if (reading) {
       billTypeSelect.value = reading.bill_type_id.toString();
-      dateInput.value = reading.reading_date;
-      unitsInput.value = (reading.usage_amount || 0).toString();
-      costInput.value = (reading.cost || 0).toString();
+      dateInput.value = reading.date;
+      unitsInput.value = (reading.units_used || 0).toString();
+      costInput.value = (reading.total_cost || 0).toString();
       notesInput.value = (reading as any).notes || '';
       billTypeSelect.disabled = true; // Don't allow changing type once created
     } else {

@@ -19,7 +19,7 @@ export function validateSafePath(inputPath: string, type: 'file' | 'dir' = 'dir'
 
   // Normalize path to resolve '..' segments
   const normalized = path.normalize(inputPath);
-  
+
   // Must be absolute path
   if (!path.isAbsolute(normalized)) {
     // Attempt to resolve it? For security, we usually demand absolute paths from UI or resolve relative to safe root.
@@ -32,7 +32,7 @@ export function validateSafePath(inputPath: string, type: 'file' | 'dir' = 'dir'
   // Windows: C:\Windows, C:\Program Files
   // Linux/Mac: /etc, /usr, /var
   const lower = normalized.toLowerCase();
-  
+
   const sensitivePaths = [
     'c:\\windows',
     'c:\\program files',
@@ -50,8 +50,8 @@ export function validateSafePath(inputPath: string, type: 'file' | 'dir' = 'dir'
 
   // For specific path traversal attack strings that might bypass normalization (rare in node path, but good to be safe)
   if (inputPath.includes('..') && !path.isAbsolute(inputPath)) {
-      // If it was relative and had .., we already returned false above, but explicit check:
-      return false;
+    // If it was relative and had .., we already returned false above, but explicit check:
+    return false;
   }
 
   return true;

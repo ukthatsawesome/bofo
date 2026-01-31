@@ -174,8 +174,8 @@ export const BillsSettingsMixin = {
         const unit_name = ($('#bt-unit') as HTMLInputElement)?.value.trim() || 'Units';
         const cost_per_unit = parseFloat(($('#bt-cost') as HTMLInputElement)?.value) || 0;
         const icon = ($('#bt-icon') as HTMLSelectElement)?.value || 'file-text';
-        const category_name = ($('#bt-category') as HTMLSelectElement)?.value || null;
-        const account_id = parseInt(($('#bt-account') as HTMLSelectElement)?.value) || null;
+        const category_name = ($('#bt-category') as HTMLSelectElement)?.value || undefined;
+        const account_id = parseInt(($('#bt-account') as HTMLSelectElement)?.value) || undefined;
         const auto_transaction = ($('#bt-auto') as HTMLInputElement)?.checked ? 1 : 0;
 
         if (!name) {

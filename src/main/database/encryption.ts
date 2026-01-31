@@ -8,42 +8,54 @@
  * 1. Electron safeStorage API (OS-level credential store - most secure)
  * 2. Fallback: Machine-salt encrypted file (for systems without safeStorage)
  * 3. Development: Deterministic key for debugging
+ *
+ * @module encryption
  */
 
 import * as crypto from 'crypto';
+import * as os from 'os';
 import * as path from 'path';
 import * as fs from 'fs';
 import type { App } from 'electron';
 
-// We need to use require for electron to avoid issues if we are in a non-electron constraint environment?
-// But this is backend code.
-// However, `electron` import is fine in Main process.
-// We use `let` binding to handle potential missing electron in pure node tests if any.
+// =============================================================================
+// STATE & CONFIGURATION
+// =============================================================================
+
 let app: App | null = null;
 let safeStorage: typeof import('electron').safeStorage | null = null;
 
 try {
+  // Dynamic require to allow this module to be tested in environments without Electron
   const electron = require('electron');
   app = electron.app;
   safeStorage = electron.safeStorage;
 } catch (e) {
+  // Non-electron environment (e.g., unit tests)
   app = null;
   safeStorage = null;
 }
 
 export const isDev = app ? !app.isPackaged : process.env.NODE_ENV === 'development';
 
-// Constants
 const KEY_LENGTH = 32; // 256 bits for AES-256
 export const KEY_FILE_NAME = '.bofo-key'; // Legacy format (machine-salt)
 export const SAFE_KEY_FILE_NAME = '.bofo-key-secure'; // New format (safeStorage)
 const DEV_KEY_SALT = 'bofo-dev-environment-salt-2025';
 
-// Log function to help debug production issues
-export function log(message: string): void {
+// =============================================================================
+// PRIVATE HELPER FUNCTIONS
+// =============================================================================
+
+/**
+ * Logs a message to console and, if available, to the application log file.
+ */
+function logInternal(message: string): void {
   const timestamp = new Date().toISOString();
   const logMessage = `[${timestamp}] ${message}\n`;
+
   if (isDev) console.log(message);
+
   try {
     if (app) {
       const logPath = path.join(app.getPath('userData'), 'bofo.log');
@@ -55,68 +67,83 @@ export function log(message: string): void {
 }
 
 /**
- * Gets the directory for storing the encryption key
+ * Determines and ensures the existence of the directory for storing encryption keys.
  */
 function getKeyDirectory(): string {
   let dir: string;
+
   if (isDev) {
     dir = path.join(__dirname, '../..');
   } else {
     if (!app) {
-      log('[Encryption] ERROR: app is null in production!');
-      // Fallback to a safe default - use APPDATA directly
+      logInternal('[Encryption] ERROR: app is null in production!');
+      // Fallback to a safe default - use APPDATA or HOME directly
       const appData = process.env.APPDATA || process.env.HOME || '.';
       dir = path.join(appData, 'Bofo');
     } else {
       dir = app.getPath('userData');
     }
   }
-  log(`[Encryption] Storage directory: ${dir}`);
+
+  logInternal(`[Encryption] Storage directory: ${dir}`);
 
   // Ensure the directory exists
   try {
     if (!fs.existsSync(dir)) {
       fs.mkdirSync(dir, { recursive: true });
-      log(`[Encryption] Created storage directory: ${dir}`);
+      logInternal(`[Encryption] Created storage directory: ${dir}`);
     }
-  } catch (err: any) {
-    log(`[Encryption] Failed to create directory: ${err.message}`);
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    logInternal(`[Encryption] Failed to create directory: ${message}`);
   }
 
   return dir;
 }
 
 /**
- * Generates a cryptographically secure random key
+ * Generates a cryptographically secure random key (hex string).
  */
 function generateSecureKey(): string {
   return crypto.randomBytes(KEY_LENGTH).toString('hex');
 }
 
 /**
- * Check if safeStorage is available and ready to use
+ * Generates a machine-specific salt for additional key protection (legacy fallback).
+ * Returns 64 hex characters (32 bytes) suitable for AES-256.
  */
-export function isSafeStorageAvailable(): boolean {
+function getMachineSalt(): string {
+  const hostname = os.hostname() || 'unknown-host';
+  const username = (os.userInfo() && os.userInfo().username) || 'unknown-user';
+
+  return crypto
+    .createHash('sha256')
+    .update(`${hostname}:${username}:bofo-finance-v1`)
+    .digest('hex');
+}
+
+// =============================================================================
+// ENCRYPTION LOGIC (SAFE STORAGE)
+// =============================================================================
+
+function isSafeStorageAvailable(): boolean {
+  if (!safeStorage) {
+    logInternal('[Encryption] safeStorage module not available');
+    return false;
+  }
   try {
-    if (!safeStorage) {
-      log('[Encryption] safeStorage module not available');
-      return false;
-    }
     const available = safeStorage.isEncryptionAvailable();
-    log(`[Encryption] safeStorage.isEncryptionAvailable(): ${available}`);
+    logInternal(`[Encryption] safeStorage.isEncryptionAvailable(): ${available}`);
     return available;
-  } catch (error: any) {
-    log(`[Encryption] safeStorage check failed: ${error.message}`);
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    logInternal(`[Encryption] safeStorage check failed: ${message}`);
     return false;
   }
 }
 
-/**
- * Encrypt a key using Electron's safeStorage API
- * Returns a Base64 encoded string of the encrypted buffer
- */
 function encryptWithSafeStorage(key: string): string {
-  if (!isSafeStorageAvailable() || !safeStorage) {
+  if (!safeStorage) {
     throw new Error('safeStorage is not available');
   }
 
@@ -128,11 +155,8 @@ function encryptWithSafeStorage(key: string): string {
   });
 }
 
-/**
- * Decrypt a key using Electron's safeStorage API
- */
 function decryptWithSafeStorage(encryptedData: string): string | null {
-  if (!isSafeStorageAvailable() || !safeStorage) {
+  if (!safeStorage) {
     throw new Error('safeStorage is not available');
   }
 
@@ -145,30 +169,17 @@ function decryptWithSafeStorage(encryptedData: string): string | null {
 
     const encryptedBuffer = Buffer.from(parsed.data, 'base64');
     return safeStorage.decryptString(encryptedBuffer);
-  } catch (error: any) {
-    log(`[Encryption] safeStorage decryption failed: ${error.message}`);
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    logInternal(`[Encryption] safeStorage decryption failed: ${message}`);
     return null;
   }
 }
 
-/**
- * Gets a machine-specific salt for additional key protection (legacy fallback)
- * Returns 64 hex characters = 32 bytes when decoded (required for AES-256)
- */
-function getMachineSalt(): string {
-  const os = require('os');
-  const hostname = os.hostname() || 'unknown-host';
-  const username = (os.userInfo() && os.userInfo().username) || 'unknown-user';
-  // Return full 64-char hex string (32 bytes) for AES-256
-  return crypto
-    .createHash('sha256')
-    .update(`${hostname}:${username}:bofo-finance-v1`)
-    .digest('hex');
-}
+// =============================================================================
+// ENCRYPTION LOGIC (LEGACY FALLBACK)
+// =============================================================================
 
-/**
- * Encrypts the database key for storage (legacy fallback method)
- */
 function encryptKeyLegacy(key: string): string {
   const salt = getMachineSalt();
   const iv = crypto.randomBytes(16);
@@ -187,9 +198,6 @@ function encryptKeyLegacy(key: string): string {
   });
 }
 
-/**
- * Decrypts a stored database key (legacy fallback method)
- */
 function decryptKeyLegacy(encryptedData: string): string | null {
   try {
     const { iv, authTag, data, version } = JSON.parse(encryptedData);
@@ -199,7 +207,6 @@ function decryptKeyLegacy(encryptedData: string): string | null {
     }
 
     const salt = getMachineSalt();
-    // Salt is 64 hex chars = 32 bytes, exactly what AES-256 needs
     const decipher = crypto.createDecipheriv(
       'aes-256-gcm',
       Buffer.from(salt, 'hex'),
@@ -211,18 +218,23 @@ function decryptKeyLegacy(encryptedData: string): string | null {
     decrypted += decipher.final('utf8');
 
     return decrypted;
-  } catch (error: any) {
-    log(`[Encryption] Legacy decryption failed: ${error.message}`);
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    logInternal(`[Encryption] Legacy decryption failed: ${message}`);
     return null;
   }
 }
 
+// =============================================================================
+// KEY LIFECYCLE MANAGEMENT
+// =============================================================================
+
 /**
- * Migrate key from legacy format to safeStorage format
+ * Migrates a legacy key to the safeStorage format.
  */
 function migrateToSafeStorage(key: string, keyDir: string): boolean {
   if (!isSafeStorageAvailable()) {
-    log('[Encryption] Cannot migrate: safeStorage not available');
+    logInternal('[Encryption] Cannot migrate: safeStorage not available');
     return false;
   }
 
@@ -231,16 +243,17 @@ function migrateToSafeStorage(key: string, keyDir: string): boolean {
   try {
     const encryptedKey = encryptWithSafeStorage(key);
     fs.writeFileSync(safeKeyPath, encryptedKey, { encoding: 'utf8' });
-    log('[Encryption] Successfully migrated key to safeStorage format');
+    logInternal('[Encryption] Successfully migrated key to safeStorage format');
     return true;
-  } catch (error: any) {
-    log(`[Encryption] Migration to safeStorage failed: ${error.message}`);
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    logInternal(`[Encryption] Migration to safeStorage failed: ${message}`);
     return false;
   }
 }
 
 /**
- * Save key using the best available method
+ * Saves the encryption key using the best available method.
  */
 function saveKey(key: string, keyDir: string): boolean {
   // Try safeStorage first (most secure)
@@ -249,10 +262,11 @@ function saveKey(key: string, keyDir: string): boolean {
     try {
       const encryptedKey = encryptWithSafeStorage(key);
       fs.writeFileSync(safeKeyPath, encryptedKey, { encoding: 'utf8' });
-      log(`[Encryption] Key saved with safeStorage to: ${safeKeyPath}`);
+      logInternal(`[Encryption] Key saved with safeStorage to: ${safeKeyPath}`);
       return true;
-    } catch (error: any) {
-      log(`[Encryption] safeStorage save failed: ${error.message}`);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      logInternal(`[Encryption] safeStorage save failed: ${message}`);
       // Fall through to legacy method
     }
   }
@@ -262,16 +276,18 @@ function saveKey(key: string, keyDir: string): boolean {
   try {
     const encryptedKey = encryptKeyLegacy(key);
     fs.writeFileSync(legacyKeyPath, encryptedKey, { encoding: 'utf8' });
-    log(`[Encryption] Key saved with legacy method to: ${legacyKeyPath}`);
+    logInternal(`[Encryption] Key saved with legacy method to: ${legacyKeyPath}`);
     return true;
-  } catch (error: any) {
-    log(`[Encryption] Legacy save failed: ${error.message}`);
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    logInternal(`[Encryption] Legacy save failed: ${message}`);
     return false;
   }
 }
 
 /**
- * Load key from storage, trying safeStorage first, then legacy
+ * Loads the encryption key from storage.
+ * Tries safeStorage (Version 2) first, then legacy (Version 1).
  */
 function loadKey(keyDir: string): string | null {
   const safeKeyPath = path.join(keyDir, SAFE_KEY_FILE_NAME);
@@ -283,12 +299,13 @@ function loadKey(keyDir: string): string | null {
       const encryptedKey = fs.readFileSync(safeKeyPath, 'utf8');
       const key = decryptWithSafeStorage(encryptedKey);
       if (key) {
-        log('[Encryption] Key loaded from safeStorage');
+        logInternal('[Encryption] Key loaded from safeStorage');
         return key;
       }
-      log('[Encryption] safeStorage key exists but decryption failed');
-    } catch (error: any) {
-      log(`[Encryption] Error reading safeStorage key: ${error.message}`);
+      logInternal('[Encryption] safeStorage key exists but decryption failed');
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      logInternal(`[Encryption] Error reading safeStorage key: ${message}`);
     }
   }
 
@@ -299,69 +316,91 @@ function loadKey(keyDir: string): string | null {
       const key = decryptKeyLegacy(encryptedKey);
 
       if (key) {
-        log('[Encryption] Key loaded from legacy format');
+        logInternal('[Encryption] Key loaded from legacy format');
 
         // Attempt to migrate to safeStorage for future use
         if (isSafeStorageAvailable() && !fs.existsSync(safeKeyPath)) {
-          log('[Encryption] Attempting migration to safeStorage...');
+          logInternal('[Encryption] Attempting migration to safeStorage...');
           migrateToSafeStorage(key, keyDir);
         }
 
         return key;
       }
-      log('[Encryption] Legacy key exists but decryption failed');
-    } catch (error: any) {
-      log(`[Encryption] Error reading legacy key: ${error.message}`);
+      logInternal('[Encryption] Legacy key exists but decryption failed');
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      logInternal(`[Encryption] Error reading legacy key: ${message}`);
     }
   }
 
   return null;
 }
 
+// =============================================================================
+// PUBLIC API
+// =============================================================================
+
 /**
- * Gets or creates the database encryption key
+ * Logs a message to console and file
+ */
+export function log(message: string): void {
+  logInternal(message);
+}
+
+/**
+ * Check if safeStorage is available and ready to use (re-export)
+ */
+export { isSafeStorageAvailable };
+
+/**
+ * Gets or creates the encryption key for the database
  */
 export function getOrCreateEncryptionKey(): string {
   try {
-    log(`[Encryption] Init - isDev: ${isDev}, isPackaged: ${app ? app.isPackaged : 'N/A'}`);
-    log('[Encryption] Checking safeStorage...');
+    logInternal(`[Encryption] Init - isDev: ${isDev}, isPackaged: ${app ? app.isPackaged : 'N/A'}`);
+    logInternal('[Encryption] Checking safeStorage...');
 
+    // Development: Use deterministic key
     if (isDev) {
       const devKey = crypto.createHash('sha256').update(DEV_KEY_SALT).digest('hex');
-      log('[Encryption] Using dev key');
+      logInternal('[Encryption] Using dev key');
       return devKey;
     }
 
+    // Production: Load or Generate Key
     const keyDir = getKeyDirectory();
     const existingKey = loadKey(keyDir);
+
     if (existingKey) {
       return existingKey;
     }
 
-    log('[Encryption] No existing key found, generating new production key...');
+    logInternal('[Encryption] No existing key found, generating new production key...');
     const newKey = generateSecureKey();
 
     if (!fs.existsSync(keyDir)) {
       fs.mkdirSync(keyDir, { recursive: true });
-      log(`[Encryption] Created key directory: ${keyDir}`);
+      logInternal(`[Encryption] Created key directory: ${keyDir}`);
     }
 
     if (saveKey(newKey, keyDir)) {
-      log('[Encryption] New key saved successfully');
+      logInternal('[Encryption] New key saved successfully');
     } else {
-      log('[Encryption] WARNING: Failed to save key - data may be lost on restart!');
+      logInternal('[Encryption] WARNING: Failed to save key - data may be lost on restart!');
     }
 
     return newKey;
-  } catch (err: any) {
-    console.error('[Encryption] FATAL ERROR in getOrCreateEncryptionKey:', err);
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error('[Encryption] FATAL ERROR in getOrCreateEncryptionKey:', message);
     throw err;
   }
 }
 
 /**
- * Checks if a database file is encrypted with SQLCipher
- * Returns: true if encrypted, false if plaintext, null if error
+ * Check if a database file is encrypted
+ * @param dbPath Path to the database file
+ * @returns true if encrypted, false if plaintext, null if unable to determine
  */
 export function isDatabaseEncrypted(dbPath: string): boolean | null {
   if (!fs.existsSync(dbPath)) return false;
@@ -378,10 +417,11 @@ export function isDatabaseEncrypted(dbPath: string): boolean | null {
     const sqliteHeader = 'SQLite format 3';
     const isPlain = header.toString('utf8', 0, 15) === sqliteHeader;
 
-    log(`[Encryption] DB Check: ${dbPath} - isPlain: ${isPlain}`);
+    logInternal(`[Encryption] DB Check: ${dbPath} - isPlain: ${isPlain}`);
     return !isPlain;
-  } catch (error: any) {
-    log(`[Encryption] DB Check Error: ${error.message}`);
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    logInternal(`[Encryption] DB Check Error: ${message}`);
     return null; // Uncertain
   } finally {
     if (fd !== undefined) fs.closeSync(fd);
@@ -389,7 +429,9 @@ export function isDatabaseEncrypted(dbPath: string): boolean | null {
 }
 
 /**
- * Configuration for SQLCipher
+ * Get SQLCipher configuration pragmas
+ * @param key The encryption key
+ * @returns Array of PRAGMA statements
  */
 export function getSQLCipherConfig(key: string): string[] {
   return [
@@ -402,7 +444,13 @@ export function getSQLCipherConfig(key: string): string[] {
 /**
  * Get security status for diagnostics
  */
-export function getSecurityStatus(): any {
+export function getSecurityStatus(): {
+  safeStorageAvailable: boolean;
+  usingSafeStorage: boolean;
+  hasLegacyKey: boolean;
+  keyDirectory: string;
+  isDev: boolean;
+} {
   const keyDir = getKeyDirectory();
   const safeKeyPath = path.join(keyDir, SAFE_KEY_FILE_NAME);
   const legacyKeyPath = path.join(keyDir, KEY_FILE_NAME);

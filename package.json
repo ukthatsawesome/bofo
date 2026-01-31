@@ -35,7 +35,6 @@
   "dependencies": {
     "@journeyapps/sqlcipher": "^5.3.1",
     "chart.js": "^4.5.1",
-    "decimal.js": "^10.6.0",
     "exceljs": "^4.4.0",
     "lucide": "^0.562.0"
   },
@@ -43,7 +42,6 @@
     "@electron/rebuild": "^4.0.2",
     "@eslint/js": "^9.39.2",
     "@types/chart.js": "^4.0.1",
-    "@types/decimal.js": "^7.4.3",
     "@types/node": "^25.0.9",
     "@types/sqlite3": "^5.1.0",
     "@typescript-eslint/eslint-plugin": "^8.53.0",

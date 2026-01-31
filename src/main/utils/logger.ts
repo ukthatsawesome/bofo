@@ -1,6 +1,6 @@
 import { app } from 'electron';
 
-const isDev = !app.isPackaged;
+const isDev = app ? !app.isPackaged : process.env.NODE_ENV === 'development';
 
 export const Logger = {
     info: (...args: any[]) => {

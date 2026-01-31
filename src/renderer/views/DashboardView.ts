@@ -47,9 +47,7 @@ export class DashboardView extends BaseView {
       this.isInitialized = true;
     }
 
-    if (this.app.updateAccountDropdowns) {
-      this.app.updateAccountDropdowns();
-    }
+    this.app.forms.updateAccountDropdowns();
     await this.render();
     this.loadAIInsight();
   }

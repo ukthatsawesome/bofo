@@ -11,18 +11,10 @@ import type {
   ExchangeRate,
   Setting,
   GoalContribution,
-} from '../shared/types';
-import type {
+  PaginatedResponse,
   TransactionWithCategory,
-} from '../main/database/types';
+} from '../shared/types';
 
-export interface PaginatedResponse<T> {
-  data: T[];
-  total: number;
-  limit: number;
-  offset: number;
-  hasMore: boolean;
-}
 
 export interface API {
   // Transactions

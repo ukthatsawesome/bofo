@@ -34,13 +34,22 @@ import {
   createIndex,
   createIndexes,
   createTrigger,
-  hasColumn,
   getColumnNames,
 } from './migrations/utils';
 import { DEFAULT_CATEGORIES } from '../../shared/categories';
 import { DEFAULT_SETTINGS } from '../../shared/defaultSettings';
+
 // =============================================================================
-// DATABASE ENGINE INITIALIZATION
+// TYPES & INTERFACES
+// =============================================================================
+
+interface TableDefinition {
+  name: string;
+  sql: string;
+}
+
+// =============================================================================
+// ENGINE & ENVIRONMENT SETUP
 // =============================================================================
 
 // Use SQLCipher instead of plain sqlite3
@@ -64,24 +73,34 @@ try {
 log(`[DB] Environment: ${isDev ? 'DEVELOPMENT' : 'PRODUCTION'}`);
 
 // =============================================================================
-// DATABASE PATH CONFIGURATION
+// PATH & ENCRYPTION CONFIGURATION
 // =============================================================================
 
-const dbPath = isDev
-  ? path.join(__dirname, '../../../finance.dev.db')
-  : path.join(app!.getPath('userData'), 'finance.db');
+const getDatabasePath = (): string => {
+  if (process.env.DATABASE_PATH) {
+    return process.env.DATABASE_PATH;
+  }
 
+  if (isDev) {
+    return path.join(__dirname, '../../../finance.dev.db');
+  }
+
+  if (!app) {
+    throw new Error('[DB] Electron app reference is missing in production mode');
+  }
+
+  return path.join(app.getPath('userData'), 'finance.db');
+};
+
+const dbPath = getDatabasePath();
 log(`[DB] Path: ${dbPath}`);
 
-// Get encryption key
 const encryptionKey = getOrCreateEncryptionKey();
 
 // =============================================================================
-// PLAINTEXT MIGRATION CHECK
+// PLAINTEXT MIGRATION CHECK (Synchronous)
 // =============================================================================
 
-// Check if we need to migrate from unencrypted database
-// SAFER CHECK: Only migrate if we are CERTAIN it is plaintext.
 const isEnc = isDatabaseEncrypted(dbPath);
 const needsMigration = isEnc === false && fs.existsSync(dbPath);
 const backupPath = dbPath + '.plaintext.bak';
@@ -89,7 +108,9 @@ const backupPath = dbPath + '.plaintext.bak';
 if (needsMigration) {
   log('[DB] Detected plaintext database. Starting migration...');
   try {
-    if (fs.existsSync(backupPath)) fs.unlinkSync(backupPath);
+    if (fs.existsSync(backupPath)) {
+      fs.unlinkSync(backupPath);
+    }
     fs.renameSync(dbPath, backupPath);
     log(`[DB] Moved plaintext to backup: ${backupPath}`);
   } catch (error) {
@@ -124,7 +145,9 @@ export const dbInstance = new sqlite3.Database(dbPath, async (err) => {
 
   try {
     await configureEncryption();
-    if (needsMigration) await migrateFromBackup(backupPath);
+    if (needsMigration) {
+      await migrateFromBackup(backupPath);
+    }
     await bootstrapDb();
     log('[DB] Initialization complete');
     dbResolve();
@@ -133,113 +156,6 @@ export const dbInstance = new sqlite3.Database(dbPath, async (err) => {
     dbReject(error as Error);
   }
 });
-
-// =============================================================================
-// ENCRYPTION CONFIGURATION
-// =============================================================================
-
-/**
- * Configure SQLCipher encryption settings
- */
-async function configureEncryption(): Promise<void> {
-  const pragmas = [
-    ...getSQLCipherConfig(encryptionKey),
-    'PRAGMA journal_mode = WAL',
-    'PRAGMA synchronous = NORMAL',
-    'PRAGMA busy_timeout = 5000',
-  ];
-
-  const runStrict = (sql: string) =>
-    new Promise<void>((resolve, reject) => {
-      dbInstance.run(sql, (err: Error | null) => {
-        if (err) reject(new Error(`Pragma failed: ${sql} - ${err.message}`));
-        else resolve();
-      });
-    });
-
-  try {
-    // Execute pragmas sequentially and strictly
-    for (const pragma of pragmas) {
-      await runStrict(pragma);
-    }
-
-    // Enable foreign keys
-    await runStrict('PRAGMA foreign_keys = ON');
-    log('[DB] Foreign key enforcement enabled');
-
-    // Verify database access (decrypt check)
-    await new Promise<void>((resolve, reject) => {
-      dbInstance.get('SELECT count(*) FROM sqlite_master', (err: Error | null) => {
-        if (err) reject(new Error(`Encryption verification failed: ${err.message}`));
-        else resolve();
-      });
-    });
-  } catch (error) {
-    log(`[DB] Critical Security Error: ${(error as Error).message}`);
-    throw error; // Propagate to halt initialization
-  }
-}
-
-// =============================================================================
-// PLAINTEXT BACKUP MIGRATION
-// =============================================================================
-
-/**
- * Migrate data from plaintext backup to new encrypted database
- */
-async function migrateFromBackup(backupFile: string): Promise<void> {
-  console.log('[DB] Importing data from plaintext backup...');
-
-  return new Promise((resolve, reject) => {
-    dbInstance.serialize(() => {
-      // Attach plaintext backup with empty key
-      dbInstance.run(`ATTACH DATABASE ? AS backup KEY ''`, [backupFile], (err: Error | null) => {
-        if (err) return reject(err);
-
-        // Get all tables from backup
-        dbInstance.all(
-          "SELECT name, sql FROM backup.sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'",
-          [],
-          async (err: Error | null, tables: Array<{ name: string; sql: string }>) => {
-            if (err) return reject(err);
-
-            try {
-              dbInstance.run('BEGIN TRANSACTION');
-
-              for (const table of tables) {
-                if (table.name === 'android_metadata') continue;
-
-                console.log(`[DB] Migrating table: ${table.name}`);
-
-                await new Promise<void>((res, rej) => {
-                  dbInstance.run(table.sql, (e: Error | null) => (e ? rej(e) : res()));
-                });
-
-                await new Promise<void>((res, rej) => {
-                  dbInstance.run(
-                    `INSERT INTO main.${table.name} SELECT * FROM backup.${table.name}`,
-                    (e: Error | null) => (e ? rej(e) : res())
-                  );
-                });
-              }
-
-              dbInstance.run('COMMIT');
-
-              // Detach backup
-              dbInstance.run('DETACH DATABASE backup', (e: Error | null) => {
-                if (e) reject(e);
-                else resolve();
-              });
-            } catch (migrationErr) {
-              dbInstance.run('ROLLBACK');
-              reject(migrationErr);
-            }
-          }
-        );
-      });
-    });
-  });
-}
 
 // =============================================================================
 // DATABASE HELPERS (Promisified)
@@ -278,6 +194,373 @@ function createDbHelpers(db: Database): DbHelpers {
 
 export const dbHelpers = createDbHelpers(dbInstance);
 const { run, get, all } = dbHelpers;
+
+// =============================================================================
+// ENCRYPTION CONFIGURATION
+// =============================================================================
+
+/**
+ * Configure SQLCipher encryption settings
+ */
+async function configureEncryption(): Promise<void> {
+  const pragmas = [
+    ...getSQLCipherConfig(encryptionKey),
+    'PRAGMA journal_mode = WAL',
+    'PRAGMA synchronous = NORMAL',
+    'PRAGMA busy_timeout = 5000',
+  ];
+
+  const executePragma = (sql: string): Promise<void> => {
+    return new Promise((resolve, reject) => {
+      dbInstance.run(sql, (err: Error | null) => {
+        if (err) reject(new Error(`Pragma failed: ${sql} - ${err.message}`));
+        else resolve();
+      });
+    });
+  };
+
+  try {
+    // Execute pragmas sequentially
+    for (const pragma of pragmas) {
+      await executePragma(pragma);
+    }
+
+    // Enable foreign keys
+    await executePragma('PRAGMA foreign_keys = ON');
+    log('[DB] Foreign key enforcement enabled');
+
+    // Verify database access (decrypt check)
+    await new Promise<void>((resolve, reject) => {
+      dbInstance.get('SELECT count(*) FROM sqlite_master', (err: Error | null) => {
+        if (err) reject(new Error(`Encryption verification failed: ${err.message}`));
+        else resolve();
+      });
+    });
+  } catch (error) {
+    log(`[DB] Critical Security Error: ${(error as Error).message}`);
+    throw error;
+  }
+}
+
+// =============================================================================
+// PLAINTEXT BACKUP MIGRATION
+// =============================================================================
+
+/**
+ * Migrate data from plaintext backup to new encrypted database.
+ * Refactored to use async/await instead of db.serialize() callback hell.
+ */
+async function migrateFromBackup(backupFile: string): Promise<void> {
+  log('[DB] Importing data from plaintext backup...');
+
+  // Use local helpers to ensure we are operating on the current connection
+  const { run: localRun, all: localAll } = createDbHelpers(dbInstance);
+
+  try {
+    // Attach plaintext backup with empty key
+    await localRun(`ATTACH DATABASE ? AS backup KEY ''`, [backupFile]);
+
+    // Get all tables from backup
+    const tables = await localAll<TableDefinition>(
+      "SELECT name, sql FROM backup.sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"
+    );
+
+    await localRun('BEGIN TRANSACTION');
+
+    for (const table of tables) {
+      if (table.name === 'android_metadata') continue;
+
+      log(`[DB] Migrating table: ${table.name}`);
+
+      // Create table structure in main database
+      await localRun(table.sql);
+
+      // Copy data
+      await localRun(`INSERT INTO main.${table.name} SELECT * FROM backup.${table.name}`);
+    }
+
+    await localRun('COMMIT');
+    log('[DB] Data migration committed successfully.');
+
+    // Detach backup
+    await localRun('DETACH DATABASE backup');
+    log('[DB] Detached backup database.');
+  } catch (err) {
+    await localRun('ROLLBACK');
+    log(`[DB] Migration failed: ${(err as Error).message}`);
+    throw err;
+  }
+}
+
+// =============================================================================
+// INITIAL SCHEMA DEFINITION
+// =============================================================================
+
+/**
+ * Defines the initial database schema.
+ * Extracted to a constant for better readability of the bootstrap function.
+ */
+const INITIAL_SCHEMA = `
+CREATE TABLE IF NOT EXISTS accounts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    type TEXT CHECK(type IN ('bank', 'wallet', 'credit_card', 'loan', 'investment', 'other')) NOT NULL,
+    balance INTEGER DEFAULT 0, -- Stored in cents
+    initial_balance INTEGER DEFAULT 0, -- Stored in cents
+    currency TEXT DEFAULT 'USD',
+    status TEXT DEFAULT 'active',
+    deleted_at DATETIME,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS transactions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    account_id INTEGER,
+    to_account_id INTEGER, -- For transfers
+    type TEXT CHECK(type IN ('income', 'expense', 'asset', 'liability', 'transfer')) NOT NULL,
+    category TEXT NOT NULL, -- Legacy: kept for backward compatibility
+    category_id INTEGER, -- Normalized FK reference to categories table
+    amount INTEGER NOT NULL, -- Stored in cents
+    description TEXT,
+    attachment TEXT,
+    frequency TEXT CHECK(frequency IN ('once', 'weekly', 'monthly', 'yearly')) NOT NULL DEFAULT 'once',
+    start_date TEXT NOT NULL,
+    end_date TEXT,
+    currency TEXT DEFAULT 'USD',
+    exchange_rate REAL DEFAULT 1, -- Keep as REAL for precision
+    to_amount INTEGER, -- Stored in cents
+    base_currency TEXT, -- Base currency for reporting (frozen at creation)
+    base_amount INTEGER, -- Stored in cents
+    tags TEXT,
+    is_active INTEGER DEFAULT 1,
+    deleted_at DATETIME, -- Soft delete timestamp
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(account_id) REFERENCES accounts(id),
+    FOREIGN KEY(to_account_id) REFERENCES accounts(id),
+    FOREIGN KEY(category_id) REFERENCES categories(id)
+);
+
+CREATE TABLE IF NOT EXISTS categories (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    type TEXT CHECK(type IN ('income', 'expense', 'asset', 'liability', 'transfer')) NOT NULL,
+    name TEXT NOT NULL,
+    is_default INTEGER DEFAULT 0,
+    color TEXT DEFAULT '#7b68ee',
+    icon TEXT DEFAULT '📂',
+    status TEXT DEFAULT 'active' CHECK(status IN ('active', 'archived')),
+    deleted_at DATETIME,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(type, name)
+);
+
+CREATE TABLE IF NOT EXISTS settings (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL,
+    category TEXT NOT NULL,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS exchange_rates (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    from_currency TEXT NOT NULL,
+    to_currency TEXT NOT NULL,
+    rate REAL NOT NULL,
+    source TEXT DEFAULT 'manual',
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(from_currency, to_currency)
+);
+
+CREATE INDEX IF NOT EXISTS idx_exchange_rates_pair ON exchange_rates(from_currency, to_currency);
+
+CREATE INDEX IF NOT EXISTS idx_transactions_date ON transactions(start_date);
+CREATE INDEX IF NOT EXISTS idx_transactions_type ON transactions(type);
+CREATE INDEX IF NOT EXISTS idx_transactions_account ON transactions(account_id);
+CREATE INDEX IF NOT EXISTS idx_transactions_to_account ON transactions(to_account_id);
+CREATE INDEX IF NOT EXISTS idx_transactions_category ON transactions(category);
+CREATE INDEX IF NOT EXISTS idx_transactions_is_active ON transactions(is_active);
+CREATE INDEX IF NOT EXISTS idx_transactions_created_at ON transactions(created_at);
+
+CREATE INDEX IF NOT EXISTS idx_transactions_active_date ON transactions(is_active, start_date DESC);
+CREATE INDEX IF NOT EXISTS idx_transactions_account_date ON transactions(account_id, start_date DESC);
+CREATE INDEX IF NOT EXISTS idx_transactions_type_date ON transactions(type, start_date DESC);
+CREATE INDEX IF NOT EXISTS idx_transactions_category_date ON transactions(category, start_date DESC);
+
+CREATE TABLE IF NOT EXISTS budgets (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    category TEXT NOT NULL, -- Legacy: kept for backward compatibility
+    category_id INTEGER, -- Normalized FK reference to categories table
+    amount INTEGER NOT NULL, -- Stored in cents
+    period TEXT CHECK(period IN ('once', 'weekly', 'monthly', 'yearly')) NOT NULL DEFAULT 'monthly',
+    start_date TEXT NOT NULL,
+    end_date TEXT NOT NULL,
+    deleted_at DATETIME,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(category_id) REFERENCES categories(id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_categories_type ON categories(type);
+CREATE INDEX IF NOT EXISTS idx_categories_status ON categories(status);
+CREATE INDEX IF NOT EXISTS idx_accounts_type ON accounts(type);
+CREATE INDEX IF NOT EXISTS idx_accounts_status ON accounts(status);
+
+CREATE INDEX IF NOT EXISTS idx_budgets_category ON budgets(category);
+CREATE INDEX IF NOT EXISTS idx_budgets_dates ON budgets(start_date, end_date);
+
+CREATE TABLE IF NOT EXISTS goals (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    description TEXT,
+    target_amount INTEGER NOT NULL, -- Stored in cents
+    current_amount INTEGER DEFAULT 0, -- Stored in cents
+    monthly_contribution INTEGER DEFAULT 0, -- Stored in cents
+    icon TEXT DEFAULT 'target',
+    color TEXT DEFAULT '#a29bfe',
+    priority INTEGER DEFAULT 1,
+    target_date TEXT,
+    status TEXT DEFAULT 'active' CHECK(status IN ('active', 'completed', 'paused', 'cancelled')),
+    auto_contribute INTEGER DEFAULT 0,
+    deleted_at DATETIME,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    completed_at DATETIME
+);
+
+CREATE TABLE IF NOT EXISTS recurring_charges (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    category TEXT NOT NULL, -- Legacy: kept for backward compatibility
+    category_id INTEGER, -- Normalized FK reference to categories table
+    name TEXT NOT NULL,
+    amount INTEGER NOT NULL, -- Stored in cents
+    frequency TEXT CHECK(frequency IN ('weekly', 'monthly', 'yearly')) NOT NULL DEFAULT 'monthly',
+    due_day INTEGER DEFAULT 1,
+    next_due_date TEXT,
+    is_active INTEGER DEFAULT 1,
+    notes TEXT,
+    deleted_at DATETIME,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    last_transaction_id INTEGER, -- Link to most recent generated transaction
+    last_generated_date TEXT, -- When was the last transaction generated
+    account_id INTEGER, -- Which account to charge from
+    FOREIGN KEY(category_id) REFERENCES categories(id),
+    FOREIGN KEY(last_transaction_id) REFERENCES transactions(id),
+    FOREIGN KEY(account_id) REFERENCES accounts(id)
+);
+
+CREATE TABLE IF NOT EXISTS goal_contributions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    goal_id INTEGER NOT NULL,
+    amount REAL NOT NULL,
+    source TEXT,
+    notes TEXT,
+    account_id INTEGER, -- Which account the contribution came from
+    transaction_id INTEGER, -- Link to the transaction created for this contribution
+    contributed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(goal_id) REFERENCES goals(id) ON DELETE CASCADE,
+    FOREIGN KEY(account_id) REFERENCES accounts(id),
+    FOREIGN KEY(transaction_id) REFERENCES transactions(id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_goals_status ON goals(status);
+CREATE INDEX IF NOT EXISTS idx_goals_priority ON goals(priority);
+CREATE INDEX IF NOT EXISTS idx_recurring_active ON recurring_charges(is_active);
+CREATE INDEX IF NOT EXISTS idx_recurring_category ON recurring_charges(category);
+CREATE INDEX IF NOT EXISTS idx_recurring_last_tx ON recurring_charges(last_transaction_id);
+CREATE INDEX IF NOT EXISTS idx_recurring_account ON recurring_charges(account_id);
+CREATE INDEX IF NOT EXISTS idx_contributions_goal ON goal_contributions(goal_id);
+CREATE INDEX IF NOT EXISTS idx_contributions_date ON goal_contributions(contributed_at DESC);
+CREATE INDEX IF NOT EXISTS idx_contributions_account ON goal_contributions(account_id);
+CREATE INDEX IF NOT EXISTS idx_contributions_transaction ON goal_contributions(transaction_id);
+
+CREATE TABLE IF NOT EXISTS bill_types (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    unit_name TEXT DEFAULT 'Units',
+    cost_per_unit INTEGER DEFAULT 0, -- Stored in cents
+    category_name TEXT, -- Link to main categories
+    account_id INTEGER, -- Link to specific account
+    auto_transaction INTEGER DEFAULT 0, -- Toggle for auto-recording
+    icon TEXT DEFAULT 'file-text',
+    color TEXT DEFAULT '#7c3aed',
+    deleted_at DATETIME,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(account_id) REFERENCES accounts(id)
+);
+
+CREATE TABLE IF NOT EXISTS bill_readings (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    bill_type_id INTEGER NOT NULL,
+    date TEXT NOT NULL,
+    units_used REAL NOT NULL,
+    total_cost INTEGER NOT NULL, -- Stored in cents
+    notes TEXT,
+    transaction_id INTEGER, -- Link to the auto-generated expense transaction
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(bill_type_id) REFERENCES bill_types(id) ON DELETE CASCADE,
+    FOREIGN KEY(transaction_id) REFERENCES transactions(id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_bills_date ON bill_readings(date);
+CREATE INDEX IF NOT EXISTS idx_bills_type ON bill_readings(bill_type_id);
+CREATE INDEX IF NOT EXISTS idx_bill_readings_transaction ON bill_readings(transaction_id);
+
+CREATE TABLE IF NOT EXISTS transaction_history (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    transaction_id INTEGER NOT NULL,
+    action TEXT CHECK(action IN ('CREATE', 'UPDATE', 'DELETE')) NOT NULL,
+    old_data TEXT,  -- JSON snapshot of before state
+    new_data TEXT,  -- JSON snapshot of after state
+    source TEXT DEFAULT 'USER',
+    metadata TEXT,
+    changed_by TEXT DEFAULT 'system',
+    changed_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS audit_logs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    entity_type TEXT NOT NULL,
+    entity_id INTEGER NOT NULL,
+    action TEXT NOT NULL,
+    source TEXT DEFAULT 'USER',
+    changes TEXT, -- JSON diff or snapshot
+    metadata TEXT, -- JSON metadata
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_history_tx ON transaction_history(transaction_id);
+CREATE INDEX IF NOT EXISTS idx_history_action ON transaction_history(action);
+CREATE INDEX IF NOT EXISTS idx_history_date ON transaction_history(changed_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_transactions_category_id ON transactions(category_id);
+CREATE INDEX IF NOT EXISTS idx_budgets_category_id ON budgets(category_id);
+CREATE INDEX IF NOT EXISTS idx_recurring_category_id ON recurring_charges(category_id);
+
+CREATE VIEW IF NOT EXISTS v_transactions_with_category AS
+SELECT 
+    t.*,
+    c.name AS category_name,
+    c.color AS category_color,
+    c.icon AS category_icon,
+    a.name AS account_name,
+    ta.name AS to_account_name
+FROM transactions t
+LEFT JOIN categories c ON t.category_id = c.id
+LEFT JOIN accounts a ON t.account_id = a.id
+LEFT JOIN accounts ta ON t.to_account_id = ta.id;
+
+CREATE INDEX IF NOT EXISTS idx_transactions_deleted ON transactions(deleted_at);
+CREATE INDEX IF NOT EXISTS idx_accounts_deleted ON accounts(deleted_at);
+CREATE INDEX IF NOT EXISTS idx_categories_deleted ON categories(deleted_at);
+CREATE INDEX IF NOT EXISTS idx_budgets_deleted ON budgets(deleted_at);
+CREATE INDEX IF NOT EXISTS idx_goals_deleted ON goals(deleted_at);
+CREATE INDEX IF NOT EXISTS idx_recurring_deleted ON recurring_charges(deleted_at);
+CREATE INDEX IF NOT EXISTS idx_bill_types_deleted ON bill_types(deleted_at);
+
+CREATE INDEX IF NOT EXISTS idx_transactions_base_currency ON transactions(base_currency);
+`;
 
 // =============================================================================
 // MIGRATION DEFINITIONS
@@ -320,7 +603,6 @@ const MIGRATIONS: Migration[] = [
         log
       );
 
-      // Backfill initial_balance from balance
       await run(
         'UPDATE accounts SET initial_balance = balance WHERE initial_balance = 0 OR initial_balance IS NULL'
       );
@@ -342,7 +624,6 @@ const MIGRATIONS: Migration[] = [
       );
 
       if (added > 0) {
-        // Set defaults for existing rows
         const now = new Date();
         const { start, end } = DateUtils.getMonthBoundaries();
         await run(`UPDATE budgets SET start_date = ?, end_date = ? WHERE start_date IS NULL`, [
@@ -394,11 +675,9 @@ const MIGRATIONS: Migration[] = [
         'to_currency',
       ]);
 
-
-      // Add currency settings
       const currencySettings = DEFAULT_SETTINGS.filter(s => s.category === 'currency' && ![
         'currency_base', 'currency_precision', 'currency_symbol_placement'
-      ].includes(s.key)); // Exclude base settings already seeded
+      ].includes(s.key));
 
       for (const setting of currencySettings) {
         await run(`INSERT OR IGNORE INTO settings (key, value, category) VALUES (?, ?, ?)`, [
@@ -415,13 +694,11 @@ const MIGRATIONS: Migration[] = [
     name: 'Add Performance Indexes',
     up: async () => {
       await createIndexes(run, [
-        // Transactions indexes
         { name: 'idx_transactions_account', table: 'transactions', columns: 'account_id' },
         { name: 'idx_transactions_to_account', table: 'transactions', columns: 'to_account_id' },
         { name: 'idx_transactions_category', table: 'transactions', columns: 'category' },
         { name: 'idx_transactions_is_active', table: 'transactions', columns: 'is_active' },
         { name: 'idx_transactions_created_at', table: 'transactions', columns: 'created_at' },
-        // Composite indexes
         {
           name: 'idx_transactions_active_date',
           table: 'transactions',
@@ -442,7 +719,6 @@ const MIGRATIONS: Migration[] = [
           table: 'transactions',
           columns: ['category', 'start_date DESC'],
         },
-        // Other indexes
         { name: 'idx_categories_type', table: 'categories', columns: 'type' },
         { name: 'idx_categories_status', table: 'categories', columns: 'status' },
         { name: 'idx_accounts_type', table: 'accounts', columns: 'type' },
@@ -462,9 +738,6 @@ const MIGRATIONS: Migration[] = [
     id: 8,
     name: 'Add Balance Sync Triggers',
     up: async () => {
-      // This migration creates balance sync triggers
-      // The triggers were later updated in migration 9 for multi-currency support
-      // See migration 9 for the current trigger definitions
       log('[DB] Balance sync triggers (superseded by migration 9)');
     },
   },
@@ -482,12 +755,10 @@ const MIGRATIONS: Migration[] = [
         log
       );
 
-      // Backfill existing transfers
       await run(
         "UPDATE transactions SET to_amount = amount WHERE type = 'transfer' AND to_amount IS NULL"
       );
 
-      // Create balance sync triggers with multi-currency support
       const balanceCalcSql = (accountRef: string) => `
                 SELECT COALESCE(initial_balance, 0) +
                 COALESCE((SELECT SUM(CASE 
@@ -549,7 +820,6 @@ const MIGRATIONS: Migration[] = [
     id: 10,
     name: 'Enable Foreign Key Enforcement',
     up: async () => {
-      // FK enforcement is now set at connection time in configureEncryption()
       const result = await get<{ foreign_keys: number }>('PRAGMA foreign_keys');
       log(`[DB] Foreign keys verified: ${result?.foreign_keys === 1 ? 'ENABLED' : 'DISABLED'}`);
     },
@@ -565,6 +835,8 @@ const MIGRATIONS: Migration[] = [
                     action TEXT CHECK(action IN ('CREATE', 'UPDATE', 'DELETE')) NOT NULL,
                     old_data TEXT,
                     new_data TEXT,
+                    source TEXT DEFAULT 'USER',
+                    metadata TEXT,
                     changed_by TEXT DEFAULT 'system',
                     changed_at DATETIME DEFAULT CURRENT_TIMESTAMP
                 )
@@ -576,58 +848,13 @@ const MIGRATIONS: Migration[] = [
         { name: 'idx_history_date', table: 'transaction_history', columns: 'changed_at DESC' },
       ]);
 
-      // Create audit triggers
-      const txFields = `'id', NEW.id, 'account_id', NEW.account_id, 'to_account_id', NEW.to_account_id,
-                'type', NEW.type, 'category', NEW.category, 'amount', NEW.amount, 'description', NEW.description,
-                'frequency', NEW.frequency, 'start_date', NEW.start_date, 'end_date', NEW.end_date,
-                'currency', NEW.currency, 'exchange_rate', NEW.exchange_rate, 'to_amount', NEW.to_amount, 'is_active', NEW.is_active`;
-
-      const txFieldsOld = txFields.replace(/NEW\./g, 'OLD.');
-
-      await createTrigger(
-        run,
-        'trg_audit_tx_insert',
-        `
-                CREATE TRIGGER trg_audit_tx_insert AFTER INSERT ON transactions
-                BEGIN
-                    INSERT INTO transaction_history (transaction_id, action, new_data)
-                    VALUES (NEW.id, 'CREATE', json_object(${txFields}));
-                END
-            `
-      );
-
-      await createTrigger(
-        run,
-        'trg_audit_tx_update',
-        `
-                CREATE TRIGGER trg_audit_tx_update AFTER UPDATE ON transactions
-                BEGIN
-                    INSERT INTO transaction_history (transaction_id, action, old_data, new_data)
-                    VALUES (NEW.id, 'UPDATE', json_object(${txFieldsOld}), json_object(${txFields}));
-                END
-            `
-      );
-
-      await createTrigger(
-        run,
-        'trg_audit_tx_delete',
-        `
-                CREATE TRIGGER trg_audit_tx_delete AFTER DELETE ON transactions
-                BEGIN
-                    INSERT INTO transaction_history (transaction_id, action, old_data)
-                    VALUES (OLD.id, 'DELETE', json_object(${txFieldsOld}));
-                END
-            `
-      );
-
-      log('[DB] Audit history table and triggers created.');
+      log('[DB] Audit history table created.');
     },
   },
   {
     id: 12,
     name: 'Normalize Category References',
     up: async () => {
-      // Add category_id to transactions
       if (
         await addColumnIfNotExists(
           { run, get, all },
@@ -644,7 +871,6 @@ const MIGRATIONS: Migration[] = [
                 `);
       }
 
-      // Add category_id to budgets
       if (
         await addColumnIfNotExists(
           { run, get, all },
@@ -662,7 +888,6 @@ const MIGRATIONS: Migration[] = [
         );
       }
 
-      // Add category_id to recurring_charges
       if (
         await addColumnIfNotExists(
           { run, get, all },
@@ -686,7 +911,6 @@ const MIGRATIONS: Migration[] = [
         { name: 'idx_recurring_category_id', table: 'recurring_charges', columns: 'category_id' },
       ]);
 
-      // Create view
       await run(`DROP VIEW IF EXISTS v_transactions_with_category`);
       await run(`
                 CREATE VIEW v_transactions_with_category AS
@@ -776,7 +1000,6 @@ const MIGRATIONS: Migration[] = [
             log
           )
         ) {
-          // Try to backfill from created_at if it exists
           try {
             await run(`UPDATE ${table} SET updated_at = created_at WHERE updated_at IS NULL`);
           } catch {
@@ -784,7 +1007,6 @@ const MIGRATIONS: Migration[] = [
           }
         }
 
-        // Create auto-update trigger
         await createTrigger(
           run,
           `trg_${table}_updated_at`,
@@ -869,7 +1091,6 @@ const MIGRATIONS: Migration[] = [
     id: 19,
     name: 'Optimize Indexes for JOINs',
     up: async () => {
-      // Drop conflicting simple index if exists (replaced by composite)
       await run('DROP INDEX IF EXISTS idx_transactions_account');
 
       await createIndexes(run, [
@@ -879,7 +1100,7 @@ const MIGRATIONS: Migration[] = [
           columns: ['is_active', 'start_date DESC'],
         },
         {
-          name: 'idx_transactions_account', // Re-creating as composite
+          name: 'idx_transactions_account',
           table: 'transactions',
           columns: ['account_id', 'is_active', 'type', 'amount'],
         },
@@ -893,12 +1114,11 @@ const MIGRATIONS: Migration[] = [
     },
   },
   {
-    id: 20, // Audit System Upgrade
+    id: 20,
     name: 'Audit System Upgrade',
     up: async () => {
       log('[Migration 20] Starting Audit System Upgrade...');
 
-      // 1. Drop old triggers that were causing "System" only logging
       const triggers = [
         'trg_audit_tx_insert',
         'trg_audit_tx_update',
@@ -910,7 +1130,6 @@ const MIGRATIONS: Migration[] = [
       }
       log('[Migration 20] Dropped legacy audit triggers.');
 
-      // 2. Create flexible `audit_logs` table for all non-transaction entities
       await run(`
         CREATE TABLE IF NOT EXISTS audit_logs (
           id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -924,13 +1143,11 @@ const MIGRATIONS: Migration[] = [
         )
       `);
 
-      // Index creation
       await createIndex(run, 'idx_audit_logs_entity', 'audit_logs', ['entity_type', 'entity_id']);
       await createIndex(run, 'idx_audit_logs_created_at', 'audit_logs', 'created_at DESC');
 
       log('[Migration 20] Created audit_logs table.');
 
-      // 3. Upgrade `transaction_history` to support Source tracking
       await addColumnIfNotExists({ run, get, all }, 'transaction_history', 'source', "TEXT DEFAULT 'USER'", log);
       await addColumnIfNotExists({ run, get, all }, 'transaction_history', 'metadata', "JSON", log);
 
@@ -943,18 +1160,15 @@ const MIGRATIONS: Migration[] = [
     up: async () => {
       log('[Migration 21] Adding currency columns to financial entities...');
 
-      // Get user's base currency for default values
       const baseCurrencyRow = await get<{ value: string }>(
         "SELECT value FROM settings WHERE key = 'currency_base'"
       );
       const baseCurrency = baseCurrencyRow?.value || 'USD';
       log(`[Migration 21] Using base currency: ${baseCurrency}`);
 
-      // Tables that need currency column added
       const tablesToUpdate = ['budgets', 'recurring_charges', 'bill_types', 'goals'];
 
       for (const table of tablesToUpdate) {
-        // Add currency column with base currency as default
         const added = await addColumnIfNotExists(
           { run, get, all },
           table,
@@ -964,13 +1178,11 @@ const MIGRATIONS: Migration[] = [
         );
 
         if (added) {
-          // Backfill existing rows with base currency
           await run(`UPDATE ${table} SET currency = ? WHERE currency IS NULL`, [baseCurrency]);
           log(`[Migration 21] Added currency column to ${table}`);
         }
       }
 
-      // Create indexes for currency columns to optimize queries
       await createIndexes(run, [
         { name: 'idx_budgets_currency', table: 'budgets', columns: 'currency' },
         { name: 'idx_recurring_currency', table: 'recurring_charges', columns: 'currency' },
@@ -978,7 +1190,7 @@ const MIGRATIONS: Migration[] = [
         { name: 'idx_goals_currency', table: 'goals', columns: 'currency' },
       ]);
 
-      log('[Migration 21] Currency columns added to budgets, recurring_charges, bill_types, and goals.');
+      log('[Migration 21] Currency columns added.');
     }
   },
   {
@@ -987,20 +1199,18 @@ const MIGRATIONS: Migration[] = [
     up: async () => {
       log('[Migration 22] Starting migration to Integer (Cents)...');
 
-      // 1. Convert REAL columns to INTEGER (multiply by 100)
       const conversions = [
         { table: 'accounts', columns: ['balance', 'initial_balance'] },
         { table: 'transactions', columns: ['amount', 'to_amount', 'base_amount'] },
         { table: 'budgets', columns: ['amount'] },
         { table: 'goals', columns: ['target_amount', 'current_amount', 'monthly_contribution'] },
         { table: 'recurring_charges', columns: ['amount'] },
-        { table: 'bill_types', columns: ['cost_per_unit', 'total_cost'] }, // cost_per_unit might need more precision, but usually 2 decimals is enough for billing
+        { table: 'bill_types', columns: ['cost_per_unit', 'total_cost'] },
         { table: 'bill_readings', columns: ['total_cost'] },
       ];
 
       for (const { table, columns } of conversions) {
         for (const col of columns) {
-          // Check if column exists first (some tables might be missing optional columns)
           const cols = await getColumnNames(all, table);
           if (cols.includes(col)) {
             try {
@@ -1013,18 +1223,12 @@ const MIGRATIONS: Migration[] = [
         }
       }
 
-      // 2. Drop old triggers that used REAL arithmetic
       const triggersToDrop = [
         'trg_balance_after_insert',
         'trg_balance_after_update',
         'trg_balance_after_delete'
       ];
       for (const t of triggersToDrop) await run(`DROP TRIGGER IF EXISTS ${t}`);
-
-      // 3. Recreate triggers with Integer arithmetic
-      // Balance is now stored in cents. Summation is exact.
-      // Exchange rate is still REAL. to_amount = CAST(ROUND(amount * exchange_rate) AS INTEGER) (handled by app)
-      // But calculating balance dynamically needs to handle to_amount if it serves as the dual-entry amount
 
       const balanceCalcSql = (accountRef: string) => `
           SELECT COALESCE(initial_balance, 0) +
@@ -1077,7 +1281,6 @@ const MIGRATIONS: Migration[] = [
     up: async () => {
       log('[Migration 23] Optimizing triggers to O(1) incremental updates...');
 
-      // 1. Drop old full-scan triggers
       const oldTriggers = [
         'trg_balance_after_insert',
         'trg_balance_after_update',
@@ -1085,79 +1288,57 @@ const MIGRATIONS: Migration[] = [
       ];
       for (const t of oldTriggers) await run(`DROP TRIGGER IF EXISTS ${t}`);
 
-      // 2. Create Incremental Triggers
-
-      // INSERT TRIGGER
       await createTrigger(run, 'trg_balance_inc_insert', `
         CREATE TRIGGER trg_balance_inc_insert
         AFTER INSERT ON transactions
         WHEN NEW.is_active = 1
         BEGIN
-            -- Income: +Amount
             UPDATE accounts SET balance = balance + NEW.amount 
             WHERE id = NEW.account_id AND NEW.type = 'income';
 
-            -- Expense/Transfer Out: -Amount
             UPDATE accounts SET balance = balance - NEW.amount 
             WHERE id = NEW.account_id AND NEW.type IN ('expense', 'transfer');
 
-            -- Transfer In: +ToAmount
             UPDATE accounts SET balance = balance + COALESCE(NEW.to_amount, NEW.amount) 
             WHERE id = NEW.to_account_id AND NEW.type = 'transfer' AND NEW.to_account_id IS NOT NULL;
         END
       `);
 
-      // DELETE TRIGGER
       await createTrigger(run, 'trg_balance_inc_delete', `
         CREATE TRIGGER trg_balance_inc_delete
         AFTER DELETE ON transactions
         WHEN OLD.is_active = 1
         BEGIN
-            -- Reverse Income: -Amount
             UPDATE accounts SET balance = balance - OLD.amount 
             WHERE id = OLD.account_id AND OLD.type = 'income';
 
-            -- Reverse Expense/Transfer Out: +Amount
             UPDATE accounts SET balance = balance + OLD.amount 
             WHERE id = OLD.account_id AND OLD.type IN ('expense', 'transfer');
 
-            -- Reverse Transfer In: -ToAmount
             UPDATE accounts SET balance = balance - COALESCE(OLD.to_amount, OLD.amount) 
             WHERE id = OLD.to_account_id AND OLD.type = 'transfer' AND OLD.to_account_id IS NOT NULL;
         END
       `);
 
-      // UPDATE TRIGGER
-      // Strategy: Valid for all updates (amount change, account change, type change, active toggle)
-      // 1. Reverse OLD effects (if OLD was active)
-      // 2. Apply NEW effects (if NEW is active)
       await createTrigger(run, 'trg_balance_inc_update', `
         CREATE TRIGGER trg_balance_inc_update
         AFTER UPDATE ON transactions
         BEGIN
-            -- REVERSE OLD (If it was active)
-            -- Reverse Income
             UPDATE accounts SET balance = balance - OLD.amount 
             WHERE id = OLD.account_id AND OLD.type = 'income' AND OLD.is_active = 1;
             
-            -- Reverse Expense/Transfer Out
             UPDATE accounts SET balance = balance + OLD.amount 
             WHERE id = OLD.account_id AND OLD.type IN ('expense', 'transfer') AND OLD.is_active = 1;
 
-            -- Reverse Transfer In
             UPDATE accounts SET balance = balance - COALESCE(OLD.to_amount, OLD.amount) 
             WHERE id = OLD.to_account_id AND OLD.type = 'transfer' AND OLD.to_account_id IS NOT NULL AND OLD.is_active = 1;
 
-            -- APPLY NEW (If it is active)
-            -- Apply Income
             UPDATE accounts SET balance = balance + NEW.amount 
             WHERE id = NEW.account_id AND NEW.type = 'income' AND NEW.is_active = 1;
 
-            -- Apply Expense/Transfer Out
             UPDATE accounts SET balance = balance - NEW.amount 
             WHERE id = NEW.account_id AND NEW.type IN ('expense', 'transfer') AND NEW.is_active = 1;
 
-            -- Apply Transfer In
             UPDATE accounts SET balance = balance + COALESCE(NEW.to_amount, NEW.amount) 
             WHERE id = NEW.to_account_id AND NEW.type = 'transfer' AND NEW.to_account_id IS NOT NULL AND NEW.is_active = 1;
         END
@@ -1199,40 +1380,30 @@ function printTimingSummary(): void {
  * Check if database is already initialized (has migrations applied)
  */
 async function isDbInitialized(): Promise<boolean> {
-  return new Promise((resolve) => {
-    dbInstance.get(
-      "SELECT name FROM sqlite_master WHERE type='table' AND name='migrations'",
-      (err, row) => {
-        if (err || !row) {
-          resolve(false);
-        } else {
-          // Check if any migrations have been applied
-          dbInstance.get('SELECT COUNT(*) as count FROM migrations', (err2, countRow: any) => {
-            resolve(!err2 && countRow && countRow.count > 0);
-          });
-        }
-      }
-    );
-  });
+  const row = await get<{ name: string }>(
+    "SELECT name FROM sqlite_master WHERE type='table' AND name='migrations'"
+  );
+
+  if (!row) return false;
+
+  const countRow = await get<{ count: number }>('SELECT COUNT(*) as count FROM migrations');
+  return !!countRow && countRow.count > 0;
 }
 
 /**
- * Bootstrap the database by running the schema and pending migrations
- * Optimized to skip schema execution if database is already initialized
+ * Bootstrap the database by running the schema and pending migrations.
+ * Optimized to skip schema execution if database is already initialized.
  */
 async function bootstrapDb(): Promise<void> {
-  // Reset timing baseline at actual bootstrap start
   lastTimestamp = Date.now();
   logTiming('Bootstrap start');
 
   try {
-    // Check if database is already initialized
     const initialized = await isDbInitialized();
     logTiming('Initialization check');
 
     if (initialized) {
       log('[DB] Database already initialized - skipping schema');
-      // Only run pending migrations (if any new ones were added)
       await processMigrations();
       logTiming('Migration check (fast path)');
       printTimingSummary();
@@ -1240,283 +1411,14 @@ async function bootstrapDb(): Promise<void> {
     }
 
     log('[DB] Fresh database - running full schema');
-    // Full schema for new databases
-    const schema = `
-CREATE TABLE IF NOT EXISTS accounts (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL,
-    type TEXT CHECK(type IN ('bank', 'wallet', 'credit_card', 'loan', 'investment', 'other')) NOT NULL,
-    balance INTEGER DEFAULT 0, -- Stored in cents
-    initial_balance INTEGER DEFAULT 0, -- Stored in cents
-    currency TEXT DEFAULT 'USD',
-    status TEXT DEFAULT 'active',
-    deleted_at DATETIME,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TABLE IF NOT EXISTS transactions (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    account_id INTEGER,
-    to_account_id INTEGER, -- For transfers
-    type TEXT CHECK(type IN ('income', 'expense', 'asset', 'liability', 'transfer')) NOT NULL,
-    category TEXT NOT NULL, -- Legacy: kept for backward compatibility
-    category_id INTEGER, -- Normalized FK reference to categories table
-    amount INTEGER NOT NULL, -- Stored in cents
-    description TEXT,
-    attachment TEXT,
-    frequency TEXT CHECK(frequency IN ('once', 'weekly', 'monthly', 'yearly')) NOT NULL DEFAULT 'once',
-    start_date TEXT NOT NULL,
-    end_date TEXT,
-    currency TEXT DEFAULT 'USD',
-    exchange_rate REAL DEFAULT 1, -- Keep as REAL for precision
-    to_amount INTEGER, -- Stored in cents
-    base_currency TEXT, -- Base currency for reporting (frozen at creation)
-    base_amount INTEGER, -- Stored in cents
-    tags TEXT,
-    is_active INTEGER DEFAULT 1,
-    deleted_at DATETIME, -- Soft delete timestamp
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY(account_id) REFERENCES accounts(id),
-    FOREIGN KEY(to_account_id) REFERENCES accounts(id),
-    FOREIGN KEY(category_id) REFERENCES categories(id)
-);
-
-CREATE TABLE IF NOT EXISTS categories (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    type TEXT CHECK(type IN ('income', 'expense', 'asset', 'liability', 'transfer')) NOT NULL,
-    name TEXT NOT NULL,
-    is_default INTEGER DEFAULT 0,
-    color TEXT DEFAULT '#7b68ee',
-    icon TEXT DEFAULT '📂',
-    status TEXT DEFAULT 'active' CHECK(status IN ('active', 'archived')),
-    deleted_at DATETIME,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(type, name)
-);
-
-CREATE TABLE IF NOT EXISTS settings (
-    key TEXT PRIMARY KEY,
-    value TEXT NOT NULL,
-    category TEXT NOT NULL,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-);
-
--- Insert default settings
--- (Handled by seedSettings function)
-
--- Exchange rates table for multi-currency conversion
-CREATE TABLE IF NOT EXISTS exchange_rates (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    from_currency TEXT NOT NULL,
-    to_currency TEXT NOT NULL,
-    rate REAL NOT NULL,
-    source TEXT DEFAULT 'manual',
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(from_currency, to_currency)
-);
-
-CREATE INDEX IF NOT EXISTS idx_exchange_rates_pair ON exchange_rates(from_currency, to_currency);
-
--- Insert default categories if they don't exist
--- (Handled by seedCategories function)
-
-CREATE INDEX IF NOT EXISTS idx_transactions_date ON transactions(start_date);
-CREATE INDEX IF NOT EXISTS idx_transactions_type ON transactions(type);
-CREATE INDEX IF NOT EXISTS idx_transactions_account ON transactions(account_id);
-CREATE INDEX IF NOT EXISTS idx_transactions_to_account ON transactions(to_account_id);
-CREATE INDEX IF NOT EXISTS idx_transactions_category ON transactions(category);
-CREATE INDEX IF NOT EXISTS idx_transactions_is_active ON transactions(is_active);
-CREATE INDEX IF NOT EXISTS idx_transactions_created_at ON transactions(created_at);
-
--- Composite indexes for common query patterns (pagination, filtering)
-CREATE INDEX IF NOT EXISTS idx_transactions_active_date ON transactions(is_active, start_date DESC);
-CREATE INDEX IF NOT EXISTS idx_transactions_account_date ON transactions(account_id, start_date DESC);
-CREATE INDEX IF NOT EXISTS idx_transactions_type_date ON transactions(type, start_date DESC);
-CREATE INDEX IF NOT EXISTS idx_transactions_category_date ON transactions(category, start_date DESC);
-
-CREATE TABLE IF NOT EXISTS budgets (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    category TEXT NOT NULL, -- Legacy: kept for backward compatibility
-    category_id INTEGER, -- Normalized FK reference to categories table
-    amount INTEGER NOT NULL, -- Stored in cents
-    period TEXT CHECK(period IN ('once', 'weekly', 'monthly', 'yearly')) NOT NULL DEFAULT 'monthly',
-    start_date TEXT NOT NULL,
-    end_date TEXT NOT NULL,
-    deleted_at DATETIME,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY(category_id) REFERENCES categories(id)
-);
-
--- Categories and Accounts indexes
-CREATE INDEX IF NOT EXISTS idx_categories_type ON categories(type);
-CREATE INDEX IF NOT EXISTS idx_categories_status ON categories(status);
-CREATE INDEX IF NOT EXISTS idx_accounts_type ON accounts(type);
-CREATE INDEX IF NOT EXISTS idx_accounts_status ON accounts(status);
-
--- Budgets indexes
-CREATE INDEX IF NOT EXISTS idx_budgets_category ON budgets(category);
-CREATE INDEX IF NOT EXISTS idx_budgets_dates ON budgets(start_date, end_date);
-
--- Goals: Track savings targets (e.g., laptop, vacation, emergency fund)
-CREATE TABLE IF NOT EXISTS goals (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL,
-    description TEXT,
-    target_amount INTEGER NOT NULL, -- Stored in cents
-    current_amount INTEGER DEFAULT 0, -- Stored in cents
-    monthly_contribution INTEGER DEFAULT 0, -- Stored in cents
-    icon TEXT DEFAULT 'target',
-    color TEXT DEFAULT '#a29bfe',
-    priority INTEGER DEFAULT 1,
-    target_date TEXT,
-    status TEXT DEFAULT 'active' CHECK(status IN ('active', 'completed', 'paused', 'cancelled')),
-    auto_contribute INTEGER DEFAULT 0,
-    deleted_at DATETIME,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    completed_at DATETIME
-);
-
--- Recurring Charges: Fixed expenses that repeat (rent, subscriptions, utilities)
-CREATE TABLE IF NOT EXISTS recurring_charges (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    category TEXT NOT NULL, -- Legacy: kept for backward compatibility
-    category_id INTEGER, -- Normalized FK reference to categories table
-    name TEXT NOT NULL,
-    amount INTEGER NOT NULL, -- Stored in cents
-    frequency TEXT CHECK(frequency IN ('weekly', 'monthly', 'yearly')) NOT NULL DEFAULT 'monthly',
-    due_day INTEGER DEFAULT 1,
-    next_due_date TEXT,
-    is_active INTEGER DEFAULT 1,
-    notes TEXT,
-    deleted_at DATETIME,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    last_transaction_id INTEGER, -- Link to most recent generated transaction
-    last_generated_date TEXT, -- When was the last transaction generated
-    account_id INTEGER, -- Which account to charge from
-    FOREIGN KEY(category_id) REFERENCES categories(id),
-    FOREIGN KEY(last_transaction_id) REFERENCES transactions(id),
-    FOREIGN KEY(account_id) REFERENCES accounts(id)
-);
-
--- Goal Contributions: Track individual contributions to goals
-CREATE TABLE IF NOT EXISTS goal_contributions (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    goal_id INTEGER NOT NULL,
-    amount REAL NOT NULL,
-    source TEXT,
-    notes TEXT,
-    account_id INTEGER, -- Which account the contribution came from
-    transaction_id INTEGER, -- Link to the transaction created for this contribution
-    contributed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY(goal_id) REFERENCES goals(id) ON DELETE CASCADE,
-    FOREIGN KEY(account_id) REFERENCES accounts(id),
-    FOREIGN KEY(transaction_id) REFERENCES transactions(id)
-);
-
-CREATE INDEX IF NOT EXISTS idx_goals_status ON goals(status);
-CREATE INDEX IF NOT EXISTS idx_goals_priority ON goals(priority);
-CREATE INDEX IF NOT EXISTS idx_recurring_active ON recurring_charges(is_active);
-CREATE INDEX IF NOT EXISTS idx_recurring_category ON recurring_charges(category);
-CREATE INDEX IF NOT EXISTS idx_recurring_last_tx ON recurring_charges(last_transaction_id);
-CREATE INDEX IF NOT EXISTS idx_recurring_account ON recurring_charges(account_id);
-CREATE INDEX IF NOT EXISTS idx_contributions_goal ON goal_contributions(goal_id);
-CREATE INDEX IF NOT EXISTS idx_contributions_date ON goal_contributions(contributed_at DESC);
-CREATE INDEX IF NOT EXISTS idx_contributions_account ON goal_contributions(account_id);
-CREATE INDEX IF NOT EXISTS idx_contributions_transaction ON goal_contributions(transaction_id);
-
--- Bills Tracking
-CREATE TABLE IF NOT EXISTS bill_types (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL,
-    unit_name TEXT DEFAULT 'Units',
-    cost_per_unit INTEGER DEFAULT 0, -- Stored in cents
-    category_name TEXT, -- Link to main categories
-    account_id INTEGER, -- Link to specific account
-    auto_transaction INTEGER DEFAULT 0, -- Toggle for auto-recording
-    icon TEXT DEFAULT 'file-text',
-    color TEXT DEFAULT '#7c3aed',
-    deleted_at DATETIME,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY(account_id) REFERENCES accounts(id)
-);
-
-CREATE TABLE IF NOT EXISTS bill_readings (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    bill_type_id INTEGER NOT NULL,
-    date TEXT NOT NULL,
-    units_used REAL NOT NULL,
-    total_cost INTEGER NOT NULL, -- Stored in cents
-    notes TEXT,
-    transaction_id INTEGER, -- Link to the auto-generated expense transaction
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY(bill_type_id) REFERENCES bill_types(id) ON DELETE CASCADE,
-    FOREIGN KEY(transaction_id) REFERENCES transactions(id)
-);
-
-CREATE INDEX IF NOT EXISTS idx_bills_date ON bill_readings(date);
-CREATE INDEX IF NOT EXISTS idx_bills_type ON bill_readings(bill_type_id);
-CREATE INDEX IF NOT EXISTS idx_bill_readings_transaction ON bill_readings(transaction_id);
-
--- Audit History: Track all transaction changes for compliance and undo support
-CREATE TABLE IF NOT EXISTS transaction_history (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    transaction_id INTEGER NOT NULL,
-    action TEXT CHECK(action IN ('CREATE', 'UPDATE', 'DELETE')) NOT NULL,
-    old_data TEXT,  -- JSON snapshot of before state
-    new_data TEXT,  -- JSON snapshot of after state
-    changed_by TEXT DEFAULT 'system',
-    changed_at DATETIME DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE INDEX IF NOT EXISTS idx_history_tx ON transaction_history(transaction_id);
-CREATE INDEX IF NOT EXISTS idx_history_action ON transaction_history(action);
-CREATE INDEX IF NOT EXISTS idx_history_date ON transaction_history(changed_at DESC);
-
--- Category ID indexes for normalized FK lookups
-CREATE INDEX IF NOT EXISTS idx_transactions_category_id ON transactions(category_id);
-CREATE INDEX IF NOT EXISTS idx_budgets_category_id ON budgets(category_id);
-CREATE INDEX IF NOT EXISTS idx_recurring_category_id ON recurring_charges(category_id);
-
--- Transactions view with category and account details for easy querying
-CREATE VIEW IF NOT EXISTS v_transactions_with_category AS
-SELECT 
-    t.*,
-    c.name AS category_name,
-    c.color AS category_color,
-    c.icon AS category_icon,
-    a.name AS account_name,
-    ta.name AS to_account_name
-FROM transactions t
-LEFT JOIN categories c ON t.category_id = c.id
-LEFT JOIN accounts a ON t.account_id = a.id
-LEFT JOIN accounts ta ON t.to_account_id = ta.id;
-
--- Soft delete indexes for filtering active records
-CREATE INDEX IF NOT EXISTS idx_transactions_deleted ON transactions(deleted_at);
-CREATE INDEX IF NOT EXISTS idx_accounts_deleted ON accounts(deleted_at);
-CREATE INDEX IF NOT EXISTS idx_categories_deleted ON categories(deleted_at);
-CREATE INDEX IF NOT EXISTS idx_budgets_deleted ON budgets(deleted_at);
-CREATE INDEX IF NOT EXISTS idx_goals_deleted ON goals(deleted_at);
-CREATE INDEX IF NOT EXISTS idx_recurring_deleted ON recurring_charges(deleted_at);
-CREATE INDEX IF NOT EXISTS idx_bill_types_deleted ON bill_types(deleted_at);
-
--- Base currency index for multi-currency reporting
-CREATE INDEX IF NOT EXISTS idx_transactions_base_currency ON transactions(base_currency);
-`;
 
     await new Promise<void>((resolve, reject) => {
-      dbInstance.exec(schema, (err: Error | null) => {
+      dbInstance.exec(INITIAL_SCHEMA, (err: Error | null) => {
         if (err) reject(err);
         else resolve();
       });
     });
 
-    // 2. Ensure Migrations Table
     await run(`
             CREATE TABLE IF NOT EXISTS migrations (
                 id INTEGER PRIMARY KEY,
@@ -1527,12 +1429,10 @@ CREATE INDEX IF NOT EXISTS idx_transactions_base_currency ON transactions(base_c
 
     logTiming('Schema execution');
 
-    // 3. Seed Initial Data
     await seedSettings();
     await seedCategories();
     logTiming('Seeding');
 
-    // 4. Run Pending Migrations
     await processMigrations();
     logTiming('Migrations');
 
@@ -1574,10 +1474,9 @@ async function processMigrations(): Promise<void> {
 }
 
 // =============================================================================
-// EXPORTS
+// SEEDING FUNCTIONS
 // =============================================================================
 
-// Initialization complete - timing logged above
 /**
  * Seed default categories
  */
@@ -1587,13 +1486,11 @@ async function seedCategories(): Promise<void> {
   );
 
   for (const category of DEFAULT_CATEGORIES) {
-    if (category.type !== 'income' && category.type !== 'expense' && category.type !== 'asset' && category.type !== 'liability' && category.type !== 'transfer') continue; // Type safety check
+    if (
+      !['income', 'expense', 'asset', 'liability', 'transfer'].includes(category.type)
+    ) continue;
 
-    statement.run([
-      category.type,
-      category.name,
-      category.is_default,
-    ]);
+    statement.run([category.type, category.name, category.is_default]);
   }
   statement.finalize();
   log(`[DB] Seeded ${DEFAULT_CATEGORIES.length} default categories.`);
@@ -1608,15 +1505,15 @@ async function seedSettings(): Promise<void> {
   );
 
   for (const setting of DEFAULT_SETTINGS) {
-    statement.run([
-      setting.key,
-      setting.value,
-      setting.category,
-    ]);
+    statement.run([setting.key, setting.value, setting.category]);
   }
   statement.finalize();
   log(`[DB] Seeded ${DEFAULT_SETTINGS.length} default settings.`);
 }
+
+// =============================================================================
+// EXPORTS
+// =============================================================================
 
 export default dbInstance;
 export { dbInstance as db, dbInitialized, run, get, all };
