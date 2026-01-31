@@ -21,32 +21,25 @@ import { aiInsightCache, createFallbackGenerator, FallbackInsightGenerator } fro
 // Services
 import { MilestoneTracker } from '../services/milestoneTracker';
 
-// Views
-import { DashboardView } from '../views/DashboardView';
-import { TransactionsView } from '../views/TransactionsView';
-import { ForecastView } from '../views/ForecastView';
-import { BudgetView } from '../views/BudgetView';
-import { GoalsView } from '../views/GoalsView';
-import { SandboxView } from '../views/SandboxView';
-import { RecurringChargesView } from '../views/RecurringChargesView';
-import { BillsView } from '../views/BillsView';
-import { SettingsView } from '../views/SettingsView';
-import { AISettingsView } from '../views/AISettingsView';
+// Views - Dynamic Imports
 import { BaseView } from '../views/BaseView';
 
-interface ViewsMap {
-  [key: string]: BaseView;
-  dashboard: DashboardView;
-  transactions: TransactionsView;
-  forecast: ForecastView;
-  budget: BudgetView;
-  goals: GoalsView;
-  whatif: SandboxView;
-  recurring: RecurringChargesView;
-  bills: BillsView;
-  settings: SettingsView;
-  'ai-settings': AISettingsView;
-}
+// Type for View Constructor
+type ViewConstructor = new (app: App) => BaseView;
+
+// View Loaders Map
+const VIEW_LOADERS: Record<string, () => Promise<ViewConstructor>> = {
+  dashboard: () => import('../views/DashboardView').then(m => m.DashboardView),
+  transactions: () => import('../views/TransactionsView').then(m => m.TransactionsView),
+  forecast: () => import('../views/ForecastView').then(m => m.ForecastView),
+  budget: () => import('../views/BudgetView').then(m => m.BudgetView),
+  goals: () => import('../views/GoalsView').then(m => m.GoalsView),
+  whatif: () => import('../views/SandboxView').then(m => m.SandboxView),
+  recurring: () => import('../views/RecurringChargesView').then(m => m.RecurringChargesView),
+  bills: () => import('../views/BillsView').then(m => m.BillsView),
+  settings: () => import('../views/SettingsView').then(m => m.SettingsView),
+  'ai-settings': () => import('../views/AISettingsView').then(m => m.AISettingsView),
+};
 
 export class App {
   // Core Services
@@ -69,8 +62,8 @@ export class App {
   // Other Services
   milestoneTracker: MilestoneTracker;
 
-  // Views
-  views: ViewsMap;
+  // Views (Instantiated)
+  views: Record<string, BaseView> = {};
 
   constructor() {
     // Initialize core services
@@ -92,22 +85,41 @@ export class App {
     // Initialize other services
     this.milestoneTracker = new MilestoneTracker();
 
-    // Initialize views
-    this.views = {
-      dashboard: new DashboardView(this),
-      transactions: new TransactionsView(this),
-      forecast: new ForecastView(this),
-      budget: new BudgetView(this),
-      goals: new GoalsView(this),
-      whatif: new SandboxView(this),
-      recurring: new RecurringChargesView(this),
-      bills: new BillsView(this),
-      settings: new SettingsView(this),
-      'ai-settings': new AISettingsView(this),
-    };
+    // Views are now initialized lazily in getView()
 
     this.router = new Router(this);
   }
+
+  /**
+   * Lazily load and return a view instance
+   */
+  async getView(name: string): Promise<BaseView> {
+    // Return existing instance if already loaded
+    if (this.views[name]) {
+      return this.views[name];
+    }
+
+    // Check if we have a loader for this view
+    const loader = VIEW_LOADERS[name];
+    if (!loader) {
+      throw new Error(`No view loader found for: ${name}`);
+    }
+
+    try {
+      // Load the view module
+      const ViewClass = await loader();
+
+      // Instantiate and cache
+      const viewInstance = new ViewClass(this);
+      this.views[name] = viewInstance;
+
+      return viewInstance;
+    } catch (error) {
+      console.error(`Failed to load view: ${name}`, error);
+      throw error;
+    }
+  }
+
 
   async init(): Promise<void> {
     try {
@@ -330,7 +342,7 @@ export class App {
 
   async updateAppSetting(key: string, value: string | boolean): Promise<void> {
     const valStr = typeof value === 'boolean' ? String(value) : value;
-    await window.api.updateSetting({ key, value: valStr });
+    await this.state.financeService.updateSetting({ key, value: valStr });
     await this.state.loadSettings();
     if (key === 'theme') this.state.applyTheme(valStr);
   }
@@ -351,7 +363,7 @@ export class App {
       )
     ) {
       try {
-        await window.api.deleteTransaction(id);
+        await this.state.financeService.deleteTransaction(id);
         await Promise.all([this.state.loadTransactions(), this.state.loadAccounts()]);
         this.views[this.router.currentViewName!]?.render();
         this.notifications.toast('Deleted', 'Transaction removed successfully');

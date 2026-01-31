@@ -15,6 +15,8 @@ import { DateUtils } from '../../shared/utils/dateUtils';
 
 import { eventBus } from './eventBus';
 
+import { FinanceService } from '../services/FinanceService';
+
 export class StateManager {
   transactions: TransactionWithCategory[];
   transactionMetadata: {
@@ -66,7 +68,12 @@ export class StateManager {
   exchangeRates: ExchangeRate[];
   recurringCharges: RecurringCharge[];
 
+  // Services
+  financeService: FinanceService;
+
   constructor() {
+    this.financeService = new FinanceService();
+
     this.transactions = [];
     this.transactionMetadata = { total: 0, limit: 100, offset: 0, hasMore: false };
     this.accounts = [];
@@ -102,7 +109,6 @@ export class StateManager {
       month: 0, // All Months
     };
     this.exchangeRates = [];
-    this.exchangeRates = [];
     this.recurringCharges = [];
 
     this.editingTxId = null;
@@ -120,9 +126,9 @@ export class StateManager {
   }
 
   async loadSettings(): Promise<void> {
-    const settings = await window.api.getSettings();
+    const settings = await this.financeService.getSettings();
     this.settings = settings && typeof settings === 'object' ? settings : {};
-    const aiSettings = await window.api.getAISettings();
+    const aiSettings = await this.financeService.getAISettings();
     this.aiSettings = aiSettings && typeof aiSettings === 'object' ? aiSettings : {};
 
     // Initial theme application
@@ -133,7 +139,7 @@ export class StateManager {
 
   async loadExchangeRates(): Promise<void> {
     try {
-      const rates = await window.api.getExchangeRates();
+      const rates = await this.financeService.getExchangeRates();
       this.exchangeRates = Array.isArray(rates) ? rates : [];
     } catch (e) {
       console.warn('Failed to load exchange rates:', e);
@@ -142,12 +148,12 @@ export class StateManager {
   }
 
   async loadAccounts(): Promise<void> {
-    const data = await window.api.getAccounts();
+    const data = await this.financeService.getAccounts();
     this.accounts = Array.isArray(data) ? data : [];
   }
 
   async loadCategories(): Promise<void> {
-    const data = await window.api.getCategories();
+    const data = await this.financeService.getCategories();
     this.categories = Array.isArray(data) ? data : [];
   }
 
@@ -156,12 +162,10 @@ export class StateManager {
     await this.loadTransactions();
   }
 
-
-
   async loadSummaryStats(): Promise<void> {
     try {
       const baseCurrency = this.settings.currency_base;
-      this.summaryStats = await window.api.getSummaryStats(baseCurrency);
+      this.summaryStats = await this.financeService.getSummaryStats(baseCurrency);
     } catch (e) {
       console.warn('Failed to load summary stats', e);
     }
@@ -185,7 +189,7 @@ export class StateManager {
     }
 
     // Use proper typing based on new API contract
-    const response = await window.api.getTransactions(options);
+    const response = await this.financeService.getTransactions(options);
 
     if (!this.checkResponse(response)) return;
 
@@ -249,25 +253,25 @@ export class StateManager {
   }
 
   async loadBudgets(): Promise<void> {
-    const data = await window.api.getBudgets();
+    const data = await this.financeService.getBudgets();
     this.budgets = Array.isArray(data) ? data : [];
   }
 
   async loadBillTypes(): Promise<void> {
-    const data = await window.api.getBillTypes();
+    const data = await this.financeService.getBillTypes();
     this.billTypes = Array.isArray(data) ? data : [];
   }
 
   async loadBillReadings(filters: any = null): Promise<void> {
-    const readings = await window.api.getBillReadings(filters || this.billHistoryFilter);
+    const readings = await this.financeService.getBillReadings(filters || this.billHistoryFilter);
     this.billReadings = Array.isArray(readings) ? readings : [];
 
-    const allReadings = await window.api.getBillReadings({}); // All time
+    const allReadings = await this.financeService.getBillReadings({}); // All time
     this.allBillReadings = Array.isArray(allReadings) ? allReadings : [];
   }
 
   async loadRecurringCharges(): Promise<void> {
-    const data = await window.api.getRecurringCharges();
+    const data = await this.financeService.getRecurringCharges();
     this.recurringCharges = Array.isArray(data) ? data : [];
   }
 }

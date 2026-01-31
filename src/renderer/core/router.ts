@@ -33,7 +33,7 @@ export class Router {
   /**
    * Navigate to a specific view
    */
-  navigate(viewName: string, options: { force?: boolean } = {}): void {
+  async navigate(viewName: string, options: { force?: boolean } = {}): Promise<void> {
     const { force = false } = options;
 
     // Clear AI nav active state when navigating to any view
@@ -42,31 +42,47 @@ export class Router {
       aiNavItem.classList.remove('active');
     }
 
-    // If navigating to same view and force is true, reset the view (go to home)
+    // Get current instantiated view if it exists
+    const currentViewInstance = this.currentView ? this.views[this.currentView] : null;
+
+    // If navigating to same view
     if (this.currentView === viewName) {
-      if (force && this.views[viewName] && this.views[viewName].showHome) {
-        this.views[viewName].showHome();
+      if (force && currentViewInstance && currentViewInstance.showHome) {
+        currentViewInstance.showHome();
         this.updateSidebar(viewName);
       }
       return;
     }
 
-    // Hide current view
-    if (this.currentView && this.views[this.currentView]) {
-      this.views[this.currentView].hide();
-      // Strict lifestyle management: destroy to free memory
-      if (typeof this.views[this.currentView].destroy === 'function') {
-        this.views[this.currentView].destroy();
-      }
+    // Show loading state
+    if (this.app.setLoading) {
+      this.app.setLoading(true);
     }
 
-    // Show new view
-    if (this.views[viewName]) {
-      this.views[viewName].show();
+    try {
+      // Lazy load the requested view
+      const view = await this.app.getView(viewName);
+
+      // Hide current view
+      if (currentViewInstance) {
+        currentViewInstance.hide();
+        // Strict lifestyle management: destroy to free memory
+        if (typeof currentViewInstance.destroy === 'function') {
+          currentViewInstance.destroy();
+        }
+      }
+
+      // Show new view
+      view.show();
       this.currentView = viewName;
       this.updateSidebar(viewName);
-    } else {
-      console.error(`View ${viewName} not found`);
+    } catch (error) {
+      console.error(`Failed to navigate to ${viewName}`, error);
+      // Optional: show error toast
+    } finally {
+      if (this.app.setLoading) {
+        this.app.setLoading(false);
+      }
     }
   }
 
