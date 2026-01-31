@@ -62,18 +62,44 @@ export class FinanceController implements IController {
   /**
    * Generates a forecast based on FULL database history.
    * Ignores the 'transactions' array passed from UI.
+   * Converts all amounts to base currency for accurate multi-currency forecasting.
    */
   async calculateForecast(event: IpcMainInvokeEvent, data: any) {
     try {
+      // Get base currency from settings
+      const settings = await FinanceModel.getAllSettings();
+      const baseCurrency = settings.currency_base || 'USD';
+
       // Fetch all data from DB
       const transactions = await FinanceModel.getAll('transaction', { orderBy: 'start_date DESC' });
-      const accounts = await FinanceModel.getAllAccounts();
       const recurringCharges = await FinanceModel.getAllRecurringCharges();
-      const settings = await FinanceModel.getAllSettings();
+
+      // Get accounts with converted balances for multi-currency support
+      const accountsConverted = await FinanceModel.getAccountsWithConvertedBalances(baseCurrency);
+      const normalizedAccounts = accountsConverted.map(a => ({
+        ...a,
+        balance: a.converted_balance || 0, // Use converted balance for forecasting
+      }));
+
+      // Convert transaction amounts to base currency for accurate forecasting
+      const normalizedTransactions = [];
+      for (const tx of transactions as any[]) {
+        const txCurrency = tx.currency || 'USD';
+        let convertedAmount = tx.amount;
+        if (txCurrency !== baseCurrency) {
+          const rate = await FinanceModel.getExchangeRate(txCurrency, baseCurrency);
+          convertedAmount = rate ? tx.amount * rate : tx.amount;
+        }
+        normalizedTransactions.push({
+          ...tx,
+          amount: convertedAmount,
+          currency: baseCurrency, // Mark as converted to base
+        });
+      }
 
       const engine = new ForecastEngine(
-        transactions as any[],
-        accounts as any[],
+        normalizedTransactions,
+        normalizedAccounts as any[],
         settings as any,
         recurringCharges as any[]
       );

@@ -397,8 +397,10 @@ export class DashboardView extends BaseView {
     // Account dropdowns - include currency for exchange rate detection
     const accHtml = state.accounts
       .map(
-        (a) =>
-          `<option value="${a.id}" data-currency="${a.currency}">${a.name} (${a.currency})</option>`
+        (a) => {
+          const currency = a.currency || 'USD';
+          return `<option value="${a.id}" data-currency="${currency}">${a.name} (${currency})</option>`;
+        }
       )
       .join('');
     const accSelect = $('#quick-tx-account');
@@ -539,9 +541,9 @@ export class DashboardView extends BaseView {
 
           previewContainer.innerHTML = `
             <div class="flex items-center gap-2">
-                <span class="font-semibold text-danger">${account.name}: ${this.formatter.formatCurrency(account.balance)} → ${this.formatter.formatCurrency(fromAfter)}</span>
+                <span class="font-semibold text-danger">${account.name}: ${this.formatter.formatCurrency(account.balance, fromCurrency)} → ${this.formatter.formatCurrency(fromAfter, fromCurrency)}</span>
                 <i data-lucide="arrow-right" class="w-3 h-3 text-text-muted"></i>
-                <span class="font-semibold text-success">${toAccount.name}: ${this.formatter.formatCurrency(toAccount.balance)} → ${this.formatter.formatCurrency(toAfter)}</span>
+                <span class="font-semibold text-success">${toAccount.name}: ${this.formatter.formatCurrency(toAccount.balance, toCurrency)} → ${this.formatter.formatCurrency(toAfter, toCurrency)}</span>
                 ${isDifferentCurrency ? `<span class="text-[10px] text-text-muted ml-1">(${exchangeRate.toFixed(4)}×)</span>` : ''}
             </div>
           `;
@@ -559,7 +561,7 @@ export class DashboardView extends BaseView {
 
           previewContainer.innerHTML = `
             <span class="font-semibold ${type === 'income' ? 'text-success' : type === 'expense' ? 'text-danger' : ''}">
-                ${account.name}: ${this.formatter.formatCurrency(account.balance)} → ${this.formatter.formatCurrency(newBalance)}
+                ${account.name}: ${this.formatter.formatCurrency(account.balance, account.currency)} → ${this.formatter.formatCurrency(newBalance, account.currency)}
             </span>
           `;
         }

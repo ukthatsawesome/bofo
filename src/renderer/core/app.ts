@@ -62,7 +62,7 @@ export class App {
   constructor() {
     this.state = new StateManager();
     this.formatter = new Formatter(this.state);
-    this.chartManager = new ChartManager(this.state);
+    this.chartManager = new ChartManager(this.state, this.formatter);
     this.notifications = new NotificationManager();
     this.aiCache = aiInsightCache;
     this.fallbackGenerator = null; // Initialized after formatter is ready
@@ -120,6 +120,9 @@ export class App {
       this.populateCurrencyDropdowns();
       this.setupGlobalEvents();
       this.initAIStatusIndicator();
+
+      // Ensure formatter has exchange rates loaded for conversions
+      await this.formatter.loadExchangeRates();
 
       // Initial view
       this.router.navigate('dashboard');
@@ -476,10 +479,17 @@ export class App {
         }
 
         try {
-          await window.api.addTransaction(tx);
-          this.notifications.toast('Success', 'Transaction saved');
+          if (this.state.editingTxId) {
+            await window.api.updateTransaction(this.state.editingTxId, tx);
+            this.notifications.toast('Success', 'Transaction updated');
+          } else {
+            await window.api.addTransaction(tx);
+            this.notifications.toast('Success', 'Transaction saved');
+          }
+
           UIUtils.setHidden('#transaction-modal', true);
           eventBus.emit('transaction:saved', undefined);
+          this.state.editingTxId = null; // Reset
         } catch (e: any) {
           this.notifications.alert('Error', e.message);
         }
@@ -724,8 +734,10 @@ export class App {
     const accounts = (this.state.accounts || []).filter((a) => a.status !== 'archived');
     const html = accounts
       .map(
-        (a) =>
-          `<option value="${a.id}" data-currency="${a.currency}">${a.name} (${this.formatter.formatCurrency(a.balance, a.currency)})</option>`
+        (a) => {
+          const currency = a.currency || 'USD';
+          return `<option value="${a.id}" data-currency="${currency}">${a.name} (${this.formatter.formatCurrency(a.balance, currency)})</option>`;
+        }
       )
       .join('');
 

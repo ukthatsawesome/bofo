@@ -25,9 +25,12 @@ import type {
 } from '../database/types';
 import { TransactionListDTO } from '../../shared/types';
 
+import { Mutex } from '../utils/mutex';
+
 // Use strict types for helper functions
 // require('fs').writeFileSync('finance_debug.txt', 'FINANCE SCRIPT START\n'); // Disabled to allow build optimization if needed
 const { run, get, all } = createDbHelpers(dbInstance);
+const writeMutex = new Mutex();
 
 // =============================================================================
 // ENTITY SCHEMAS - Define structure and behavior for each entity type
@@ -40,6 +43,7 @@ interface EntitySchema<T> {
   orderBy?: string;
   checkInUse?: (id: number) => Promise<boolean>;
   afterWrite?: (data: T & { id?: number }) => Promise<void>;
+  afterDelete?: (data: T) => Promise<void>;
 }
 
 // We map entity names to their schemas.
@@ -55,6 +59,7 @@ const ENTITY_SCHEMAS: Record<string, EntitySchema<any>> = {
       'to_account_id',
       'type',
       'category',
+      'category_id',
       'amount',
       'description',
       'attachment',
@@ -64,15 +69,15 @@ const ENTITY_SCHEMAS: Record<string, EntitySchema<any>> = {
       'currency',
       'exchange_rate',
       'to_amount',
+      'base_currency',
+      'base_amount',
       'tags',
       'is_active',
     ],
     defaults: { currency: 'USD', frequency: 'once', is_active: 1, tags: '', exchange_rate: 1 },
     orderBy: 'start_date DESC',
-    afterWrite: async (data: Transaction) => {
-      if (data.account_id) await FinanceModel.syncAccountBalance(data.account_id);
-      if (data.to_account_id) await FinanceModel.syncAccountBalance(data.to_account_id);
-    },
+    // afterWrite removed: Triggers trg_balance_after_* handle balance sync
+    // afterDelete removed: Trigger trg_balance_after_delete handles balance sync
   },
   account: {
     table: 'accounts',
@@ -104,8 +109,8 @@ const ENTITY_SCHEMAS: Record<string, EntitySchema<any>> = {
   },
   budget: {
     table: 'budgets',
-    fields: ['category', 'amount', 'period', 'start_date', 'end_date'],
-    defaults: { period: 'monthly' },
+    fields: ['category', 'category_id', 'amount', 'period', 'start_date', 'end_date', 'currency'],
+    defaults: { period: 'monthly', currency: 'USD' },
     orderBy: 'start_date DESC',
   },
   goal: {
@@ -122,6 +127,7 @@ const ENTITY_SCHEMAS: Record<string, EntitySchema<any>> = {
       'target_date',
       'status',
       'auto_contribute',
+      'currency',
     ],
     defaults: {
       current_amount: 0,
@@ -131,6 +137,7 @@ const ENTITY_SCHEMAS: Record<string, EntitySchema<any>> = {
       priority: 1,
       status: 'active',
       auto_contribute: 0,
+      currency: 'USD',
     },
     orderBy: 'priority ASC, created_at DESC',
   },
@@ -138,6 +145,7 @@ const ENTITY_SCHEMAS: Record<string, EntitySchema<any>> = {
     table: 'recurring_charges',
     fields: [
       'category',
+      'category_id',
       'name',
       'amount',
       'frequency',
@@ -145,8 +153,9 @@ const ENTITY_SCHEMAS: Record<string, EntitySchema<any>> = {
       'next_due_date',
       'is_active',
       'notes',
+      'currency',
     ],
-    defaults: { frequency: 'monthly', due_day: 1, is_active: 1 },
+    defaults: { frequency: 'monthly', due_day: 1, is_active: 1, currency: 'USD' },
     orderBy: 'category, name',
   },
   billType: {
@@ -160,6 +169,7 @@ const ENTITY_SCHEMAS: Record<string, EntitySchema<any>> = {
       'auto_transaction',
       'icon',
       'color',
+      'currency',
     ],
     defaults: {
       unit_name: 'Units',
@@ -167,7 +177,7 @@ const ENTITY_SCHEMAS: Record<string, EntitySchema<any>> = {
       auto_transaction: 0,
       icon: 'file-text',
       color: '#7c3aed',
-      icon_color: '#7c3aed'
+      currency: 'USD',
     },
     orderBy: 'name ASC',
   },
@@ -191,7 +201,8 @@ const ENTITY_SCHEMAS: Record<string, EntitySchema<any>> = {
           accountId = defaultAcc?.id || null;
         }
         if (accountId) {
-          await FinanceModel.create('transaction', {
+          // Use internal create to avoid deadlock (mutex is already held by parent create)
+          await FinanceModel.createInternal('transaction', {
             account_id: accountId,
             type: 'expense',
             category: billType.category_name,
@@ -200,7 +211,7 @@ const ENTITY_SCHEMAS: Record<string, EntitySchema<any>> = {
             frequency: 'once',
             start_date: data.date,
             tags: 'bill-auto',
-          });
+          }, { source: 'SYSTEM', skipAudit: false });
         }
       }
     },
@@ -231,41 +242,53 @@ const ENTITY_SCHEMAS: Record<string, EntitySchema<any>> = {
 
 export const FinanceModel = {
   /**
-   * Create a new entity
+  /**
+   * Internal Create (No locking, assumes transaction/lock exists)
    */
-  create: async (entityType: string, data: any, auditContext: { source?: string; metadata?: any; skipAudit?: boolean } = {}): Promise<{ id: number; changes: number }> => {
+  createInternal: async (entityType: string, data: any, auditContext: any): Promise<{ id: number; changes: number }> => {
     const schema = ENTITY_SCHEMAS[entityType];
     if (!schema) throw new Error(`Unknown entity type: ${entityType}`);
 
-    // Validate
-    // @ts-ignore - access by string key
-    const validator = EntityValidators[entityType];
+    const validator = (EntityValidators as any)[entityType];
     if (validator) data = validator(data, true);
 
-    // Apply defaults
     const finalData = { ...schema.defaults, ...sanitizeData(data, schema.fields) };
-
-    // Build SQL
     const fields = Object.keys(finalData);
     const placeholders = fields.map(() => '?').join(', ');
     const values = fields.map((f) => finalData[f]);
 
-    const sql = `INSERT INTO ${schema.table} (${fields.join(', ')}) VALUES (${placeholders})`;
-    const result = await run(sql, values);
+    const result = await run(`INSERT INTO ${schema.table} (${fields.join(', ')}) VALUES (${placeholders})`, values);
 
-    // Post-write hooks
-    if (schema.afterWrite) await schema.afterWrite({ ...finalData, id: result.id });
-
-    // Audit Log
-    if (!auditContext.skipAudit) {
+    // Audit (Internal)
+    if (!auditContext?.skipAudit) {
       await FinanceModel.logAudit(entityType, result.id, 'CREATE', null, finalData, auditContext);
     }
+
+    // Hooks
+    if (schema.afterWrite) await schema.afterWrite({ ...finalData, id: result.id });
 
     return result;
   },
 
   /**
-   * Update an entity by ID
+   * Create a new entity (Atomic & Serialized)
+   */
+  create: async (entityType: string, data: any, auditContext: { source?: string; metadata?: any; skipAudit?: boolean } = {}): Promise<{ id: number; changes: number }> => {
+    return await writeMutex.runExclusive(async () => {
+      await run('BEGIN TRANSACTION');
+      try {
+        const result = await FinanceModel.createInternal(entityType, data, auditContext);
+        await run('COMMIT');
+        return result;
+      } catch (err) {
+        await run('ROLLBACK');
+        throw err;
+      }
+    });
+  },
+
+  /**
+   * Update an entity by ID (Atomic & Serialized)
    */
   update: async (
     entityType: string,
@@ -273,46 +296,58 @@ export const FinanceModel = {
     data: any,
     auditContext: { source?: string; metadata?: any; skipAudit?: boolean } = {}
   ): Promise<{ id: number; changes: number }> => {
-    const schema = ENTITY_SCHEMAS[entityType];
-    if (!schema) throw new Error(`Unknown entity type: ${entityType}`);
+    return await writeMutex.runExclusive(async () => {
+      await run('BEGIN TRANSACTION');
+      try {
+        const schema = ENTITY_SCHEMAS[entityType];
+        if (!schema) throw new Error(`Unknown entity type: ${entityType}`);
 
-    // Validate
-    // @ts-ignore
-    const validator = EntityValidators[entityType];
-    if (validator) data = validator(data, false);
+        // Validate
+        // @ts-ignore
+        const validator = EntityValidators[entityType];
+        if (validator) data = validator(data, false);
 
-    // Sanitize to allowed fields only
-    const sanitized = sanitizeData(data, schema.fields);
-    const fields = Object.keys(sanitized);
+        // Sanitize to allowed fields only
+        const sanitized = sanitizeData(data, schema.fields);
+        const fields = Object.keys(sanitized);
 
-    if (fields.length === 0) {
-      throw new Error('No valid fields to update');
-    }
+        if (fields.length === 0) {
+          // No op, but commit empty
+          await run('COMMIT');
+          return { id, changes: 0 };
+        }
 
-    // Build SQL (field names are validated via sanitize)
-    const setClause = fields.map((f) => `${f} = ?`).join(', ');
-    const values = [...fields.map((f) => sanitized[f]), id];
+        // Build SQL (field names are validated via sanitize)
+        const setClause = fields.map((f) => `${f} = ?`).join(', ');
+        const values = [...fields.map((f) => sanitized[f]), id];
 
-    const sql = `UPDATE ${schema.table} SET ${setClause} WHERE id = ?`;
+        const sql = `UPDATE ${schema.table} SET ${setClause} WHERE id = ?`;
 
-    // Get old data for audit BEFORE update
-    const oldData = await FinanceModel.getById(entityType, id);
+        // Get old data for audit BEFORE update
+        // Note: getById is a read, allowed inside transaction
+        const oldData = await FinanceModel.getById(entityType, id);
 
-    const result = await run(sql, values);
+        const result = await run(sql, values);
 
-    // Post-write hooks
-    if (schema.afterWrite) await schema.afterWrite({ ...sanitized, id });
+        // Audit Log
+        if (!auditContext.skipAudit) {
+          await FinanceModel.logAudit(entityType, id, 'UPDATE', oldData, sanitized, auditContext);
+        }
 
-    // Audit Log
-    if (!auditContext.skipAudit) {
-      await FinanceModel.logAudit(entityType, id, 'UPDATE', oldData, sanitized, auditContext);
-    }
+        // Post-write hooks
+        if (schema.afterWrite) await schema.afterWrite({ ...sanitized, id });
 
-    return result;
+        await run('COMMIT');
+        return result;
+      } catch (err) {
+        await run('ROLLBACK');
+        throw err;
+      }
+    });
   },
 
   /**
-   * Delete an entity by ID
+   * Delete an entity by ID (Atomic & Serialized)
    */
   delete: async (
     entityType: string,
@@ -320,28 +355,40 @@ export const FinanceModel = {
     force: boolean = false,
     auditContext: { source?: string; metadata?: any; skipAudit?: boolean } = {}
   ): Promise<{ id: number; changes: number }> => {
-    const schema = ENTITY_SCHEMAS[entityType];
-    if (!schema) throw new Error(`Unknown entity type: ${entityType}`);
+    return await writeMutex.runExclusive(async () => {
+      await run('BEGIN TRANSACTION');
+      try {
+        const schema = ENTITY_SCHEMAS[entityType];
+        if (!schema) throw new Error(`Unknown entity type: ${entityType}`);
 
-    // Check if in use (prevents orphaned data)
-    if (!force && schema.checkInUse) {
-      const inUse = await schema.checkInUse(id);
-      if (inUse) {
-        throw new Error(`Cannot delete: ${entityType} is in use. Archive it instead.`);
+        // Check if in use (prevents orphaned data)
+        if (!force && schema.checkInUse) {
+          const inUse = await schema.checkInUse(id);
+          if (inUse) {
+            throw new Error(`Cannot delete: ${entityType} is in use. Archive it instead.`);
+          }
+        }
+
+        // Get old data for audit
+        const oldData = await FinanceModel.getById(entityType, id);
+
+        const result = await run(`DELETE FROM ${schema.table} WHERE id = ?`, [id]);
+
+        // Audit Log
+        if (oldData && !auditContext.skipAudit) {
+          await FinanceModel.logAudit(entityType, id, 'DELETE', oldData, null, auditContext);
+        }
+
+        // Post-delete hooks (Sync balance inside transaction)
+        if (schema.afterDelete && oldData) await schema.afterDelete(oldData);
+
+        await run('COMMIT');
+        return result;
+      } catch (err) {
+        await run('ROLLBACK');
+        throw err;
       }
-    }
-
-    // Get old data for audit
-    const oldData = await FinanceModel.getById(entityType, id);
-
-    const result = await run(`DELETE FROM ${schema.table} WHERE id = ?`, [id]);
-
-    // Audit Log
-    if (oldData && !auditContext.skipAudit) {
-      await FinanceModel.logAudit(entityType, id, 'DELETE', oldData, null, auditContext);
-    }
-
-    return result;
+    });
   },
 
   /**
@@ -368,35 +415,27 @@ export const FinanceModel = {
       const source = context.source || 'USER';
       const metadata = context.metadata ? JSON.stringify(context.metadata) : null;
 
-      // Use specific table for transactions to maintain backward compatibility (renames or upgrades notwithstanding)
-      // But our logic is: transaction_history for transactions, audit_logs for everything else.
-
       if (entityType === 'transaction') {
-        // Check if transaction_history has source column (it should after migration)
-        // We use safe check or just assume migration ran.
-        const changeData = action === 'UPDATE' ? { old: oldData, new: newData } : (action === 'CREATE' ? newData : oldData);
-
-        // For transaction history, we try to match the schema.
-        // But wait, the transaction_history table has old_data / new_data columns.
-        await run(`
+        await run(
+          `
                 INSERT INTO transaction_history (transaction_id, action, old_data, new_data, source, metadata)
                 VALUES (?, ?, ?, ?, ?, ?)
-            `, [
-          entityId,
-          action,
-          oldData ? JSON.stringify(oldData) : null,
-          newData ? JSON.stringify(newData) : null,
-          source,
-          metadata
-        ]);
+            `,
+          [
+            entityId,
+            action,
+            oldData ? JSON.stringify(oldData) : null,
+            newData ? JSON.stringify(newData) : null,
+            source,
+            metadata,
+          ]
+        );
       } else {
         // Generic audit logs
-        // We only store the DIFF mostly, but here for simplicity storing full blobs or diff
-        // Let's compute a simple DIFF for updates
         let changes: string | null = null;
         if (action === 'UPDATE' && oldData && newData) {
           const diff: Record<string, any> = {};
-          Object.keys(newData).forEach(key => {
+          Object.keys(newData).forEach((key) => {
             if (JSON.stringify(oldData[key]) !== JSON.stringify(newData[key])) {
               diff[key] = { from: oldData[key], to: newData[key] };
             }
@@ -408,10 +447,13 @@ export const FinanceModel = {
           changes = JSON.stringify(oldData);
         }
 
-        await run(`
+        await run(
+          `
                 INSERT INTO audit_logs (entity_type, entity_id, action, source, changes, metadata)
                 VALUES (?, ?, ?, ?, ?, ?)
-            `, [entityType, entityId, action, source, changes, metadata]);
+            `,
+          [entityType, entityId, action, source, changes, metadata]
+        );
       }
     } catch (e) {
       console.error('[Audit] Failed to log:', e);
@@ -422,7 +464,7 @@ export const FinanceModel = {
   /**
    * Get all entities of a type
    */
-  getAll: async <T = any>(
+  getAll: async<T = any>(
     entityType: string,
     options: { where?: Record<string, any>; orderBy?: string } = {}
   ): Promise<T[]> => {
@@ -529,10 +571,12 @@ export const FinanceModel = {
     const limit = Math.min(Math.max(1, options.limit || 50), 500);
     const offset = Math.max(0, options.offset || 0);
     const activeOnly = options.activeOnly !== false;
-    const sortBy = ['start_date', 'amount', 'category', 'created_at'].includes(options.sortBy || '')
+    const allowedSorts = ['start_date', 'amount', 'category', 'created_at', 'category_name', 'account_name', 'description'];
+    const sortBy = allowedSorts.includes(options.sortBy || '')
       ? options.sortBy
       : 'start_date';
-    const sortOrder = options.sortOrder === 'ASC' ? 'ASC' : 'DESC';
+    const sort = (options.sortOrder || 'DESC').toString().toUpperCase();
+    const sortOrder = sort === 'ASC' ? 'ASC' : 'DESC';
 
     const conditions: string[] = [];
     const params: any[] = [];
@@ -599,33 +643,61 @@ export const FinanceModel = {
     const params = [];
 
     // Always exclude inactive/deleted
-    conditions.push('is_active = 1');
+    conditions.push('t.is_active = 1');
 
     if (options.startDate) {
-      conditions.push('start_date >= ?');
+      conditions.push('t.start_date >= ?');
       params.push(options.startDate);
     }
     if (options.endDate) {
-      conditions.push('start_date <= ?');
+      conditions.push('t.start_date <= ?');
       params.push(options.endDate);
     }
     if (options.type && options.type !== 'all') {
-      conditions.push('type = ?');
+      conditions.push('t.type = ?');
       params.push(options.type);
     }
 
     const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
-    const stats = await get<{ income: number; expense: number; count: number }>(`
+    // Group by currency to allow correct aggregation on the frontend
+    const rows = await all<{ currency: string; income: number; expense: number; transfers: number; count: number }>(`
           SELECT 
-              COALESCE(SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END), 0) as income,
-              COALESCE(SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END), 0) as expense,
-              COALESCE(SUM(CASE WHEN type = 'transfer' THEN amount ELSE 0 END), 0) as transfers,
+              COALESCE(a.currency, 'USD') as currency,
+              COALESCE(SUM(CASE WHEN t.type = 'income' THEN t.amount ELSE 0 END), 0) as income,
+              COALESCE(SUM(CASE WHEN t.type = 'expense' THEN t.amount ELSE 0 END), 0) as expense,
+              COALESCE(SUM(CASE WHEN t.type = 'transfer' THEN t.amount ELSE 0 END), 0) as transfers,
               COUNT(*) as count
-          FROM transactions 
+          FROM transactions t
+          LEFT JOIN accounts a ON t.account_id = a.id
           ${whereClause}
+          GROUP BY COALESCE(a.currency, 'USD')
       `, params);
-    return stats || { income: 0, expense: 0, transfers: 0, count: 0 };
+
+    // Aggregate totals for backward compatibility (raw sum, technically incorrect for mixed currencies but needed for interfaces)
+    // The frontend should prioritze 'byCurrency' for display.
+    const totalStats = {
+      income: 0,
+      expense: 0,
+      transfers: 0,
+      count: 0,
+      byCurrency: {} as Record<string, { income: number; expense: number; transfers: number }>
+    };
+
+    rows.forEach(r => {
+      totalStats.income += r.income;
+      totalStats.expense += r.expense;
+      totalStats.transfers += r.transfers;
+      totalStats.count += r.count;
+
+      totalStats.byCurrency[r.currency] = {
+        income: r.income,
+        expense: r.expense,
+        transfers: r.transfers
+      };
+    });
+
+    return totalStats;
   },
 
   getBudgetSummary: async () => {
@@ -639,18 +711,50 @@ export const FinanceModel = {
     }));
   },
 
-  getMonthlyTotals: async (startDate: string, endDate: string) => {
-    const result = await get<{ income: number; expense: number }>(
+  /**
+   * Get monthly income and expense totals, optionally converted to a base currency.
+   * When baseCurrency is provided, amounts are grouped by currency and converted.
+   */
+  getMonthlyTotals: async (startDate: string, endDate: string, baseCurrency?: string) => {
+    // If no baseCurrency specified, use raw sums (backward compatible)
+    if (!baseCurrency) {
+      const result = await get<{ income: number; expense: number }>(
+        `
+        SELECT 
+          COALESCE(SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END), 0) as income,
+          COALESCE(SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END), 0) as expense
+        FROM transactions 
+        WHERE start_date BETWEEN ? AND ? AND is_active = 1
+        `,
+        [startDate, endDate]
+      );
+      return result || { income: 0, expense: 0 };
+    }
+
+    // Group by currency for accurate multi-currency conversion
+    const rows = await all<{ currency: string; income: number; expense: number }>(
       `
       SELECT 
-        COALESCE(SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END), 0) as income,
-        COALESCE(SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END), 0) as expense
-      FROM transactions 
-      WHERE start_date BETWEEN ? AND ? AND is_active = 1
+        COALESCE(t.currency, ?) as currency,
+        COALESCE(SUM(CASE WHEN t.type = 'income' THEN t.amount ELSE 0 END), 0) as income,
+        COALESCE(SUM(CASE WHEN t.type = 'expense' THEN t.amount ELSE 0 END), 0) as expense
+      FROM transactions t
+      WHERE t.start_date BETWEEN ? AND ? AND t.is_active = 1
+      GROUP BY COALESCE(t.currency, ?)
       `,
-      [startDate, endDate]
+      [baseCurrency, startDate, endDate, baseCurrency]
     );
-    return result || { income: 0, expense: 0 };
+
+    // Convert each currency group to base currency and sum
+    let totalIncome = 0;
+    let totalExpense = 0;
+    for (const row of rows) {
+      const rate = row.currency === baseCurrency ? 1 : (await FinanceModel.getExchangeRate(row.currency, baseCurrency)) || 1;
+      totalIncome += row.income * rate;
+      totalExpense += row.expense * rate;
+    }
+
+    return { income: totalIncome, expense: totalExpense };
   },
 
   getTransactionCount: async (
@@ -762,14 +866,29 @@ export const FinanceModel = {
     );
   },
 
+  /**
+   * Get goals summary with proper multi-currency conversion.
+   * All amounts are converted to the user's base currency.
+   */
   getGoalsSummary: async () => {
-    const goals = await all<Goal>(`SELECT * FROM goals WHERE status = 'active'`);
-    const totalTarget = goals.reduce((sum, g) => sum + g.target_amount, 0);
-    const totalSaved = goals.reduce((sum, g) => sum + g.current_amount, 0);
-    const totalMonthlyContribution = goals.reduce(
-      (sum, g) => sum + (g.monthly_contribution || 0),
-      0
-    );
+    const settings = await FinanceModel.getAllSettings();
+    const baseCurrency = settings.currency_base || 'USD';
+
+    const goals = await all<Goal & { currency?: string }>(`SELECT * FROM goals WHERE status = 'active'`);
+
+    let totalTarget = 0;
+    let totalSaved = 0;
+    let totalMonthlyContribution = 0;
+
+    for (const goal of goals) {
+      const goalCurrency = goal.currency || baseCurrency;
+      const rate = goalCurrency === baseCurrency ? 1 : (await FinanceModel.getExchangeRate(goalCurrency, baseCurrency)) || 1;
+
+      totalTarget += goal.target_amount * rate;
+      totalSaved += goal.current_amount * rate;
+      totalMonthlyContribution += (goal.monthly_contribution || 0) * rate;
+    }
+
     return {
       activeGoals: goals.length,
       totalTarget,
@@ -780,17 +899,35 @@ export const FinanceModel = {
   },
 
   getAvailableForGoals: async () => {
+    // Get user's base currency
+    const settings = await FinanceModel.getAllSettings();
+    const baseCurrency = settings.currency_base || 'USD';
+
     const threeMonthsAgo = new Date();
     threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
-    const incomeData = await get<{ total: number }>(
+    const startDate = DateUtils.toDateString(threeMonthsAgo);
+
+    // Group income by currency for accurate conversion
+    const incomeByCurrency = await all<{ currency: string; total: number }>(
       `
-            SELECT COALESCE(SUM(amount), 0) as total FROM transactions 
-            WHERE type = 'income' AND start_date >= ? AND is_active = 1
-        `,
-      [DateUtils.toDateString(threeMonthsAgo)]
+      SELECT 
+        COALESCE(currency, 'USD') as currency, 
+        COALESCE(SUM(amount), 0) as total 
+      FROM transactions 
+      WHERE type = 'income' AND start_date >= ? AND is_active = 1
+      GROUP BY COALESCE(currency, 'USD')
+      `,
+      [startDate]
     );
 
-    const avgMonthlyIncome = (incomeData?.total || 0) / 3;
+    // Convert each currency's income to base currency and sum
+    let totalIncome = 0;
+    for (const row of incomeByCurrency) {
+      const rate = row.currency === baseCurrency ? 1 : (await FinanceModel.getExchangeRate(row.currency, baseCurrency)) || 1;
+      totalIncome += row.total * rate;
+    }
+
+    const avgMonthlyIncome = totalIncome / 3;
     const recurringTotal = await FinanceModel.getMonthlyRecurringTotal();
     const goalsSummary = await FinanceModel.getGoalsSummary();
 
@@ -802,16 +939,29 @@ export const FinanceModel = {
     };
   },
 
+  /**
+   * Get monthly recurring total with multi-currency conversion.
+   * Amounts are converted to the user's base currency.
+   */
   getMonthlyRecurringTotal: async () => {
-    const charges = await all<RecurringCharge>(
-      `SELECT amount, frequency FROM recurring_charges WHERE is_active = 1`
+    const settings = await FinanceModel.getAllSettings();
+    const baseCurrency = settings.currency_base || 'USD';
+
+    const charges = await all<RecurringCharge & { currency?: string }>(
+      `SELECT amount, frequency, currency FROM recurring_charges WHERE is_active = 1`
     );
+
     let monthlyTotal = 0;
-    charges.forEach((c) => {
-      if (c.frequency === 'weekly') monthlyTotal += c.amount * 4.33;
-      else if (c.frequency === 'monthly') monthlyTotal += c.amount;
-      else if (c.frequency === 'yearly') monthlyTotal += c.amount / 12;
-    });
+    for (const c of charges) {
+      const chargeCurrency = c.currency || baseCurrency;
+      const rate = chargeCurrency === baseCurrency ? 1 : (await FinanceModel.getExchangeRate(chargeCurrency, baseCurrency)) || 1;
+      const convertedAmount = c.amount * rate;
+
+      if (c.frequency === 'weekly') monthlyTotal += convertedAmount * 4.33;
+      else if (c.frequency === 'monthly') monthlyTotal += convertedAmount;
+      else if (c.frequency === 'yearly') monthlyTotal += convertedAmount / 12;
+    }
+
     return Math.round(monthlyTotal * 100) / 100;
   },
 
@@ -840,7 +990,10 @@ export const FinanceModel = {
         r.notes,
         r.created_at,
         b.name as bill_name,
-        b.unit_name
+        b.unit_name,
+        b.color,
+        b.icon,
+        b.category_name
       FROM bill_readings r
       JOIN bill_types b ON r.bill_type_id = b.id
     `;
@@ -863,46 +1016,70 @@ export const FinanceModel = {
     return { data: [], total: 0, limit: options.limit || 50, offset: options.offset || 0, hasMore: false };
   },
 
-  getBillProjections: async (months: number = 3) => {
-    // Get bill types with their readings to calculate average usage
+  getBillProjections: async () => {
     const billTypes = await all<any>(`
-      SELECT bt.*, 
-        AVG(br.units_used) as avg_units,
-        AVG(br.total_cost) as avg_cost
+      SELECT 
+        bt.id, bt.name, bt.color, bt.cost_per_unit,
+        AVG(br.total_cost) as avg_cost,
+        AVG(br.units_used) as avg_units
       FROM bill_types bt
       LEFT JOIN bill_readings br ON bt.id = br.bill_type_id
       WHERE bt.deleted_at IS NULL
       GROUP BY bt.id
     `);
 
-    const projections = [];
     const now = new Date();
+    const thisMonth = now.toISOString().slice(0, 7);
+    const lastMonthRaw = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const lastMonth = lastMonthRaw.toISOString().slice(0, 7);
 
-    for (const bt of billTypes) {
-      for (let i = 1; i <= months; i++) {
-        const monthDate = new Date(now.getFullYear(), now.getMonth() + i, 1);
-        projections.push({
-          bill_type_id: bt.id,
-          bill_name: bt.name,
-          month: monthDate.toISOString().slice(0, 7),
-          projected_units: bt.avg_units || 0,
-          projected_cost: bt.avg_cost || (bt.avg_units || 0) * (bt.cost_per_unit || 0),
-        });
-      }
-    }
-    return projections;
+    const actuals = await all<any>(`
+      SELECT 
+        bill_type_id,
+        SUM(CASE WHEN strftime('%Y-%m', date) = ? THEN total_cost ELSE 0 END) as this_month,
+        SUM(CASE WHEN strftime('%Y-%m', date) = ? THEN total_cost ELSE 0 END) as last_month
+      FROM bill_readings
+      GROUP BY bill_type_id
+    `, [thisMonth, lastMonth]);
+
+    return billTypes.map(bt => {
+      const actual = actuals.find(a => a.bill_type_id === bt.id);
+      return {
+        name: bt.name,
+        color: bt.color || '#7c3aed',
+        projected_cost: bt.avg_cost || (bt.avg_units || 0) * (bt.cost_per_unit || 0),
+        this_month_actual: actual?.this_month || 0,
+        last_month_actual: actual?.last_month || 0
+      };
+    });
   },
 
   getExchangeRates: async () => {
     return all<any>(`SELECT * FROM exchange_rates ORDER BY from_currency, to_currency`);
   },
 
-  getExchangeRate: async (from: string, to: string) => {
+  /**
+   * Get exchange rate between two currencies.
+   * Will check both directions (from→to and to→from with inverse).
+   */
+  getExchangeRate: async (from: string, to: string): Promise<number | null> => {
     if (from === to) return 1;
-    const rate = await get<{ rate: number }>(`
+
+    // Try direct rate first
+    const directRate = await get<{ rate: number }>(`
       SELECT rate FROM exchange_rates WHERE from_currency = ? AND to_currency = ?
     `, [from, to]);
-    return rate?.rate || null;
+    if (directRate?.rate) return directRate.rate;
+
+    // Try reverse rate (1/rate)
+    const reverseRate = await get<{ rate: number }>(`
+      SELECT rate FROM exchange_rates WHERE from_currency = ? AND to_currency = ?
+    `, [to, from]);
+    if (reverseRate?.rate && reverseRate.rate !== 0) {
+      return 1 / reverseRate.rate;
+    }
+
+    return null;
   },
 
   setExchangeRate: async (from: string, to: string, rate: number, source: string) => {
@@ -974,18 +1151,76 @@ export const FinanceModel = {
     return accounts.reduce((sum, a) => sum + (a.converted_balance || 0), 0);
   },
 
+  /**
+   * Get category statistics with proper multi-currency conversion.
+   * Amounts are converted to the user's base currency before aggregation.
+   */
   getCategoryStats: async () => {
-    return all<any>(`
-      SELECT c.name, c.type, c.color, c.icon,
+    const settings = await FinanceModel.getAllSettings();
+    const baseCurrency = settings.currency_base || 'USD';
+
+    // Get stats grouped by category and currency
+    const rows = await all<{
+      id: number;
+      name: string;
+      type: string;
+      color: string;
+      icon: string;
+      currency: string;
+      transaction_count: number;
+      total_amount: number;
+    }>(`
+      SELECT c.id, c.name, c.type, c.color, c.icon,
+        COALESCE(t.currency, ?) as currency,
         COUNT(t.id) as transaction_count,
-        SUM(t.amount) as total_amount,
-        AVG(t.amount) as avg_amount
+        COALESCE(SUM(t.amount), 0) as total_amount
       FROM categories c
       LEFT JOIN transactions t ON t.category_id = c.id AND t.deleted_at IS NULL
       WHERE c.deleted_at IS NULL
-      GROUP BY c.id
-      ORDER BY total_amount DESC
-    `);
+      GROUP BY c.id, COALESCE(t.currency, ?)
+      ORDER BY c.name
+    `, [baseCurrency, baseCurrency]);
+
+    // Aggregate by category, converting each currency to base
+    const categoryMap = new Map<number, {
+      id: number;
+      name: string;
+      type: string;
+      color: string;
+      icon: string;
+      transaction_count: number;
+      total_amount: number;
+    }>();
+
+    for (const row of rows) {
+      const rate = row.currency === baseCurrency ? 1 : (await FinanceModel.getExchangeRate(row.currency, baseCurrency)) || 1;
+      const convertedAmount = row.total_amount * rate;
+
+      const existing = categoryMap.get(row.id);
+      if (existing) {
+        existing.transaction_count += row.transaction_count;
+        existing.total_amount += convertedAmount;
+      } else {
+        categoryMap.set(row.id, {
+          id: row.id,
+          name: row.name,
+          type: row.type,
+          color: row.color,
+          icon: row.icon,
+          transaction_count: row.transaction_count,
+          total_amount: convertedAmount,
+        });
+      }
+    }
+
+    // Convert map to sorted array
+    const result = Array.from(categoryMap.values());
+    result.sort((a, b) => b.total_amount - a.total_amount);
+
+    return result.map(cat => ({
+      ...cat,
+      avg_amount: cat.transaction_count > 0 ? cat.total_amount / cat.transaction_count : 0,
+    }));
   },
 
   // Dashboard data for charts
@@ -995,8 +1230,48 @@ export const FinanceModel = {
     const expenses: number[] = [];
     const netWorth: number[] = [];
 
+    // Get user's base currency for conversions
+    const settings = await FinanceModel.getAllSettings();
+    const baseCurrency = settings.currency_base || 'USD';
+
     // Get data for the last N months
     const now = new Date();
+
+    // Calculate initial net worth (Accounts Initial Balance + Transactions before the period)
+    const firstMonthStart = new Date(now.getFullYear(), now.getMonth() - (months - 1), 1);
+    const startStr = firstMonthStart.toISOString().split('T')[0];
+
+    // 1. Initial Balance from Accounts (converted)
+    const accounts = await FinanceModel.getAllAccounts();
+    let initialAccountBalance = 0;
+    for (const a of accounts) {
+      if (a.currency === baseCurrency) {
+        initialAccountBalance += (a.initial_balance || 0);
+      } else {
+        const rate = await FinanceModel.getExchangeRate(a.currency || 'USD', baseCurrency);
+        initialAccountBalance += (a.initial_balance || 0) * (rate || 0);
+      }
+    }
+
+    // 2. Net Change from transactions before start date
+    // We can reuse the logic ensuring currency conversion
+    const prePeriodStats = await all<{ currency: string; income: number; expense: number }>(`
+      SELECT 
+        COALESCE(currency, ?) as currency, 
+        SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END) as income,
+        SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END) as expense
+      FROM transactions 
+      WHERE is_active = 1 AND start_date < ?
+      GROUP BY COALESCE(currency, ?)
+    `, [baseCurrency, startStr, baseCurrency]);
+
+    let prePeriodNetChange = 0;
+    for (const row of prePeriodStats) {
+      const rate = row.currency === baseCurrency ? 1 : (await FinanceModel.getExchangeRate(row.currency, baseCurrency)) || 1;
+      prePeriodNetChange += (row.income - row.expense) * rate;
+    }
+
+    let runningNetWorth = initialAccountBalance + prePeriodNetChange;
 
     for (let i = months - 1; i >= 0; i--) {
       const monthDate = new Date(now.getFullYear(), now.getMonth() - i, 1);
@@ -1005,19 +1280,18 @@ export const FinanceModel = {
       const monthLabel = monthDate.toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
       labels.push(monthLabel);
 
-      const startStr = monthDate.toISOString().split('T')[0];
-      const endStr = monthEnd.toISOString().split('T')[0];
+      const mStartStr = monthDate.toISOString().split('T')[0];
+      const mEndStr = monthEnd.toISOString().split('T')[0];
 
-      // Get monthly totals
-      const totals = await FinanceModel.getMonthlyTotals(startStr, endStr);
+      // Get monthly totals with currency conversion
+      const totals = await FinanceModel.getMonthlyTotals(mStartStr, mEndStr, baseCurrency);
       income.push(totals.income || 0);
       expenses.push(totals.expense || 0);
 
-      // Calculate running net worth (simplified: sum of all account balances - not historical)
-      // For a more accurate historical net worth, you'd need to track balance history
-      const accounts = await FinanceModel.getAllAccounts();
-      const currentNetWorth = accounts.reduce((sum, a) => sum + (a.balance || 0), 0);
-      netWorth.push(currentNetWorth);
+      // Update running net worth
+      const monthNetChange = (totals.income || 0) - (totals.expense || 0);
+      runningNetWorth += monthNetChange;
+      netWorth.push(runningNetWorth);
     }
 
     return {

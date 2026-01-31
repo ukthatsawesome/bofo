@@ -16,7 +16,7 @@ import { DateUtils } from '../../shared/utils/dateUtils';
 import { eventBus } from './eventBus';
 
 export class StateManager {
-  transactions: TransactionListDTO[];
+  transactions: TransactionWithCategory[];
   transactionMetadata: {
     total: number;
     limit: number;
@@ -102,8 +102,13 @@ export class StateManager {
       month: 0, // All Months
     };
     this.exchangeRates = [];
+    this.exchangeRates = [];
     this.recurringCharges = [];
+
+    this.editingTxId = null;
   }
+
+  editingTxId: number | null;
 
   private checkResponse(response: any): boolean {
     if (response && response.error === true) {
@@ -155,7 +160,8 @@ export class StateManager {
 
   async loadSummaryStats(): Promise<void> {
     try {
-      this.summaryStats = await window.api.getSummaryStats();
+      const baseCurrency = this.settings.currency_base;
+      this.summaryStats = await window.api.getSummaryStats(baseCurrency);
     } catch (e) {
       console.warn('Failed to load summary stats', e);
     }
@@ -165,7 +171,7 @@ export class StateManager {
     const options: any = {
       limit: this.txHistoryPageSize,
       offset: (this.txHistoryPage - 1) * this.txHistoryPageSize,
-      sortField: this.txSortField,
+      sortBy: this.txSortField,
       sortOrder: this.txSortOrder,
     };
 
@@ -185,7 +191,7 @@ export class StateManager {
 
     // Handle both new PaginatedResponse (object) and legacy array (fallback)
     if (response && 'data' in response && Array.isArray(response.data)) {
-      this.transactions = response.data;
+      this.transactions = response.data as unknown as TransactionWithCategory[];
       this.transactionMetadata = {
         total: response.total,
         limit: response.limit,

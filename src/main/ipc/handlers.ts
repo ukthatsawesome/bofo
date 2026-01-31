@@ -70,14 +70,8 @@ export const SIMPLE_ROUTES: Record<string, HandlerFunction> = {
   },
   'delete-transaction': async (_, id) => {
     const model = getFinanceModel();
-    const tx = await model.getById('transaction', id);
-    const result = await model.delete('transaction', id, true, { source: 'USER' });
-    // Sync balances after delete (triggers handle insert/update)
-    if (tx) {
-      if (tx.account_id) await model.syncAccountBalance(tx.account_id);
-      if (tx.to_account_id) await model.syncAccountBalance(tx.to_account_id);
-    }
-    return result;
+    // Delete handles sync internally now (Atomic)
+    return await model.delete('transaction', id, true, { source: 'USER' });
   },
   // 'get-transactions-paginated' - Handled by TransactionController
   'get-transaction-count': (_, options) => getFinanceModel().getTransactionCount(options),
@@ -195,17 +189,31 @@ export const SIMPLE_ROUTES: Record<string, HandlerFunction> = {
 
   // Dashboard & Analytics
   'get-dashboard-data': (_, months) => getFinanceModel().getDashboardData(months || 6),
-  'get-summary-stats': async () => {
+  'get-summary-stats': async (_, baseCurrencyOverride) => {
     const model = getFinanceModel();
-    const accounts = await model.getAllAccounts();
-    const totalBalance = accounts.reduce((sum, a) => sum + (a.balance || 0), 0);
-    const netWorth = totalBalance; // Simplified - in real version would subtract liabilities
 
-    // Get current month stats
+    // Get user's base currency for all conversions
+    const settings = await model.getAllSettings();
+    const baseCurrency = baseCurrencyOverride || settings.currency_base || 'USD';
+
+    // Use converted totals for accurate multi-currency support
+    const totalBalance = await model.getTotalBalanceInBaseCurrency(baseCurrency);
+
+    // Calculate net worth: assets minus liabilities (all converted to base currency)
+    const accounts = await model.getAccountsWithConvertedBalances(baseCurrency);
+    const assets = accounts
+      .filter(a => ['bank', 'wallet', 'investment'].includes((a.type || '').toLowerCase()))
+      .reduce((sum, a) => sum + (a.converted_balance || 0), 0);
+    const liabilities = accounts
+      .filter(a => ['credit_card', 'loan'].includes((a.type || '').toLowerCase()))
+      .reduce((sum, a) => sum + Math.abs(a.converted_balance || 0), 0);
+    const netWorth = assets - liabilities;
+
+    // Get current month stats with currency conversion
     const now = new Date();
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
     const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
-    const monthlyTotals = await model.getMonthlyTotals(monthStart, monthEnd);
+    const monthlyTotals = await model.getMonthlyTotals(monthStart, monthEnd, baseCurrency);
 
     const savingsRate = monthlyTotals.income > 0
       ? ((monthlyTotals.income - monthlyTotals.expense) / monthlyTotals.income) * 100

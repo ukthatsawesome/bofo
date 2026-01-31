@@ -189,10 +189,8 @@ export class SettingsView extends BaseView {
                                 </div>
                                 <div class="form-group">
                                     <label>Base Currency</label>
-                                    <select id="pref-currency" class="form-control" disabled>
-                                        <option value="USD">USD ($)</option>
+                                    <select id="pref-currency" class="form-control" onchange="app.views.settings.handleBaseCurrencyChange(this.value)">
                                     </select>
-                                    <small class="text-muted">Changing base currency is not yet supported.</small>
                                 </div>
                             </div>
                         </div>
@@ -496,6 +494,15 @@ export class SettingsView extends BaseView {
         const { state } = this.app;
         if (!state.settings) return;
 
+        // Populate Currencies
+        const currencySelect = $('#pref-currency') as HTMLSelectElement;
+        if (currencySelect) {
+            currencySelect.innerHTML = this.app.currencies
+                .map(c => `<option value="${c.code}">${c.code} - ${c.name}</option>`)
+                .join('');
+            currencySelect.value = state.getBaseCurrency();
+        }
+
         // Theme
         UIUtils.setInputValue('#pref-theme', state.settings.theme || 'system');
 
@@ -504,6 +511,21 @@ export class SettingsView extends BaseView {
 
         const forecastRecur = $('#forecast-include-recurring') as HTMLInputElement;
         if (forecastRecur) forecastRecur.checked = state.settings.forecast_include_recurring !== '0';
+    }
+
+    async handleBaseCurrencyChange(currency: string): Promise<void> {
+        await window.api.updateSetting({ key: 'currency_base', value: currency });
+        this.app.state.settings.currency_base = currency;
+
+        // Update display elsewhere in the view
+        $('#base-currency-display')!.textContent = currency;
+
+        this.app.notifications.toast('Saved', `Base currency set to ${currency}`, 'success');
+
+        // If exchange rates view is active, refresh it
+        if ($('#settings-section-currencies')?.classList.contains('active')) {
+            this.renderExchangeRates(); // Will re-fetch rates if needed or just re-render
+        }
     }
 
     async saveForecastSettings(): Promise<void> {

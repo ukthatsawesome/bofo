@@ -37,6 +37,8 @@ import {
   hasColumn,
   getColumnNames,
 } from './migrations/utils';
+import { DEFAULT_CATEGORIES } from '../../shared/categories';
+import { DEFAULT_SETTINGS } from '../../shared/defaultSettings';
 // =============================================================================
 // DATABASE ENGINE INITIALIZATION
 // =============================================================================
@@ -144,29 +146,38 @@ async function configureEncryption(): Promise<void> {
     ...getSQLCipherConfig(encryptionKey),
     'PRAGMA journal_mode = WAL',
     'PRAGMA synchronous = NORMAL',
+    'PRAGMA busy_timeout = 5000',
   ];
 
-  return new Promise((resolve, reject) => {
-    dbInstance.serialize(() => {
-      for (const pragma of pragmas) {
-        dbInstance.run(pragma, (err: Error | null) => {
-          if (err) console.error(`[DB] Pragma failed: ${pragma}`, err);
-        });
-      }
-
-      // Enable foreign key enforcement (critical for data integrity)
-      dbInstance.run('PRAGMA foreign_keys = ON', (err: Error | null) => {
-        if (err) console.error('[DB] Failed to enable foreign keys:', err);
-        else log('[DB] Foreign key enforcement enabled');
-      });
-
-      // Verify key
-      dbInstance.get('SELECT count(*) FROM sqlite_master', (err: Error | null) => {
-        if (err) reject(err);
+  const runStrict = (sql: string) =>
+    new Promise<void>((resolve, reject) => {
+      dbInstance.run(sql, (err: Error | null) => {
+        if (err) reject(new Error(`Pragma failed: ${sql} - ${err.message}`));
         else resolve();
       });
     });
-  });
+
+  try {
+    // Execute pragmas sequentially and strictly
+    for (const pragma of pragmas) {
+      await runStrict(pragma);
+    }
+
+    // Enable foreign keys
+    await runStrict('PRAGMA foreign_keys = ON');
+    log('[DB] Foreign key enforcement enabled');
+
+    // Verify database access (decrypt check)
+    await new Promise<void>((resolve, reject) => {
+      dbInstance.get('SELECT count(*) FROM sqlite_master', (err: Error | null) => {
+        if (err) reject(new Error(`Encryption verification failed: ${err.message}`));
+        else resolve();
+      });
+    });
+  } catch (error) {
+    log(`[DB] Critical Security Error: ${(error as Error).message}`);
+    throw error; // Propagate to halt initialization
+  }
 }
 
 // =============================================================================
@@ -383,18 +394,17 @@ const MIGRATIONS: Migration[] = [
         'to_currency',
       ]);
 
+
       // Add currency settings
-      const settings = [
-        ['currency_api_provider', 'frankfurter', 'currency'],
-        ['currency_api_url', '', 'currency'],
-        ['currency_auto_sync', 'false', 'currency'],
-        ['currency_last_sync', '', 'currency'],
-      ];
-      for (const [key, value, category] of settings) {
+      const currencySettings = DEFAULT_SETTINGS.filter(s => s.category === 'currency' && ![
+        'currency_base', 'currency_precision', 'currency_symbol_placement'
+      ].includes(s.key)); // Exclude base settings already seeded
+
+      for (const setting of currencySettings) {
         await run(`INSERT OR IGNORE INTO settings (key, value, category) VALUES (?, ?, ?)`, [
-          key,
-          value,
-          category,
+          setting.key,
+          setting.value,
+          setting.category,
         ]);
       }
       log('[DB] Exchange rates table and settings created.');
@@ -926,6 +936,235 @@ const MIGRATIONS: Migration[] = [
 
       log('[Migration 20] Upgraded transaction_history table.');
     }
+  },
+  {
+    id: 21,
+    name: 'Add Currency Columns to Financial Entities',
+    up: async () => {
+      log('[Migration 21] Adding currency columns to financial entities...');
+
+      // Get user's base currency for default values
+      const baseCurrencyRow = await get<{ value: string }>(
+        "SELECT value FROM settings WHERE key = 'currency_base'"
+      );
+      const baseCurrency = baseCurrencyRow?.value || 'USD';
+      log(`[Migration 21] Using base currency: ${baseCurrency}`);
+
+      // Tables that need currency column added
+      const tablesToUpdate = ['budgets', 'recurring_charges', 'bill_types', 'goals'];
+
+      for (const table of tablesToUpdate) {
+        // Add currency column with base currency as default
+        const added = await addColumnIfNotExists(
+          { run, get, all },
+          table,
+          'currency',
+          `TEXT DEFAULT '${baseCurrency}'`,
+          log
+        );
+
+        if (added) {
+          // Backfill existing rows with base currency
+          await run(`UPDATE ${table} SET currency = ? WHERE currency IS NULL`, [baseCurrency]);
+          log(`[Migration 21] Added currency column to ${table}`);
+        }
+      }
+
+      // Create indexes for currency columns to optimize queries
+      await createIndexes(run, [
+        { name: 'idx_budgets_currency', table: 'budgets', columns: 'currency' },
+        { name: 'idx_recurring_currency', table: 'recurring_charges', columns: 'currency' },
+        { name: 'idx_bill_types_currency', table: 'bill_types', columns: 'currency' },
+        { name: 'idx_goals_currency', table: 'goals', columns: 'currency' },
+      ]);
+
+      log('[Migration 21] Currency columns added to budgets, recurring_charges, bill_types, and goals.');
+    }
+  },
+  {
+    id: 22,
+    name: 'Migrate Monetary Values to Integer (Cents)',
+    up: async () => {
+      log('[Migration 22] Starting migration to Integer (Cents)...');
+
+      // 1. Convert REAL columns to INTEGER (multiply by 100)
+      const conversions = [
+        { table: 'accounts', columns: ['balance', 'initial_balance'] },
+        { table: 'transactions', columns: ['amount', 'to_amount', 'base_amount'] },
+        { table: 'budgets', columns: ['amount'] },
+        { table: 'goals', columns: ['target_amount', 'current_amount', 'monthly_contribution'] },
+        { table: 'recurring_charges', columns: ['amount'] },
+        { table: 'bill_types', columns: ['cost_per_unit', 'total_cost'] }, // cost_per_unit might need more precision, but usually 2 decimals is enough for billing
+        { table: 'bill_readings', columns: ['total_cost'] },
+      ];
+
+      for (const { table, columns } of conversions) {
+        for (const col of columns) {
+          // Check if column exists first (some tables might be missing optional columns)
+          const cols = await getColumnNames(all, table);
+          if (cols.includes(col)) {
+            try {
+              await run(`UPDATE "${table}" SET "${col}" = CAST(ROUND("${col}" * 100) AS INTEGER) WHERE "${col}" IS NOT NULL`);
+              log(`[Migration 22] Converted ${table}.${col} to Integer.`);
+            } catch (e) {
+              log(`[Migration 22] Failed to convert ${table}.${col}: ${(e as Error).message}`);
+            }
+          }
+        }
+      }
+
+      // 2. Drop old triggers that used REAL arithmetic
+      const triggersToDrop = [
+        'trg_balance_after_insert',
+        'trg_balance_after_update',
+        'trg_balance_after_delete'
+      ];
+      for (const t of triggersToDrop) await run(`DROP TRIGGER IF EXISTS ${t}`);
+
+      // 3. Recreate triggers with Integer arithmetic
+      // Balance is now stored in cents. Summation is exact.
+      // Exchange rate is still REAL. to_amount = CAST(ROUND(amount * exchange_rate) AS INTEGER) (handled by app)
+      // But calculating balance dynamically needs to handle to_amount if it serves as the dual-entry amount
+
+      const balanceCalcSql = (accountRef: string) => `
+          SELECT COALESCE(initial_balance, 0) +
+          COALESCE((SELECT SUM(CASE 
+              WHEN type = 'income' AND account_id = accounts.id THEN amount
+              WHEN type = 'transfer' AND to_account_id = accounts.id THEN COALESCE(to_amount, amount)
+              ELSE 0 
+          END) FROM transactions WHERE (account_id = accounts.id OR to_account_id = accounts.id) AND is_active = 1), 0) -
+          COALESCE((SELECT SUM(CASE 
+              WHEN type = 'expense' AND account_id = accounts.id THEN amount
+              WHEN type = 'transfer' AND account_id = accounts.id THEN amount
+              ELSE 0 
+          END) FROM transactions WHERE (account_id = accounts.id OR to_account_id = accounts.id) AND is_active = 1), 0)
+      `;
+
+      await createTrigger(run, 'trg_balance_after_insert', `
+          CREATE TRIGGER trg_balance_after_insert
+          AFTER INSERT ON transactions
+          WHEN NEW.is_active = 1
+          BEGIN
+              UPDATE accounts SET balance = (${balanceCalcSql('NEW.account_id')}) WHERE id = NEW.account_id;
+              UPDATE accounts SET balance = (${balanceCalcSql('NEW.to_account_id')}) WHERE id = NEW.to_account_id AND NEW.to_account_id IS NOT NULL;
+          END
+      `);
+
+      await createTrigger(run, 'trg_balance_after_update', `
+          CREATE TRIGGER trg_balance_after_update
+          AFTER UPDATE ON transactions
+          BEGIN
+              UPDATE accounts SET balance = (${balanceCalcSql('accounts.id')}) WHERE id IN (OLD.account_id, NEW.account_id) AND id IS NOT NULL;
+              UPDATE accounts SET balance = (${balanceCalcSql('accounts.id')}) WHERE id IN (OLD.to_account_id, NEW.to_account_id) AND id IS NOT NULL;
+          END
+      `);
+
+      await createTrigger(run, 'trg_balance_after_delete', `
+          CREATE TRIGGER trg_balance_after_delete
+          AFTER DELETE ON transactions
+          BEGIN
+              UPDATE accounts SET balance = (${balanceCalcSql('OLD.account_id')}) WHERE id = OLD.account_id;
+              UPDATE accounts SET balance = (${balanceCalcSql('OLD.to_account_id')}) WHERE id = OLD.to_account_id AND OLD.to_account_id IS NOT NULL;
+          END
+      `);
+
+      log('[Migration 22] Triggers updated for Integer arithmetic.');
+    },
+  },
+  {
+    id: 23,
+    name: 'Optimize Balance Triggers (Incremental)',
+    up: async () => {
+      log('[Migration 23] Optimizing triggers to O(1) incremental updates...');
+
+      // 1. Drop old full-scan triggers
+      const oldTriggers = [
+        'trg_balance_after_insert',
+        'trg_balance_after_update',
+        'trg_balance_after_delete'
+      ];
+      for (const t of oldTriggers) await run(`DROP TRIGGER IF EXISTS ${t}`);
+
+      // 2. Create Incremental Triggers
+
+      // INSERT TRIGGER
+      await createTrigger(run, 'trg_balance_inc_insert', `
+        CREATE TRIGGER trg_balance_inc_insert
+        AFTER INSERT ON transactions
+        WHEN NEW.is_active = 1
+        BEGIN
+            -- Income: +Amount
+            UPDATE accounts SET balance = balance + NEW.amount 
+            WHERE id = NEW.account_id AND NEW.type = 'income';
+
+            -- Expense/Transfer Out: -Amount
+            UPDATE accounts SET balance = balance - NEW.amount 
+            WHERE id = NEW.account_id AND NEW.type IN ('expense', 'transfer');
+
+            -- Transfer In: +ToAmount
+            UPDATE accounts SET balance = balance + COALESCE(NEW.to_amount, NEW.amount) 
+            WHERE id = NEW.to_account_id AND NEW.type = 'transfer' AND NEW.to_account_id IS NOT NULL;
+        END
+      `);
+
+      // DELETE TRIGGER
+      await createTrigger(run, 'trg_balance_inc_delete', `
+        CREATE TRIGGER trg_balance_inc_delete
+        AFTER DELETE ON transactions
+        WHEN OLD.is_active = 1
+        BEGIN
+            -- Reverse Income: -Amount
+            UPDATE accounts SET balance = balance - OLD.amount 
+            WHERE id = OLD.account_id AND OLD.type = 'income';
+
+            -- Reverse Expense/Transfer Out: +Amount
+            UPDATE accounts SET balance = balance + OLD.amount 
+            WHERE id = OLD.account_id AND OLD.type IN ('expense', 'transfer');
+
+            -- Reverse Transfer In: -ToAmount
+            UPDATE accounts SET balance = balance - COALESCE(OLD.to_amount, OLD.amount) 
+            WHERE id = OLD.to_account_id AND OLD.type = 'transfer' AND OLD.to_account_id IS NOT NULL;
+        END
+      `);
+
+      // UPDATE TRIGGER
+      // Strategy: Valid for all updates (amount change, account change, type change, active toggle)
+      // 1. Reverse OLD effects (if OLD was active)
+      // 2. Apply NEW effects (if NEW is active)
+      await createTrigger(run, 'trg_balance_inc_update', `
+        CREATE TRIGGER trg_balance_inc_update
+        AFTER UPDATE ON transactions
+        BEGIN
+            -- REVERSE OLD (If it was active)
+            -- Reverse Income
+            UPDATE accounts SET balance = balance - OLD.amount 
+            WHERE id = OLD.account_id AND OLD.type = 'income' AND OLD.is_active = 1;
+            
+            -- Reverse Expense/Transfer Out
+            UPDATE accounts SET balance = balance + OLD.amount 
+            WHERE id = OLD.account_id AND OLD.type IN ('expense', 'transfer') AND OLD.is_active = 1;
+
+            -- Reverse Transfer In
+            UPDATE accounts SET balance = balance - COALESCE(OLD.to_amount, OLD.amount) 
+            WHERE id = OLD.to_account_id AND OLD.type = 'transfer' AND OLD.to_account_id IS NOT NULL AND OLD.is_active = 1;
+
+            -- APPLY NEW (If it is active)
+            -- Apply Income
+            UPDATE accounts SET balance = balance + NEW.amount 
+            WHERE id = NEW.account_id AND NEW.type = 'income' AND NEW.is_active = 1;
+
+            -- Apply Expense/Transfer Out
+            UPDATE accounts SET balance = balance - NEW.amount 
+            WHERE id = NEW.account_id AND NEW.type IN ('expense', 'transfer') AND NEW.is_active = 1;
+
+            -- Apply Transfer In
+            UPDATE accounts SET balance = balance + COALESCE(NEW.to_amount, NEW.amount) 
+            WHERE id = NEW.to_account_id AND NEW.type = 'transfer' AND NEW.to_account_id IS NOT NULL AND NEW.is_active = 1;
+        END
+      `);
+
+      log('[Migration 23] Optimized incremental triggers created.');
+    },
   }
 ];
 
@@ -1007,8 +1246,8 @@ CREATE TABLE IF NOT EXISTS accounts (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
     type TEXT CHECK(type IN ('bank', 'wallet', 'credit_card', 'loan', 'investment', 'other')) NOT NULL,
-    balance REAL DEFAULT 0,
-    initial_balance REAL DEFAULT 0,
+    balance INTEGER DEFAULT 0, -- Stored in cents
+    initial_balance INTEGER DEFAULT 0, -- Stored in cents
     currency TEXT DEFAULT 'USD',
     status TEXT DEFAULT 'active',
     deleted_at DATETIME,
@@ -1022,17 +1261,17 @@ CREATE TABLE IF NOT EXISTS transactions (
     type TEXT CHECK(type IN ('income', 'expense', 'asset', 'liability', 'transfer')) NOT NULL,
     category TEXT NOT NULL, -- Legacy: kept for backward compatibility
     category_id INTEGER, -- Normalized FK reference to categories table
-    amount REAL NOT NULL,
+    amount INTEGER NOT NULL, -- Stored in cents
     description TEXT,
     attachment TEXT,
     frequency TEXT CHECK(frequency IN ('once', 'weekly', 'monthly', 'yearly')) NOT NULL DEFAULT 'once',
     start_date TEXT NOT NULL,
     end_date TEXT,
     currency TEXT DEFAULT 'USD',
-    exchange_rate REAL DEFAULT 1,
-    to_amount REAL,
+    exchange_rate REAL DEFAULT 1, -- Keep as REAL for precision
+    to_amount INTEGER, -- Stored in cents
     base_currency TEXT, -- Base currency for reporting (frozen at creation)
-    base_amount REAL, -- Amount in base currency (frozen at creation)
+    base_amount INTEGER, -- Stored in cents
     tags TEXT,
     is_active INTEGER DEFAULT 1,
     deleted_at DATETIME, -- Soft delete timestamp
@@ -1064,26 +1303,7 @@ CREATE TABLE IF NOT EXISTS settings (
 );
 
 -- Insert default settings
-INSERT OR IGNORE INTO settings (key, value, category) VALUES 
-('budget_period', 'monthly', 'budget'),
-('budget_rollover', 'false', 'budget'),
-('forecast_horizon', '6', 'forecast'),
-('forecast_uncertain_income', 'ask', 'forecast'),
-('forecast_inflation_enabled', 'false', 'forecast'),
-('forecast_inflation_rate', '2.5', 'forecast'),
-('currency_base', 'USD', 'currency'),
-('currency_precision', '2', 'currency'),
-('currency_symbol_placement', 'before', 'currency'),
-('currency_api_provider', 'frankfurter', 'currency'),
-('currency_api_url', '', 'currency'),
-('currency_auto_sync', 'false', 'currency'),
-('currency_last_sync', '', 'currency'),
-('theme', 'dark', 'appearance'),
-('landing_view', 'dashboard', 'appearance'),
-('backup_on_close', 'true', 'safety'),
-('remote_access_enabled', 'false', 'remote'),
-('remote_access_port', '5174', 'remote'),
-('remote_access_key', '', 'remote');
+-- (Handled by seedSettings function)
 
 -- Exchange rates table for multi-currency conversion
 CREATE TABLE IF NOT EXISTS exchange_rates (
@@ -1099,25 +1319,7 @@ CREATE TABLE IF NOT EXISTS exchange_rates (
 CREATE INDEX IF NOT EXISTS idx_exchange_rates_pair ON exchange_rates(from_currency, to_currency);
 
 -- Insert default categories if they don't exist
-INSERT OR IGNORE INTO categories (type, name, is_default) VALUES 
-('income', 'Salary', 1),
-('income', 'Bonus', 1),
-('income', 'Investment', 1),
-('expense', 'Rent', 1),
-('expense', 'Groceries', 1),
-('expense', 'Utilities', 1),
-('expense', 'Entertainment', 1),
-('asset', 'Cash', 1),
-('asset', 'Bank Account', 1),
-('asset', 'Savings', 1),
-('asset', 'Stocks', 1),
-('liability', 'Credit Card', 1),
-('liability', 'Loan', 1),
-('liability', 'Mortgage', 1),
-('transfer', 'Internal Transfer', 1),
-('transfer', 'Credit Card Payment', 1),
-('transfer', 'Investment Deposit', 1),
-('transfer', 'ATM Withdrawal', 1);
+-- (Handled by seedCategories function)
 
 CREATE INDEX IF NOT EXISTS idx_transactions_date ON transactions(start_date);
 CREATE INDEX IF NOT EXISTS idx_transactions_type ON transactions(type);
@@ -1137,7 +1339,7 @@ CREATE TABLE IF NOT EXISTS budgets (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     category TEXT NOT NULL, -- Legacy: kept for backward compatibility
     category_id INTEGER, -- Normalized FK reference to categories table
-    amount REAL NOT NULL,
+    amount INTEGER NOT NULL, -- Stored in cents
     period TEXT CHECK(period IN ('once', 'weekly', 'monthly', 'yearly')) NOT NULL DEFAULT 'monthly',
     start_date TEXT NOT NULL,
     end_date TEXT NOT NULL,
@@ -1162,9 +1364,9 @@ CREATE TABLE IF NOT EXISTS goals (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
     description TEXT,
-    target_amount REAL NOT NULL,
-    current_amount REAL DEFAULT 0,
-    monthly_contribution REAL DEFAULT 0,
+    target_amount INTEGER NOT NULL, -- Stored in cents
+    current_amount INTEGER DEFAULT 0, -- Stored in cents
+    monthly_contribution INTEGER DEFAULT 0, -- Stored in cents
     icon TEXT DEFAULT 'target',
     color TEXT DEFAULT '#a29bfe',
     priority INTEGER DEFAULT 1,
@@ -1183,7 +1385,7 @@ CREATE TABLE IF NOT EXISTS recurring_charges (
     category TEXT NOT NULL, -- Legacy: kept for backward compatibility
     category_id INTEGER, -- Normalized FK reference to categories table
     name TEXT NOT NULL,
-    amount REAL NOT NULL,
+    amount INTEGER NOT NULL, -- Stored in cents
     frequency TEXT CHECK(frequency IN ('weekly', 'monthly', 'yearly')) NOT NULL DEFAULT 'monthly',
     due_day INTEGER DEFAULT 1,
     next_due_date TEXT,
@@ -1231,7 +1433,7 @@ CREATE TABLE IF NOT EXISTS bill_types (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
     unit_name TEXT DEFAULT 'Units',
-    cost_per_unit REAL DEFAULT 0,
+    cost_per_unit INTEGER DEFAULT 0, -- Stored in cents
     category_name TEXT, -- Link to main categories
     account_id INTEGER, -- Link to specific account
     auto_transaction INTEGER DEFAULT 0, -- Toggle for auto-recording
@@ -1248,7 +1450,7 @@ CREATE TABLE IF NOT EXISTS bill_readings (
     bill_type_id INTEGER NOT NULL,
     date TEXT NOT NULL,
     units_used REAL NOT NULL,
-    total_cost REAL NOT NULL,
+    total_cost INTEGER NOT NULL, -- Stored in cents
     notes TEXT,
     transaction_id INTEGER, -- Link to the auto-generated expense transaction
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -1325,7 +1527,12 @@ CREATE INDEX IF NOT EXISTS idx_transactions_base_currency ON transactions(base_c
 
     logTiming('Schema execution');
 
-    // 3. Run Pending Migrations
+    // 3. Seed Initial Data
+    await seedSettings();
+    await seedCategories();
+    logTiming('Seeding');
+
+    // 4. Run Pending Migrations
     await processMigrations();
     logTiming('Migrations');
 
@@ -1371,5 +1578,45 @@ async function processMigrations(): Promise<void> {
 // =============================================================================
 
 // Initialization complete - timing logged above
+/**
+ * Seed default categories
+ */
+async function seedCategories(): Promise<void> {
+  const statement = dbInstance.prepare(
+    'INSERT OR IGNORE INTO categories (type, name, is_default) VALUES (?, ?, ?)'
+  );
+
+  for (const category of DEFAULT_CATEGORIES) {
+    if (category.type !== 'income' && category.type !== 'expense' && category.type !== 'asset' && category.type !== 'liability' && category.type !== 'transfer') continue; // Type safety check
+
+    statement.run([
+      category.type,
+      category.name,
+      category.is_default,
+    ]);
+  }
+  statement.finalize();
+  log(`[DB] Seeded ${DEFAULT_CATEGORIES.length} default categories.`);
+}
+
+/**
+ * Seed default settings
+ */
+async function seedSettings(): Promise<void> {
+  const statement = dbInstance.prepare(
+    'INSERT OR IGNORE INTO settings (key, value, category) VALUES (?, ?, ?)'
+  );
+
+  for (const setting of DEFAULT_SETTINGS) {
+    statement.run([
+      setting.key,
+      setting.value,
+      setting.category,
+    ]);
+  }
+  statement.finalize();
+  log(`[DB] Seeded ${DEFAULT_SETTINGS.length} default settings.`);
+}
+
 export default dbInstance;
 export { dbInstance as db, dbInitialized, run, get, all };

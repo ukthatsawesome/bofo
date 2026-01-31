@@ -23,8 +23,8 @@ export interface Account {
   id: number;
   name: string;
   type: AccountType;
-  balance: number;
-  initial_balance: number;
+  balance: number; // Stored as INTEGER (cents)
+  initial_balance: number; // Stored as INTEGER (cents)
   currency: string;
   status: AccountStatus;
   deleted_at: string | null;
@@ -50,7 +50,7 @@ export interface Transaction {
   type: TransactionType;
   category: string;
   category_id: number | null;
-  amount: number;
+  amount: number; // Stored as INTEGER (cents)
   description: string | null;
   attachment: string | null;
   frequency: TransactionFrequency;
@@ -58,23 +58,57 @@ export interface Transaction {
   end_date: string | null;
   currency: string;
   exchange_rate: number;
-  to_amount: number | null;
+  to_amount: number | null; // Stored as INTEGER (cents)
   base_currency: string | null;
-  base_amount: number | null;
+  base_amount: number | null; // Stored as INTEGER (cents)
   tags: string | null;
   is_active: number;
   deleted_at: string | null;
   created_at: string;
   updated_at: string;
+  category_name?: string | null;
+  account_name?: string | null;
+}
+
+export interface TransactionStats {
+  income: number;
+  expense: number;
+  transfers: number;
+  count: number;
+  byCurrency?: Record<string, { income: number; expense: number; transfers: number }>;
+}
+
+export interface TransactionListDTO {
+  data: Transaction[];
+  total: number;
+  limit: number;
+  offset: number;
+  hasMore: boolean;
+}
+
+export interface TransactionPayload {
+  account_id: number;
+  to_account_id?: number | null;
+  type: TransactionType;
+  category?: string;
+  amount: number;
+  description?: string;
+  start_date: string;
+  end_date?: string | null;
+  currency?: string;
+  frequency?: TransactionFrequency;
+  exchange_rate?: number;
+  to_amount?: number;
 }
 
 export interface Budget {
   id: number;
   category: string;
-  amount: number;
+  amount: number; // Stored as INTEGER (cents)
   period: 'weekly' | 'monthly' | 'yearly';
   start_date: string;
   end_date: string;
+  currency?: string;
   created_at: string;
 }
 
@@ -82,13 +116,14 @@ export interface Goal {
   id: number;
   name: string;
   description: string | null;
-  target_amount: number;
-  current_amount: number;
-  monthly_contribution: number | null;
+  target_amount: number; // Stored as INTEGER (cents)
+  current_amount: number; // Stored as INTEGER (cents)
+  monthly_contribution: number | null; // Stored as INTEGER (cents)
   target_date: string | null;
   status: GoalStatus;
   priority: number;
   icon: string | null;
+  currency?: string;
   created_at: string;
   updated_at: string;
 }
@@ -96,7 +131,7 @@ export interface Goal {
 export interface GoalContribution {
   id: number;
   goal_id: number;
-  amount: number;
+  amount: number; // Stored as INTEGER (cents)
   date: string;
   notes: string | null;
   source: string | null;
@@ -106,11 +141,12 @@ export interface RecurringCharge {
   id: number;
   name: string;
   category: string;
-  amount: number;
+  amount: number; // Stored as INTEGER (cents)
   frequency: TransactionFrequency;
   due_day: number | null;
   notes: string | null;
   is_active: number | boolean;
+  currency?: string;
   created_at?: string;
 }
 
@@ -118,13 +154,14 @@ export interface BillType {
   id: number;
   name: string;
   unit_name: string;
-  cost_per_unit: number;
+  cost_per_unit: number; // Stored as INTEGER (cents)
   category: string; // This might be category_name in DB? DB insert says category_name.
   category_name?: string | null; // Adding optional to be safe, view uses category_name
   account_id: number | null;
   auto_transaction: number;
   icon?: string | null;
   color?: string | null;
+  currency?: string;
 }
 
 export interface BillReading {
@@ -150,144 +187,109 @@ export interface ExchangeRate {
 export interface Setting {
   key: string;
   value: string;
+  category: string;
   updated_at: string;
 }
 
-// ... Add other entities as needed (Budget, Goal, etc) - keeping it minimal for PR1 as requested
-
-// =============================================================================
-// DATA TRANSFER OBJECTS (DTOs)
-// =============================================================================
-
-export interface TransactionListDTO {
-  id: number;
-  account_id: number;
-  start_date: string;    // Matches DB column
-  amount: number;
-  description: string;   // Coalesced from null
-  category_name: string; // Mapped from category
-  account_name: string;  // Resolved account name
-  type: TransactionType; // Required for UI logic (colors/signs)
-  icon?: string;         // Optional resolved icon
+// Bill Projection Interface
+export interface BillProjection {
+  name: string;
+  color: string;
+  projected_cost: number;
+  this_month_actual: number;
+  last_month_actual: number;
 }
 
 // =============================================================================
-// IPC PAYLOAD INTERFACES
+// PAYLOAD INTERFACES (for IPC calls)
 // =============================================================================
-
-export interface TransactionPayload {
-  id?: number;
-  amount: number;
-  type: 'income' | 'expense' | 'transfer';
-  category?: string;
-  category_id?: number;
-  account_id: number;
-  to_account_id?: number;
-  description?: string;
-  start_date: string;
-  is_recurring?: boolean;
-  recurrence_rule?: string;
-  exchange_rate?: number;
-  to_amount?: number;
-  currency?: string;
-  frequency?: string;
-}
 
 export interface CategoryPayload {
-  id?: number;
+  type: TransactionType;
   name: string;
-  type: 'income' | 'expense';
-  icon?: string;
   color?: string;
-  budget_limit?: number;
-  is_system?: boolean;
+  icon?: string;
+  status?: CategoryStatus;
 }
 
 export interface AccountPayload {
-  id?: number;
   name: string;
-  type: 'bank' | 'wallet' | 'credit_card' | 'loan' | 'investment';
-  balance: number;
-  currency: string;
-  color?: string;
-  icon?: string;
-}
-
-export interface BillTypePayload {
-  id?: number;
-  name: string;
-  unit_name: string;
-  cost_per_unit: number;
-  auto_transaction?: boolean;
-}
-
-export interface BillReadingPayload {
-  id?: number;
-  bill_type_id: number;
-  reading_date: string;
-  units_used: number;
-  total_cost: number;
-  notes?: string;
-  is_paid?: boolean;
+  type: AccountType;
+  balance?: number;
+  initial_balance?: number;
+  currency?: string;
+  status?: AccountStatus;
 }
 
 export interface GoalPayload {
-  id?: number;
   name: string;
+  description?: string;
   target_amount: number;
   current_amount?: number;
-  deadline?: string;
+  monthly_contribution?: number;
+  target_date?: string;
+  priority?: number;
   icon?: string;
   color?: string;
 }
 
 export interface RecurringChargePayload {
-  id?: number;
   name: string;
-  amount: number;
-  start_date: string;
-  next_due_date?: string;
-  frequency: 'daily' | 'weekly' | 'monthly' | 'yearly';
-  account_id?: number;
-  category?: string;
+  category: string;
+  amount: number; // Stored as INTEGER (cents)
+  frequency: TransactionFrequency;
+  due_day?: number;
   notes?: string;
-  active?: boolean;
+  is_active?: boolean | number;
+  account_id?: number;
 }
 
-export interface AppSettings {
-  language?: string;
-  theme?: 'light' | 'dark' | 'system';
-  currency?: string;
-  [key: string]: string | number | boolean | undefined;
+export interface BillTypePayload {
+  name: string;
+  unit_name: string;
+  cost_per_unit: number; // Stored as INTEGER (cents)
+  category_name?: string;
+  account_id?: number;
+  auto_transaction?: number;
+  icon?: string;
+  color?: string;
+}
+
+export interface BillReadingPayload {
+  bill_type_id: number;
+  date: string;
+  units_used: number;
+  total_cost: number; // Stored as INTEGER (cents)
+  notes?: string;
 }
 
 export interface AISettings {
+  enabled?: boolean;
   url?: string;
   model?: string;
-  enabled?: boolean;
   promptTx?: string;
   promptInsight?: string;
   promptChat?: string;
 }
 
-export interface AIHealth {
-  isConnected: boolean;
-  circuitOpen: boolean;
-  baseUrl?: string;
-  model?: string;
-  lastError?: string;
+export interface AppSettings {
+  theme?: string;
+  currency_base?: string;
+  currency_precision?: string;
+  forecast_range_default?: string;
+  forecast_include_recurring?: string;
+  [key: string]: string | undefined;
 }
 
 export interface TransactionFilter {
-  limit?: number;
-  offset?: number;
-  activeOnly?: boolean;
-  sortBy?: string;
-  sortOrder?: 'ASC' | 'DESC';
+  type?: TransactionType;
   accountId?: number;
   category?: string;
-  type?: string;
   startDate?: string;
   endDate?: string;
-  search?: string;
+  limit?: number;
+  offset?: number;
+  sortBy?: string;
+  sortOrder?: 'asc' | 'desc';
 }
+

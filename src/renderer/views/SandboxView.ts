@@ -402,9 +402,10 @@ export class SandboxView extends BaseView {
       const baseSummary = baselineForecast?.summary || {};
       const scenSummary = scenarioForecast?.summary || {};
 
+      // Calculate current balance with currency conversion
       const currentBalance = state.accounts
         .filter((a) => ['bank', 'wallet'].includes(a.type))
-        .reduce((sum, a) => sum + a.balance, 0);
+        .reduce((sum, a) => sum + this.formatter.toBase(a.balance, a.currency || 'USD'), 0);
 
       const baselineEnd = baseSummary.endBalance || 0;
       const scenarioEnd = scenSummary.endBalance || 0;
@@ -663,10 +664,8 @@ Be direct, practical, and give specific advice on how to balance this plan if ne
           tooltip: {
             callbacks: {
               label: (ctx) => {
-                const value = new Intl.NumberFormat('en-US', {
-                  style: 'currency',
-                  currency: 'USD',
-                }).format(ctx.parsed.y as number);
+                // Use formatter for proper currency display
+                const value = this.formatter.formatCurrency(ctx.parsed.y as number);
                 return `${ctx.dataset.label}: ${value}`;
               },
             },
@@ -677,7 +676,7 @@ Be direct, practical, and give specific advice on how to balance this plan if ne
             grid: { color: isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.05)' },
             ticks: {
               color: isLight ? '#64748b' : '#94a3b8',
-              callback: (v) => '$' + v.toLocaleString(),
+              callback: (v) => this.formatter.formatCurrency(v as number),
             },
           },
           x: {

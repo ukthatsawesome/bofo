@@ -1,5 +1,6 @@
 import Chart from 'chart.js/auto';
 import type { StateManager } from '../../core/state';
+import type { Formatter } from '../../core/formatter';
 
 interface ThemeStyles {
   isLight: boolean;
@@ -30,10 +31,12 @@ interface LineChartItem {
 
 export class ChartManager {
   private state: StateManager;
+  private formatter: Formatter;
   private charts: Record<string, Chart>;
 
-  constructor(stateManager: StateManager) {
+  constructor(stateManager: StateManager, formatter: Formatter) {
     this.state = stateManager;
+    this.formatter = formatter;
     this.charts = {};
   }
 
@@ -172,7 +175,7 @@ export class ChartManager {
             position: 'left',
             ticks: {
               color: s.textColor,
-              callback: (v: string | number) => '$' + v.toLocaleString(),
+              callback: (v: string | number) => this.formatter.formatCurrency(Number(v)),
             },
           },
           y1: {
@@ -180,7 +183,7 @@ export class ChartManager {
             grid: { drawOnChartArea: false },
             ticks: {
               color: s.brandPrimary,
-              callback: (v: string | number) => '$' + v.toLocaleString(),
+              callback: (v: string | number) => this.formatter.formatCurrency(Number(v)),
             },
           },
         },
@@ -305,14 +308,8 @@ export class ChartManager {
                 return (d.isFuture ? 'Projected: ' : 'Actual: ') + d.date;
               },
               label: (ctx: any) => {
-                return (
-                  ctx.dataset.label +
-                  ': ' +
-                  new Intl.NumberFormat('en-US', {
-                    style: 'currency',
-                    currency: 'USD',
-                  }).format(ctx.parsed.y)
-                );
+                // Use formatter for proper base currency display
+                return ctx.dataset.label + ': ' + this.formatter.formatCurrency(ctx.parsed.y);
               },
             },
           },
@@ -321,7 +318,7 @@ export class ChartManager {
           y: {
             ticks: {
               color: s.textColor,
-              callback: (v: string | number) => '$' + v.toLocaleString(),
+              callback: (v: string | number) => this.formatter.formatCurrency(Number(v)),
             },
           },
           x: {

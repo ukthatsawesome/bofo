@@ -182,7 +182,7 @@ export interface API {
   version: string;
 
   // Analytics
-  getSummaryStats: () => Promise<{
+  getSummaryStats: (baseCurrency?: string) => Promise<{
     netWorth: number;
     totalBalance: number;
     monthIncome: number;

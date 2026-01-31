@@ -162,7 +162,7 @@ contextBridge.exposeInMainWorld('api', {
   restartWebServer: () => ipcRenderer.send('restart-web-server'),
 
   // Analytics
-  getSummaryStats: () => invokeWithTimeout('get-summary-stats'),
+  getSummaryStats: (baseCurrency?: string) => invokeWithTimeout('get-summary-stats', [baseCurrency]),
   getDashboardData: (months?: number) => invokeWithTimeout('get-dashboard-data', [months]),
   getCategorySpending: (startDate: string, endDate: string) =>
     invokeWithTimeout('get-category-spending', [{ startDate, endDate }]),

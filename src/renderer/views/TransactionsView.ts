@@ -13,6 +13,7 @@ import {
   TransactionPayload,
   Category,
   Account,
+  TransactionStats,
 } from '../../shared/types';
 import type { App } from '../core/app';
 
@@ -29,12 +30,7 @@ interface TransactionSummary {
   expenseRaw: number;
 }
 
-interface TransactionStats {
-  income: number;
-  expense: number;
-  transfers: number;
-  count: number;
-}
+
 
 export class TransactionsView extends BaseView {
   private selectedTxType: string = 'income';
@@ -43,10 +39,10 @@ export class TransactionsView extends BaseView {
 
   constructor(app: App) {
     super(app, 'transactions');
-    (window as any).transactionsView = this;
   }
 
   async onShow(): Promise<void> {
+    (window as any).transactionsView = this; // Still keep for extreme legacy if any, but will prioritize app.views
     if (!this.isInitialized) {
       this.renderBaseTemplate();
       this.setupHistoryListeners();
@@ -121,6 +117,8 @@ export class TransactionsView extends BaseView {
 
   /* -------------------- LISTENERS -------------------- */
 
+  /* -------------------- LISTENERS -------------------- */
+
   private setupHistoryListeners(): void {
     const monthFilter = $('#tx-month-filter') as HTMLInputElement | null;
     monthFilter?.addEventListener('change', async (e) => {
@@ -135,13 +133,18 @@ export class TransactionsView extends BaseView {
   }
 
   private setupModalListeners(): void {
-    $('#close-transaction-modal')?.addEventListener('click', () =>
-      UIUtils.setHidden('#transaction-modal', true)
-    );
-    $('#modal-tx-cancel')?.addEventListener('click', () =>
-      UIUtils.setHidden('#transaction-modal', true)
-    );
-    $('#modal-tx-save')?.addEventListener('click', () => this.handleUpdate());
+    // Note: Save button listener is handled globally in App.ts to prevent duplicate saves
+    // We only handle View-specific modal behaviors here
+
+    $('#close-transaction-modal')?.addEventListener('click', () => {
+      UIUtils.setHidden('#transaction-modal', true);
+      this.app.state.editingTxId = null; // Clean up
+    });
+
+    $('#modal-tx-cancel')?.addEventListener('click', () => {
+      UIUtils.setHidden('#transaction-modal', true);
+      this.app.state.editingTxId = null; // Clean up
+    });
 
     $$('.tx-type-toggle-modal .segment').forEach((btn) => {
       btn.addEventListener('click', () => {
@@ -194,7 +197,7 @@ export class TransactionsView extends BaseView {
     // Table header
     this.renderTableHeader(txSortField, txSortOrder);
 
-    const transactions = (this.state.transactions || []) as TransactionListDTO[];
+    const transactions = (this.state.transactions || []) as unknown as Transaction[];
     const total = this.state.transactionMetadata.total;
     const pageSize = this.state.txHistoryPageSize;
     const page = this.state.txHistoryPage;
@@ -208,14 +211,14 @@ export class TransactionsView extends BaseView {
           TransactionRow({
             id: t.id,
             date: t.start_date,
-            category: t.category_name,
+            category: t.category_name || t.category || '',
             type: t.type as 'income' | 'expense' | 'transfer',
-            accountText: t.account_name,
-            description: t.description,
+            accountText: t.account_name || '',
+            description: t.description || '',
             amount: t.amount,
             formatter: this.formatter,
-            onEdit: `window.transactionsView.handleEdit(${t.id})`,
-            onDelete: `window.app.handleDeleteTransaction(${t.id})`,
+            onEdit: `app.views.transactions.handleEdit(${t.id})`,
+            onDelete: `app.handleDeleteTransaction(${t.id})`,
           })
         )
         .join('');
@@ -239,69 +242,64 @@ export class TransactionsView extends BaseView {
     const filterContainer = $('#tx-filter-container');
     if (!filterContainer) return;
 
-    if (!filterContainer.innerHTML.trim()) {
-      filterContainer.innerHTML = SegmentedControl({
-        id: 'tx-history-filter',
-        options: [
-          { label: 'All', value: 'all', active: currentFilter === 'all' },
-          { label: 'Income', value: 'income', active: currentFilter === 'income' },
-          { label: 'Expense', value: 'expense', active: currentFilter === 'expense' },
-          { label: 'Transfer', value: 'transfer', active: currentFilter === 'transfer' },
-        ],
-        onchange: 'window.transactionsView.handleFilter',
-      });
-    } else {
-      filterContainer.querySelectorAll('.segment').forEach((btn) => {
-        const el = btn as HTMLElement;
-        el.classList.toggle('active', el.dataset.value === currentFilter);
-      });
-    }
+    // Always re-render to ensure active state is correct
+    filterContainer.innerHTML = SegmentedControl({
+      id: 'tx-history-filter',
+      options: [
+        { label: 'All', value: 'all', active: currentFilter === 'all' },
+        { label: 'Income', value: 'income', active: currentFilter === 'income' },
+        { label: 'Expense', value: 'expense', active: currentFilter === 'expense' },
+        { label: 'Transfer', value: 'transfer', active: currentFilter === 'transfer' },
+      ],
+      onchange: 'app.views.transactions.handleFilter',
+    });
   }
 
   private renderTableHeader(sortField: string, sortOrder: string): void {
     const thead = $('#tx-table-head');
-    if (thead && !thead.innerHTML.trim()) {
-      thead.innerHTML = `
+    if (!thead) return;
+
+    thead.innerHTML = `
         <tr>
           ${SortableHeader({
-        label: 'Date',
-        field: 'start_date',
-        currentSort: sortField,
-        direction: sortOrder as 'asc' | 'desc',
-        onclick: 'window.transactionsView.handleSort',
-      })}
+      label: 'Date',
+      field: 'start_date',
+      currentSort: sortField,
+      direction: sortOrder as 'asc' | 'desc',
+      onclick: 'app.views.transactions.handleSort',
+    })}
           ${SortableHeader({
-        label: 'Category',
-        field: 'category_name',
-        currentSort: sortField,
-        direction: sortOrder as 'asc' | 'desc',
-        onclick: 'window.transactionsView.handleSort',
-      })}
+      label: 'Category',
+      field: 'category_name',
+      currentSort: sortField,
+      direction: sortOrder as 'asc' | 'desc',
+      onclick: 'app.views.transactions.handleSort',
+    })}
           ${SortableHeader({
-        label: 'Account',
-        field: 'account_name',
-        currentSort: sortField,
-        direction: sortOrder as 'asc' | 'desc',
-        onclick: 'window.transactionsView.handleSort',
-      })}
+      label: 'Account',
+      field: 'account_name',
+      currentSort: sortField,
+      direction: sortOrder as 'asc' | 'desc',
+      onclick: 'app.views.transactions.handleSort',
+    })}
           ${SortableHeader({
-        label: 'Description',
-        field: 'description',
-        currentSort: sortField,
-        direction: sortOrder as 'asc' | 'desc',
-        onclick: 'window.transactionsView.handleSort',
-      })}
+      label: 'Description',
+      field: 'description',
+      currentSort: sortField,
+      direction: sortOrder as 'asc' | 'desc',
+      onclick: 'app.views.transactions.handleSort',
+    })}
           ${SortableHeader({
-        label: 'Amount',
-        field: 'amount',
-        currentSort: sortField,
-        direction: sortOrder as 'asc' | 'desc',
-        onclick: 'window.transactionsView.handleSort',
-      })}
-          <th>Action</th>
+      label: 'Amount',
+      field: 'amount',
+      currentSort: sortField,
+      direction: sortOrder as 'asc' | 'desc',
+      onclick: 'app.views.transactions.handleSort',
+    })}
+      <th>Action</th>
         </tr>
       `;
-    }
+    this.refreshIcons('#tx-table-head');
   }
 
   private renderEmptyState(tbody: HTMLElement): void {
@@ -334,7 +332,10 @@ export class TransactionsView extends BaseView {
 
       if (!t) return;
 
-      this.editingTxId = t.id;
+      // Set Global Edit State
+      this.app.state.editingTxId = t.id;
+      this.editingTxId = t.id; // Keep local for internal ref if needed, but App.ts uses global
+
       this.populateEditModal(t);
 
       UIUtils.setHidden('#transaction-modal', false);
@@ -507,26 +508,40 @@ export class TransactionsView extends BaseView {
       statsOptions.endDate = end;
     }
 
-    const stats = (await window.api.getTransactionStats(statsOptions)) as TransactionStats || {
-      income: 0,
-      expense: 0,
-      transfers: 0,
-      count: 0,
-    };
+    const stats = (await window.api.getTransactionStats(statsOptions)) as TransactionStats;
 
-    const netFlow = stats.income - stats.expense;
+    // Calculate totals with currency conversion
+    let totalIncome = 0;
+    let totalExpense = 0;
+    let totalTransfers = 0;
+
+    if (stats && stats.byCurrency) {
+      // Robust Multi-Currency Aggregation
+      Object.entries(stats.byCurrency).forEach(([currency, data]) => {
+        totalIncome += formatter.toBase(data.income, currency);
+        totalExpense += formatter.toBase(data.expense, currency);
+        totalTransfers += formatter.toBase(data.transfers, currency);
+      });
+    } else if (stats) {
+      // Fallback for backward compatibility
+      totalIncome = stats.income;
+      totalExpense = stats.expense;
+      totalTransfers = stats.transfers;
+    }
+
+    const netFlow = totalIncome - totalExpense;
     const savingsRate =
-      stats.income > 0 ? ((netFlow / stats.income) * 100).toFixed(1) : '0.0';
+      totalIncome > 0 ? ((netFlow / totalIncome) * 100).toFixed(1) : '0.0';
 
     container.innerHTML = `
       ${StatCard({
       label: 'Income',
-      value: formatter.formatCurrency(stats.income),
+      value: formatter.formatCurrency(totalIncome),
       icon: 'trending-up',
     })}
       ${StatCard({
       label: 'Expenses',
-      value: formatter.formatCurrency(stats.expense),
+      value: formatter.formatCurrency(totalExpense),
       icon: 'trending-down',
     })}
       ${StatCard({
@@ -541,12 +556,12 @@ export class TransactionsView extends BaseView {
     })}
       ${StatCard({
       label: 'Transfers',
-      value: formatter.formatCurrency(stats.transfers),
+      value: formatter.formatCurrency(totalTransfers),
       icon: 'arrow-right-left',
     })}
     `;
 
-    this.setText('tx-total-count', `(${stats.count})`);
+    this.setText('tx-total-count', `(${stats ? stats.count : 0})`);
     this.refreshIcons(container);
   }
 }

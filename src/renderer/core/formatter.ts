@@ -57,10 +57,13 @@ export class Formatter {
 
   /**
    * Convert amount from one currency to another (sync, uses cache)
-   * Returns original amount if conversion not available
+   * Returns original amount if conversion not available (with warning)
    */
   convert(amount: number, fromCurrency: string, toCurrency: string): number {
     const rate = this.getRate(fromCurrency, toCurrency);
+    if (rate === null && fromCurrency !== toCurrency) {
+      console.warn(`[Currency] No exchange rate found for ${fromCurrency} → ${toCurrency}. Using unconverted amount.`);
+    }
     return rate !== null ? amount * rate : amount;
   }
 
@@ -81,6 +84,7 @@ export class Formatter {
       return new Intl.NumberFormat('en-US', {
         style: 'currency',
         currency,
+        currencyDisplay: 'code',
         minimumFractionDigits: precision,
         maximumFractionDigits: precision,
       }).format(num);

@@ -47,8 +47,8 @@ export const AccountsSettingsMixin = {
             <tr class="${acc.status === 'archived' ? 'opacity-50' : ''}">
                 <td><strong>${acc.name}</strong></td>
                 <td>${typeLabels[acc.type] || acc.type}</td>
-                <td>${formatter.formatCurrency(acc.initial_balance || 0)}</td>
-                <td class="${acc.balance >= 0 ? 'text-success' : 'text-danger'}">${formatter.formatCurrency(acc.balance)}</td>
+                <td>${formatter.formatCurrency(acc.initial_balance || 0, acc.currency)}</td>
+                <td class="${acc.balance >= 0 ? 'text-success' : 'text-danger'}">${formatter.formatCurrency(acc.balance, acc.currency)}</td>
                 <td>
                     <span class="status-badge ${acc.status === 'archived' ? 'muted' : 'success'}">
                         ${acc.status === 'archived' ? 'Archived' : 'Active'}
