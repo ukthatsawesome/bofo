@@ -58,6 +58,17 @@ export class SettingsView extends BaseView {
 
     renderBaseTemplate(): void {
         if (!this.element) return;
+
+        // Setup Event Delegation
+        this.element.addEventListener('click', (e) => {
+            const btn = (e.target as HTMLElement).closest('[data-action]');
+            if (btn) {
+                e.preventDefault();
+                e.stopPropagation();
+                this.handleAction(btn as HTMLElement);
+            }
+        });
+
         this.element.innerHTML = `
             ${ViewHeader({
             title: 'Settings',
@@ -107,7 +118,7 @@ export class SettingsView extends BaseView {
                     <div id="settings-section-accounts" class="settings-section active">
                         <div class="section-header">
                             <h3>My Accounts</h3>
-                            <button class="btn primary sm" onclick="app.views.settings.handleNewAccount()">
+                            <button class="btn primary sm" data-action="new-account">
                                 <i data-lucide="plus"></i> New Account
                             </button>
                         </div>
@@ -127,7 +138,7 @@ export class SettingsView extends BaseView {
                             <h3>Categories</h3>
                             <div class="flex-row gap-2">
                                 <div id="category-filter-container"></div>
-                                <button class="btn primary sm" onclick="app.views.settings.handleNewCategory()">
+                                <button class="btn primary sm" data-action="new-category">
                                     <i data-lucide="plus"></i> New Category
                                 </button>
                             </div>
@@ -201,10 +212,10 @@ export class SettingsView extends BaseView {
                          <div class="section-header">
                             <h3>Exchange Rates</h3>
                             <div class="flex-row gap-2">
-                                <button class="btn secondary sm" onclick="app.views.settings.handleTestCurrencyAPI()">
+                                <button class="btn secondary sm" data-action="test-currency-api">
                                     <i data-lucide="activity"></i> Test API
                                 </button>
-                                <button class="btn primary sm" onclick="app.views.settings.handleSyncExchangeRates()">
+                                <button class="btn primary sm" data-action="sync-exchange-rates">
                                     <i data-lucide="refresh-cw"></i> Sync Rates Now
                                 </button>
                             </div>
@@ -250,7 +261,7 @@ export class SettingsView extends BaseView {
                         <div class="card">
                             <div class="card-header flex-row justify-between align-center">
                                 <h3>Active Rates</h3>
-                                <button class="btn secondary sm" onclick="app.views.settings.handleNewExchangeRate()">
+                                <button class="btn secondary sm" data-action="new-exchange-rate">
                                     <i data-lucide="plus"></i> Add Manual Rate
                                 </button>
                             </div>
@@ -276,7 +287,7 @@ export class SettingsView extends BaseView {
                     <div id="settings-section-bills" class="settings-section">
                         <div class="section-header">
                             <h3>Bill Types</h3>
-                            <button class="btn primary sm" onclick="app.views.settings.handleNewBillType()">
+                            <button class="btn primary sm" data-action="new-bill-type">
                                 <i data-lucide="plus"></i> New Bill Type
                             </button>
                         </div>
@@ -312,17 +323,17 @@ export class SettingsView extends BaseView {
                                     <h3>Data Management</h3>
                                 </div>
                                 <div class="card-body flex-col gap-4">
-                                    <button class="btn secondary w-full justify-start" onclick="app.views.settings.handleExportData()">
+                                    <button class="btn secondary w-full justify-start" data-action="export-data">
                                         <i data-lucide="download"></i> Export Full Backup (.json)
                                     </button>
-                                    <button class="btn secondary w-full justify-start" onclick="app.views.settings.handleImportData()">
+                                    <button class="btn secondary w-full justify-start" data-action="import-data">
                                         <i data-lucide="upload"></i> Import Backup (.json)
                                     </button>
                                     <hr>
-                                    <button class="btn secondary w-full justify-start" onclick="app.views.settings.handleExportCSV()">
+                                    <button class="btn secondary w-full justify-start" data-action="export-csv">
                                         <i data-lucide="file-text"></i> Export Transactions (CSV)
                                     </button>
-                                    <button class="btn secondary w-full justify-start" onclick="app.views.settings.handleExportExcel()">
+                                    <button class="btn secondary w-full justify-start" data-action="export-excel">
                                         <i data-lucide="sheet"></i> Export to Excel (.xlsx)
                                     </button>
                                 </div>
@@ -349,7 +360,7 @@ export class SettingsView extends BaseView {
                                             <label>Backup Location</label>
                                             <div class="flex-row gap-2">
                                                 <input type="text" id="auto-backup-directory" class="form-control" readonly>
-                                                <button class="btn secondary" onclick="app.views.settings.handlePickBackupDirectory()">
+                                                <button class="btn secondary" data-action="pick-backup-dir">
                                                     <i data-lucide="folder-open"></i>
                                                 </button>
                                             </div>
@@ -362,7 +373,7 @@ export class SettingsView extends BaseView {
                                             <span class="text-sm text-muted">Last Backup:</span>
                                             <span class="font-bold text-sm" id="last-backup-time">Checking...</span>
                                         </div>
-                                        <button class="btn link sm mt-2" onclick="app.views.settings.handleRunBackupNow()">
+                                        <button class="btn link sm mt-2" data-action="run-backup-now">
                                             Run Backup Now
                                         </button>
                                     </div>
@@ -423,7 +434,7 @@ export class SettingsView extends BaseView {
                                 </div>
                                 
                                 <div class="mt-6 flex-row justify-end">
-                                    <button class="btn primary" onclick="app.views.settings.handleSaveRemoteSettings()">
+                                    <button class="btn primary" data-action="save-remote-settings">
                                         <i data-lucide="save"></i> Save & Restart Server
                                     </button>
                                 </div>
@@ -536,5 +547,58 @@ export class SettingsView extends BaseView {
         await window.api.updateSetting({ key: 'forecast_include_recurring', value: recur ? '1' : '0' });
 
         this.app.notifications.toast('Saved', 'Forecast settings updated', 'success');
+    }
+    async handleAction(target: HTMLElement): Promise<void> {
+        const action = target.dataset.action;
+        const id = target.dataset.id ? parseInt(target.dataset.id) : undefined;
+        const idStr = target.dataset.id; // For string IDs
+
+        if (!action) return;
+
+        console.debug('Settings Action:', action, id);
+
+        try {
+            switch (action) {
+                // Accounts
+                case 'new-account': this.handleNewAccount(); break;
+                case 'edit-account': if (id) this.handleEditAccount(id); break;
+                case 'archive-account': if (id) this.handleArchiveAccount(id); break;
+                case 'unarchive-account': if (id) this.handleUnarchiveAccount(id); break;
+                case 'delete-account': if (id) this.handleDeleteAccount(id); break;
+
+                // Categories
+                case 'new-category': this.handleNewCategory(); break;
+                case 'edit-category': if (id) this.handleEditCategory(id); break;
+                case 'archive-category': if (id) this.handleArchiveCategory(id); break;
+                case 'unarchive-category': if (id) this.handleUnarchiveCategory(id); break;
+                case 'delete-category': if (id) this.handleDeleteCategory(id); break;
+
+                // Currencies
+                case 'test-currency-api': this.handleTestCurrencyAPI(); break;
+                case 'sync-exchange-rates': this.handleSyncExchangeRates(); break;
+                case 'new-exchange-rate': this.handleNewExchangeRate(); break;
+                case 'edit-exchange-rate': if (id) this.handleEditExchangeRate(id); break;
+                case 'delete-exchange-rate': if (id) this.handleDeleteExchangeRate(id); break;
+
+                // Bills
+                case 'new-bill-type': this.handleNewBillType(); break;
+                case 'edit-bill-type': if (id) this.handleEditBillType(id); break;
+                case 'delete-bill-type': if (id) this.handleDeleteBillType(id); break;
+
+                // Backup
+                case 'export-data': this.handleExportData(); break;
+                case 'import-data': this.handleImportData(); break;
+                case 'export-csv': this.handleExportCSV(); break;
+                case 'export-excel': this.handleExportExcel(); break;
+                case 'pick-backup-dir': this.handlePickBackupDirectory(); break;
+                case 'run-backup-now': this.handleRunBackupNow(); break;
+
+                // Remote
+                case 'save-remote-settings': this.handleSaveRemoteSettings(); break;
+            }
+        } catch (err: any) {
+            console.error('Action failed:', err);
+            this.app.notifications.alert('Error', err.message || 'Action failed');
+        }
     }
 }

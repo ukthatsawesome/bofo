@@ -79,6 +79,19 @@ const convertToBase = async (amount: number, currency: string, baseCurrency: str
 // ENTITY SCHEMAS
 // =============================================================================
 
+export type EntityType =
+  | 'transaction'
+  | 'account'
+  | 'category'
+  | 'budget'
+  | 'goal'
+  | 'recurringCharge'
+  | 'billType'
+  | 'billReading'
+  | 'exchangeRate'
+  | 'setting'
+  | 'goalContribution';
+
 interface EntitySchema<T> {
   table: string;
   fields: string[];
@@ -89,7 +102,7 @@ interface EntitySchema<T> {
   afterDelete?: (data: T) => Promise<void>;
 }
 
-const ENTITY_SCHEMAS: Record<string, EntitySchema<any>> = {
+const ENTITY_SCHEMAS: Record<EntityType, EntitySchema<any>> = {
   transaction: {
     table: 'transactions',
     fields: [
@@ -230,7 +243,7 @@ export const FinanceModel = {
   /**
    * Internal Create (No locking, assumes transaction/lock exists)
    */
-  createInternal: async (entityType: string, data: any, auditContext: any): Promise<{ id: number; changes: number }> => {
+  createInternal: async (entityType: EntityType, data: any, auditContext: any): Promise<{ id: number; changes: number }> => {
     const schema = ENTITY_SCHEMAS[entityType];
     if (!schema) throw new Error(`Unknown entity type: ${entityType}`);
 
@@ -256,7 +269,7 @@ export const FinanceModel = {
   /**
    * Create a new entity (Atomic & Serialized)
    */
-  create: async (entityType: string, data: any, auditContext: { source?: string; metadata?: any; skipAudit?: boolean } = {}): Promise<{ id: number; changes: number }> => {
+  create: async (entityType: EntityType, data: any, auditContext: { source?: string; metadata?: any; skipAudit?: boolean } = {}): Promise<{ id: number; changes: number }> => {
     await dbInitialized;
     return await writeMutex.runExclusive(async () => {
       await run('BEGIN TRANSACTION');
@@ -275,7 +288,7 @@ export const FinanceModel = {
    * Update an entity by ID (Atomic & Serialized)
    */
   update: async (
-    entityType: string,
+    entityType: EntityType,
     id: number,
     data: any,
     auditContext: { source?: string; metadata?: any; skipAudit?: boolean } = {}
@@ -325,7 +338,7 @@ export const FinanceModel = {
    * Delete an entity by ID (Atomic & Serialized)
    */
   delete: async (
-    entityType: string,
+    entityType: EntityType,
     id: number,
     force: boolean = false,
     auditContext: { source?: string; metadata?: any; skipAudit?: boolean } = {}
@@ -365,7 +378,7 @@ export const FinanceModel = {
   /**
    * Get single entity by ID
    */
-  getById: async (entityType: string, id: number): Promise<any> => {
+  getById: async (entityType: EntityType, id: number): Promise<any> => {
     await dbInitialized;
     const schema = ENTITY_SCHEMAS[entityType];
     if (!schema) throw new Error(`Unknown entity type: ${entityType}`);
@@ -376,7 +389,7 @@ export const FinanceModel = {
    * Log an audit event
    */
   logAudit: async (
-    entityType: string,
+    entityType: EntityType,
     entityId: number,
     action: 'CREATE' | 'UPDATE' | 'DELETE',
     oldData: any,
@@ -431,7 +444,7 @@ export const FinanceModel = {
    * Get all entities of a type
    */
   getAll: async <T = any>(
-    entityType: string,
+    entityType: EntityType,
     options: { where?: Record<string, any>; orderBy?: string } = {}
   ): Promise<T[]> => {
     await dbInitialized;
@@ -459,11 +472,11 @@ export const FinanceModel = {
     return await all<T>(sql, params);
   },
 
-  archive: async (entityType: string, id: number) => {
+  archive: async (entityType: EntityType, id: number) => {
     return await FinanceModel.update(entityType, id, { status: 'archived' });
   },
 
-  unarchive: async (entityType: string, id: number) => {
+  unarchive: async (entityType: EntityType, id: number) => {
     return await FinanceModel.update(entityType, id, { status: 'active' });
   },
 

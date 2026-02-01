@@ -1,12 +1,28 @@
 /**
  * Navigation Router for managing view switching
  */
+import type { App } from './App';
+import type { BaseView } from './BaseView';
+
+interface ViewWithHome {
+  showHome(): void;
+}
+
+function isViewWithHome(view: unknown): view is ViewWithHome {
+  return (
+    typeof view === 'object' &&
+    view !== null &&
+    'showHome' in view &&
+    typeof (view as { showHome: unknown }).showHome === 'function'
+  );
+}
+
 export class Router {
-  private app: any;
-  private views: Record<string, any>;
+  private app: App;
+  private views: Record<string, BaseView>;
   private currentView: string | null;
 
-  constructor(app: any) {
+  constructor(app: App) {
     this.app = app;
     this.views = app.views;
     this.currentView = null;
@@ -17,8 +33,11 @@ export class Router {
     return this.currentView;
   }
 
+  // ---------------------------------------------------------------------------
+  // Setup
+  // ---------------------------------------------------------------------------
+
   setupListeners(): void {
-    // Handle sidebar clicks
     const links = document.querySelectorAll('.nav-links li');
     links.forEach((link) => {
       link.addEventListener('click', () => {
@@ -30,24 +49,21 @@ export class Router {
     });
   }
 
+  // ---------------------------------------------------------------------------
+  // Navigation
+  // ---------------------------------------------------------------------------
+
   /**
-   * Navigate to a specific view
+   * Navigate to a specific view.
+   * Handles lazy loading, view destruction, and loading states.
    */
   async navigate(viewName: string, options: { force?: boolean } = {}): Promise<void> {
     const { force = false } = options;
-
-    // Clear AI nav active state when navigating to any view
-    const aiNavItem = document.getElementById('ai-status-nav');
-    if (aiNavItem) {
-      aiNavItem.classList.remove('active');
-    }
-
-    // Get current instantiated view if it exists
     const currentViewInstance = this.currentView ? this.views[this.currentView] : null;
 
-    // If navigating to same view
+    // If navigating to same view (Refresh behavior)
     if (this.currentView === viewName) {
-      if (force && currentViewInstance && currentViewInstance.showHome) {
+      if (force && currentViewInstance && isViewWithHome(currentViewInstance)) {
         currentViewInstance.showHome();
         this.updateSidebar(viewName);
       }
@@ -55,18 +71,17 @@ export class Router {
     }
 
     // Show loading state
-    if (this.app.setLoading) {
-      this.app.setLoading(true);
-    }
+    this.app.setLoading(true);
 
     try {
       // Lazy load the requested view
       const view = await this.app.getView(viewName);
 
-      // Hide current view
+      // Hide and destroy previous view
       if (currentViewInstance) {
         currentViewInstance.hide();
-        // Strict lifestyle management: destroy to free memory
+
+        // Cleanup memory for complex views
         if (typeof currentViewInstance.destroy === 'function') {
           currentViewInstance.destroy();
         }
@@ -75,26 +90,35 @@ export class Router {
       // Show new view
       view.show();
       this.currentView = viewName;
+
+      // Update Sidebar
       this.updateSidebar(viewName);
     } catch (error) {
       console.error(`Failed to navigate to ${viewName}`, error);
-      // Optional: show error toast
+      this.app.notifications.toast(`Error`, `Failed to load view: ${viewName}. Please try again.`);
     } finally {
-      if (this.app.setLoading) {
-        this.app.setLoading(false);
-      }
+      this.app.setLoading(false);
     }
   }
 
+  // ---------------------------------------------------------------------------
+  // UI Updates
+  // ---------------------------------------------------------------------------
+
   /**
-   * Update sidebar active state
+   * Update sidebar active state based on current view name.
+   * Automatically handles AI settings navigation via data-view attributes.
    */
-  updateSidebar(viewName: string): void {
+  private updateSidebar(viewName: string): void {
     const links = document.querySelectorAll('.nav-links li');
+
     links.forEach((li) => {
-      li.classList.remove('active');
-      if (li.getAttribute('data-view') === viewName) {
+      const targetView = li.getAttribute('data-view');
+
+      if (targetView === viewName) {
         li.classList.add('active');
+      } else {
+        li.classList.remove('active');
       }
     });
   }

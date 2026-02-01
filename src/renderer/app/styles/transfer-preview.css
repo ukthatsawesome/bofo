@@ -4,16 +4,13 @@
     color: var(--text-muted);
 }
 
+/* Scoped utility overrides for this container */
 .balance-preview-container .text-success {
     color: var(--success);
 }
 
 .balance-preview-container .text-danger {
     color: var(--danger);
-}
-
-.balance-preview-container .text-text-muted {
-    color: var(--text-muted);
 }
 
 .balance-preview-container .font-semibold {
@@ -24,7 +21,7 @@
     font-size: 0.75rem;
 }
 
-/* Keep minimal legacy support if needed, or remove completely if old components are gone */
+/* Legacy Support */
 .transfer-preview-horizontal {
     display: none;
 }

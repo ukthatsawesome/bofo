@@ -9,6 +9,10 @@ import type { App } from './App';
 export class EventManager {
     private app: App;
 
+    // CSS selector for elements that can receive focus within a modal
+    private static readonly FOCUSABLE_SELECTOR =
+        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
+
     constructor(app: App) {
         this.app = app;
     }
@@ -22,16 +26,22 @@ export class EventManager {
         this.setupThemeListeners();
     }
 
-    /**
-     * EventBus-based events (transaction, api, ai)
-     */
+    // ---------------------------------------------------------------------------
+    // Event Bus Listeners
+    // ---------------------------------------------------------------------------
+
     private setupEventBusListeners(): void {
         // Handle transaction saved
         eventBus.on('transaction:saved', () => {
+            // Reload data asynchronously
             this.app.state.loadTransactions();
             this.app.state.loadAccounts();
+
+            // Invalidate AI cache
             this.app.aiCache.invalidate('dashboard');
             this.app.aiCache.invalidate('transactions');
+
+            // Refresh current view
             this.app.views[this.app.router.currentViewName!]?.render();
         });
 
@@ -48,17 +58,15 @@ export class EventManager {
         });
     }
 
-    /**
-     * Keyboard shortcuts and focus trap
-     */
+    // ---------------------------------------------------------------------------
+    // Keyboard Listeners
+    // ---------------------------------------------------------------------------
+
     private setupKeyboardListeners(): void {
         window.addEventListener('keydown', (e) => {
             // Escape to close modals
             if (e.key === 'Escape') {
-                const visibleModals = document.querySelectorAll('.modal:not(.hidden)');
-                visibleModals.forEach((modal) => {
-                    UIUtils.setHidden(`#${modal.id}`, true);
-                });
+                this.closeAllModals();
                 return;
             }
 
@@ -70,21 +78,33 @@ export class EventManager {
     }
 
     /**
+     * Closes all visible modals
+     */
+    private closeAllModals(): void {
+        const visibleModals = document.querySelectorAll('.modal:not(.hidden)');
+        visibleModals.forEach((modal) => {
+            UIUtils.setHidden(`#${modal.id}`, true);
+        });
+    }
+
+    /**
      * Modal focus trap (accessibility)
+     * Ensures Tab cycling stays within the active modal
      */
     private handleFocusTrap(e: KeyboardEvent): void {
         const visibleModal = document.querySelector('.modal:not(.hidden)') as HTMLElement;
         if (!visibleModal) return;
 
-        const focusableElements = visibleModal.querySelectorAll(
-            'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
-        );
+        const focusableElements = Array.from(
+            visibleModal.querySelectorAll(EventManager.FOCUSABLE_SELECTOR)
+        ) as HTMLElement[];
 
         if (focusableElements.length === 0) return;
 
-        const firstElement = focusableElements[0] as HTMLElement;
-        const lastElement = focusableElements[focusableElements.length - 1] as HTMLElement;
+        const firstElement = focusableElements[0];
+        const lastElement = focusableElements[focusableElements.length - 1];
 
+        // If shifting tab, cycle backwards; otherwise cycle forwards
         if (e.shiftKey) {
             if (document.activeElement === firstElement) {
                 lastElement.focus();
@@ -98,9 +118,10 @@ export class EventManager {
         }
     }
 
-    /**
-     * Theme change listeners
-     */
+    // ---------------------------------------------------------------------------
+    // Theme Listeners
+    // ---------------------------------------------------------------------------
+
     private setupThemeListeners(): void {
         // Theme Change Listener - re-render current view for charts
         window.addEventListener('theme-changed', () => {
@@ -114,16 +135,18 @@ export class EventManager {
         window.api.onNativeThemeChanged((isDark: boolean) => {
             if (this.app.state.theme === 'system') {
                 const mode = isDark ? 'dark' : 'light';
+
+                // Apply theme attributes and classes
                 document.documentElement.setAttribute('data-theme', mode);
+                document.documentElement.classList.toggle('dark', mode === 'dark');
+
+                // Cache locally for initialization
                 localStorage.setItem('bofo_theme_cache', mode);
 
-                if (mode === 'dark') {
-                    document.documentElement.classList.add('dark');
-                } else {
-                    document.documentElement.classList.remove('dark');
-                }
-
-                window.dispatchEvent(new CustomEvent('theme-changed', { detail: { mode, theme: 'system' } }));
+                // Notify listeners
+                window.dispatchEvent(
+                    new CustomEvent('theme-changed', { detail: { mode, theme: 'system' } })
+                );
             }
         });
     }

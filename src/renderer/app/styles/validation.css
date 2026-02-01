@@ -1,7 +1,7 @@
 /* Error styling for form validation */
 .form-control.error {
   border-color: var(--danger) !important;
-  box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.1);
+  box-shadow: 0 0 0 3px rgba(var(--danger-rgb), 0.1);
 }
 
 .error-message {
@@ -17,6 +17,7 @@
     opacity: 0;
     transform: translateY(-4px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);

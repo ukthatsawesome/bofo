@@ -1,5 +1,6 @@
 import { Modal } from '../../../components/ui/Modal';
 import { FormGroup } from '../../../components/ui/FormGroup';
+import { UIUtils } from '../../../lib/dom';
 import type { Account, Category } from '../../../../shared/types';
 
 interface TransactionModalProps {
@@ -37,7 +38,7 @@ export const TransactionModal = ({ accounts, categories }: TransactionModalProps
                 <select id="modal-tx-account" class="form-control" aria-label="Source Account">
                     ${accounts
           .filter(a => a.status === 'active')
-          .map((a) => `<option value="${a.id}" data-currency="${a.currency}">${a.name}</option>`)
+          .map((a) => `<option value="${a.id}" data-currency="${a.currency}">${UIUtils.escapeHTML(a.name)}</option>`)
           .join('')}
                 </select>
             `,
@@ -50,7 +51,7 @@ export const TransactionModal = ({ accounts, categories }: TransactionModalProps
                     <select id="modal-tx-to-account" class="form-control" style="width: 100%;" aria-label="Destination Account">
                         ${accounts
           .filter(a => a.status === 'active')
-          .map((a) => `<option value="${a.id}" data-currency="${a.currency}">${a.name}</option>`)
+          .map((a) => `<option value="${a.id}" data-currency="${a.currency}">${UIUtils.escapeHTML(a.name)}</option>`)
           .join('')}
                     </select>
                 `,
@@ -81,7 +82,7 @@ export const TransactionModal = ({ accounts, categories }: TransactionModalProps
                 <select id="modal-tx-category" class="form-control" aria-label="Category">
                     ${categories
           .filter(c => c.status === 'active')
-          .map((c) => `<option value="${c.name}">${c.name}</option>`)
+          .map((c) => `<option value="${c.name}">${UIUtils.escapeHTML(c.name)}</option>`)
           .join('')}
                 </select>
             `,

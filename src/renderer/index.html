@@ -7,25 +7,27 @@
   <meta name="description" content="Bofo - Your Personal AI Financial Manager" />
   <meta name="theme-color" content="#f8fafc" />
   <title>Bofo - AI Finance</title>
+
   <link rel="icon" type="image/x-icon" href="/assets/icons/icon.ico" />
 
   <!-- Security: Content Security Policy -->
   <meta http-equiv="Content-Security-Policy"
-    content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' http://127.0.0.1:* ws://127.0.0.1:* https://api.currencyapi.com https://api.frankfurter.app;" />
+    content="default-src 'self'; 
+            script-src 'self' 'unsafe-inline'; 
+            style-src 'self' 'unsafe-inline'; 
+            img-src 'self' data: https:; 
+            font-src 'self' data:; 
+            connect-src 'self' http://127.0.0.1:* ws://127.0.0.1:* https://api.currencyapi.com https://api.frankfurter.app;" />
 
   <!-- Theme Initialization -->
   <script>
     (function () {
-      const cache = localStorage.getItem('bofo_theme_cache');
-      const systemDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-      const mode = cache ? cache : (systemDark ? 'dark' : 'light');
+      const cachedTheme = localStorage.getItem('bofo_theme_cache');
+      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      const theme = cachedTheme || (prefersDark ? 'dark' : 'light');
 
-      document.documentElement.setAttribute('data-theme', mode);
-      if (mode === 'dark') {
-        document.documentElement.classList.add('dark');
-      } else {
-        document.documentElement.classList.remove('dark');
-      }
+      document.documentElement.setAttribute('data-theme', theme);
+      document.documentElement.classList.toggle('dark', theme === 'dark');
     })();
   </script>
 
@@ -42,10 +44,7 @@
       align-items: center;
       justify-content: center;
       gap: 16px;
-      font-family:
-        system-ui,
-        -apple-system,
-        sans-serif;
+      font-family: system-ui, -apple-system, sans-serif;
     }
 
     .loader-overlay.hidden {
@@ -81,38 +80,38 @@
     <!-- Sidebar Navigation -->
     <nav class="sidebar">
       <ul class="nav-links top-nav">
-        <li class="active logo-nav" data-view="dashboard" title="Dashboard">
+        <li class="active logo-nav" data-view="dashboard" title="Dashboard" aria-label="Dashboard">
           <i data-lucide="piggy-bank"></i>
         </li>
-        <li data-view="transactions" title="Transactions">
+        <li data-view="transactions" title="Transactions" aria-label="Transactions">
           <i data-lucide="arrow-left-right" class="nav-icon"></i>
         </li>
-        <li data-view="forecast" title="Forecast">
+        <li data-view="forecast" title="Forecast" aria-label="Forecast">
           <i data-lucide="trending-up" class="nav-icon"></i>
         </li>
-        <li data-view="budget" title="Budget">
+        <li data-view="budget" title="Budget" aria-label="Budget">
           <i data-lucide="pie-chart" class="nav-icon"></i>
         </li>
-        <li data-view="recurring" title="Recurring Charges">
+        <li data-view="recurring" title="Recurring Charges" aria-label="Recurring Charges">
           <i data-lucide="repeat" class="nav-icon"></i>
         </li>
-        <li data-view="bills" title="Bills Tracking">
+        <li data-view="bills" title="Bills Tracking" aria-label="Bills Tracking">
           <i data-lucide="receipt" class="nav-icon"></i>
         </li>
-        <li data-view="goals" title="Goals">
+        <li data-view="goals" title="Goals" aria-label="Goals">
           <i data-lucide="target" class="nav-icon"></i>
         </li>
-        <li data-view="whatif" title="Sandbox">
+        <li data-view="whatif" title="Sandbox" aria-label="Sandbox">
           <i data-lucide="sparkles" class="nav-icon"></i>
         </li>
       </ul>
 
       <ul class="nav-links bottom-nav">
-        <li id="ai-status-nav" class="ai-nav-item" title="AI Settings">
+        <li id="ai-status-nav" class="ai-nav-item" title="AI Settings" aria-label="AI Settings">
           <i data-lucide="bot" class="nav-icon"></i>
           <span class="ai-status-dot-nav"></span>
         </li>
-        <li data-view="settings" title="Settings">
+        <li data-view="settings" title="Settings" aria-label="Settings">
           <i data-lucide="settings" class="nav-icon"></i>
         </li>
       </ul>
@@ -133,7 +132,7 @@
     </main>
   </div>
 
-  <!-- Dynamic Containers -->
+  <!-- Dynamic Overlay Containers -->
   <div id="dynamic-modals-container"></div>
   <div id="tx-modal-container"></div>
   <div id="sandbox-modal-container"></div>
@@ -143,7 +142,7 @@
   <!-- Global Loader Overlay -->
   <div id="global-loader" class="loader-overlay">
     <div class="spinner"></div>
-    <p class="text-secondary" style="margin-top: 16px; font-weight: 500">Loading...</p>
+    <p class="text-secondary" style="margin-top: 16px; font-weight: 500;">Loading...</p>
   </div>
 </body>
 

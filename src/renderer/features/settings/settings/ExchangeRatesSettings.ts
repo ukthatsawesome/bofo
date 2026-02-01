@@ -129,10 +129,10 @@ export const ExchangeRatesSettingsMixin = {
                     <td class="text-muted text-sm">${new Date(rate.last_updated).toLocaleDateString()}</td>
                     <td class="text-right">
                         <div class="row-actions justify-end">
-                            <button class="action-btn" onclick="app.views.settings.handleEditExchangeRate(${rate.id})" title="Edit">
-                                <i data-lucide="edit-3"></i>
+                            <button class="action-btn" data-action="edit-exchange-rate" data-id="${rate.id}" title="Edit">
+                                <i data-lucide="edit-2"></i>
                             </button>
-                            <button class="action-btn danger" onclick="app.views.settings.handleDeleteExchangeRate(${rate.id})" title="Delete">
+                            <button class="action-btn danger" data-action="delete-exchange-rate" data-id="${rate.id}" title="Delete">
                                 <i data-lucide="trash-2"></i>
                             </button>
                         </div>

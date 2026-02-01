@@ -2,13 +2,14 @@
  * App - Main application orchestrator
  * Composes and coordinates all managers and services
  */
+
+// Core & State
 import { StateManager } from '../lib/state/StateManager';
 import { Formatter } from '../lib/formatters';
 import { Router } from './router';
 import { UIUtils } from '../lib/dom';
 import { ChartManager } from '../components/charts/ChartManager';
 import { NotificationManager } from '../components/ui/notifications/NotificationManager';
-import { CURRENCIES } from '../../shared/currencies';
 
 // Managers
 import { ModalManager } from './ModalManager';
@@ -18,16 +19,23 @@ import { FormHelper } from './FormHelper';
 // AI Services
 import { aiInsightCache, createFallbackGenerator, FallbackInsightGenerator } from '../lib/ai';
 
-// Services
+// Utilities & Services
+import { CURRENCIES } from '../../shared/currencies';
 import { MilestoneTracker } from '../lib/milestoneTracker';
 
-// Views - Dynamic Imports
+// Views - Types
 import { BaseView } from './BaseView';
 
-// Type for View Constructor
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+
 type ViewConstructor = new (app: App) => BaseView;
 
-// View Loaders Map
+// ---------------------------------------------------------------------------
+// Dynamic View Loaders
+// ---------------------------------------------------------------------------
+
 const VIEW_LOADERS: Record<string, () => Promise<ViewConstructor>> = {
   dashboard: () => import('../features/dashboard/DashboardView').then(m => m.DashboardView),
   transactions: () => import('../features/transactions/TransactionsView').then(m => m.TransactionsView),
@@ -40,6 +48,10 @@ const VIEW_LOADERS: Record<string, () => Promise<ViewConstructor>> = {
   settings: () => import('../features/settings/SettingsView').then(m => m.SettingsView),
   'ai-settings': () => import('../features/settings/AISettingsView').then(m => m.AISettingsView),
 };
+
+// ---------------------------------------------------------------------------
+// App Class
+// ---------------------------------------------------------------------------
 
 export class App {
   // Core Services
@@ -62,7 +74,7 @@ export class App {
   // Other Services
   milestoneTracker: MilestoneTracker;
 
-  // Views (Instantiated)
+  // View Registry
   views: Record<string, BaseView> = {};
 
   constructor() {
@@ -85,8 +97,7 @@ export class App {
     // Initialize other services
     this.milestoneTracker = new MilestoneTracker();
 
-    // Views are now initialized lazily in getView()
-
+    // Initialize Router
     this.router = new Router(this);
   }
 
@@ -106,7 +117,7 @@ export class App {
     }
 
     try {
-      // Load the view module
+      // Load view module
       const ViewClass = await loader();
 
       // Instantiate and cache
@@ -120,7 +131,6 @@ export class App {
     }
   }
 
-
   async init(): Promise<void> {
     try {
       this.setLoading(true);
@@ -128,7 +138,7 @@ export class App {
       // Listen for DB status from Main process
       this.setupDBStatusListener();
 
-      // Load core data
+      // Load core data in parallel
       await Promise.all([
         this.state.loadSettings(),
         this.state.loadAccounts(),
@@ -139,7 +149,7 @@ export class App {
       // Initialize fallback generator with formatter
       this.fallbackGenerator = createFallbackGenerator(this.formatter);
 
-      // Setup UI
+      // Setup UI components
       this.modals.renderDynamicModals();
       this.forms.populateCurrencyDropdowns();
       this.events.setup();
@@ -191,7 +201,7 @@ export class App {
             <div style="font-size: 3rem; margin-bottom: 1rem;">⚠️</div>
             <h2 style="margin: 0 0 0.5rem; color: var(--text-primary, #1a1a2e);">Connection Failed</h2>
             <p style="color: var(--text-secondary, #666); margin-bottom: 1.5rem;">
-              Could not connect to the backend server.<br>
+              Could not connect to backend server.<br>
               <small style="opacity: 0.7;">${error.message || 'Unknown error'}</small>
             </p>
             <div style="display: flex; gap: 0.75rem; justify-content: center;">
@@ -209,7 +219,7 @@ export class App {
   }
 
   /**
-   * Reload all state data from the backend
+   * Reload all state data from backend
    */
   async loadData(): Promise<void> {
     await Promise.all([
@@ -236,7 +246,7 @@ export class App {
       this.updateAIStatusIndicator(e.detail.connected);
     });
 
-    // Poll for connection status
+    // Poll for connection status every 5 seconds
     setInterval(() => this.updateAIStatusIndicator(), 5000);
 
     // Click handler - navigate to AI settings
@@ -273,6 +283,7 @@ export class App {
    * Prefetch insights in background for faster view loads
    */
   async prefetchInsightsInBackground(): Promise<void> {
+    // Wait 2 seconds to allow UI to load first
     await new Promise((resolve) => setTimeout(resolve, 2000));
 
     const aiSettings = await window.api.getAISettings();
@@ -281,11 +292,12 @@ export class App {
     try {
       const now = new Date();
       const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+      const monthStartStr = monthStart.toISOString().split('T')[0]; // YYYY-MM-DD
 
+      // Use string comparison for date filtering (faster than new Date() in loop)
       const mStats = this.state.transactions.reduce(
         (acc, t) => {
-          const tDate = new Date(t.start_date);
-          if (tDate >= monthStart) {
+          if (t.start_date >= monthStartStr) {
             if (t.type === 'income') acc.income += t.amount;
             if (t.type === 'expense') acc.expense += t.amount;
           }
@@ -320,7 +332,9 @@ export class App {
     }
   }
 
-  // --- Loading State ---
+  // ---------------------------------------------------------------------
+  // Loading State Management
+  // ---------------------------------------------------------------------
 
   setLoading(isLoading: boolean): void {
     const loader = document.getElementById('global-loader');
@@ -338,7 +352,9 @@ export class App {
     }
   }
 
-  // --- Bridge Methods (Legacy Compatibility) ---
+  // ---------------------------------------------------------------------
+  // Bridge Methods (Legacy Compatibility)
+  // ---------------------------------------------------------------------
 
   async updateAppSetting(key: string, value: string | boolean): Promise<void> {
     const valStr = typeof value === 'boolean' ? String(value) : value;

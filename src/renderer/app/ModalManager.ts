@@ -5,7 +5,7 @@
 import { $, UIUtils } from '../lib/dom';
 import { eventBus } from '../lib/eventBus';
 
-// Modal components
+// Modal Components
 import { TransactionModal } from '../features/transactions/modals/TransactionModal';
 import { AccountModal } from '../features/settings/modals/AccountModal';
 import { CategoryModal } from '../features/settings/modals/CategoryModal';
@@ -19,10 +19,15 @@ import type { App } from './App';
 
 export class ModalManager {
     private app: App;
+    private checkCurrenciesHandler: (() => void) | null = null;
 
     constructor(app: App) {
         this.app = app;
     }
+
+    // ---------------------------------------------------------------------------
+    // Rendering
+    // ---------------------------------------------------------------------------
 
     /**
      * Render all dynamic modals into the DOM
@@ -54,14 +59,18 @@ export class ModalManager {
         this.setupActions();
     }
 
+    // ---------------------------------------------------------------------------
+    // Global Listeners
+    // ---------------------------------------------------------------------------
+
     /**
      * Setup global modal listeners (close, backdrop click)
      */
-    setupListeners(): void {
+    private setupListeners(): void {
         document.addEventListener('click', (e) => {
             const target = e.target as HTMLElement;
 
-            // Close button or Cancel button
+            // Close button, Cancel button, or specific data attributes
             const closeBtn = target.closest('.modal .close, .modal .btn.secondary, [data-modal-close]');
             if (closeBtn) {
                 const modal = closeBtn.closest('.modal');
@@ -78,10 +87,14 @@ export class ModalManager {
         });
     }
 
+    // ---------------------------------------------------------------------------
+    // Form Actions Setup
+    // ---------------------------------------------------------------------------
+
     /**
      * Setup all modal form actions
      */
-    setupActions(): void {
+    private setupActions(): void {
         this.setupCurrencyCalculations();
         this.setupTransactionModal();
         this.setupAccountModal();
@@ -89,8 +102,12 @@ export class ModalManager {
         this.setupTransactionTypeToggles();
     }
 
+    // ---------------------------------------------------------------------------
+    // Currency & Transfer Logic
+    // ---------------------------------------------------------------------------
+
     /**
-     * Cross-currency transfer calculations
+     * Setup logic for cross-currency transfer calculations
      */
     private setupCurrencyCalculations(): void {
         const checkCurrencies = async () => {
@@ -99,6 +116,7 @@ export class ModalManager {
             const activeSegment = document.querySelector('#transaction-modal .segment.active') as HTMLElement;
             const type = activeSegment?.dataset?.type;
 
+            // Only show currency logic for transfers
             if (type !== 'transfer') {
                 UIUtils.setHidden('#modal-tx-rate-group', true);
                 return;
@@ -108,18 +126,22 @@ export class ModalManager {
             const toCurrency = toSelect.options[toSelect.selectedIndex]?.dataset?.currency;
             const isMultiCurrency = fromCurrency && toCurrency && fromCurrency !== toCurrency;
 
+            // Elements
             const rateInput = $('#modal-tx-exchange-rate') as HTMLInputElement;
             const toAmountInput = $('#modal-tx-to-amount') as HTMLInputElement;
             const rateGroup = $('#modal-tx-rate-group');
             const rateSourceHint = $('#modal-tx-rate-source');
 
+            // Toggle UI based on currency match
             if (isMultiCurrency) {
                 if (rateGroup) rateGroup.classList.remove('hidden');
                 if (rateInput) rateInput.disabled = false;
                 if (toAmountInput) toAmountInput.disabled = false;
 
+                // Attempt to fetch saved rate
                 try {
                     const storedRate = await window.api.getExchangeRate(fromCurrency, toCurrency);
+
                     if (storedRate !== null && rateInput) {
                         rateInput.value = storedRate.toFixed(6);
                         if (rateSourceHint) {
@@ -135,7 +157,7 @@ export class ModalManager {
                             rateSourceHint.classList.add('text-warning');
                         }
                     }
-                } catch {
+                } catch (err) {
                     if (rateInput && !rateInput.value) rateInput.value = '1';
                 }
 
@@ -147,6 +169,9 @@ export class ModalManager {
                 if (toAmountInput) toAmountInput.value = '';
             }
         };
+
+        // Store handler to be reused by type toggles
+        this.checkCurrenciesHandler = checkCurrencies;
 
         // Attach listeners
         const els = {
@@ -162,11 +187,11 @@ export class ModalManager {
         if (els.amt) els.amt.addEventListener('input', () => this.updateCalculations('amount'));
         if (els.rate) els.rate.addEventListener('input', () => this.updateCalculations('rate'));
         if (els.toAmt) els.toAmt.addEventListener('input', () => this.updateCalculations('toAmount'));
-
-        // Store for toggle access
-        (this as any)._checkCurrencies = checkCurrencies;
     }
 
+    /**
+     * Update calculations based on input field that changed
+     */
     private updateCalculations(source: string): void {
         const amount = parseFloat(($('#modal-tx-amount') as HTMLInputElement).value) || 0;
         const rate = parseFloat(($('#modal-tx-exchange-rate') as HTMLInputElement)?.value) || 1;
@@ -174,9 +199,12 @@ export class ModalManager {
 
         if (!toAmountInput || toAmountInput.disabled) return;
 
+        // Forward calc: Amount or Rate changed
         if (source === 'amount' || source === 'rate') {
             toAmountInput.value = (amount * rate).toFixed(2);
-        } else if (source === 'toAmount') {
+        }
+        // Reverse calc: ToAmount changed
+        else if (source === 'toAmount') {
             const toAmount = parseFloat(toAmountInput.value) || 0;
             if (amount > 0) {
                 const rateInput = $('#modal-tx-exchange-rate') as HTMLInputElement;
@@ -185,6 +213,10 @@ export class ModalManager {
         }
     }
 
+    // ---------------------------------------------------------------------------
+    // Modal Save Handlers
+    // ---------------------------------------------------------------------------
+
     /**
      * Transaction modal save handler
      */
@@ -192,22 +224,27 @@ export class ModalManager {
         const btnTxSave = document.getElementById('modal-tx-save');
         if (!btnTxSave) return;
 
+        // Clone node to remove any existing event listeners (clean slate)
         const newBtn = btnTxSave.cloneNode(true);
         btnTxSave.parentNode?.replaceChild(newBtn, btnTxSave);
 
         newBtn.addEventListener('click', async () => {
+            // Gather inputs
             const amount = parseFloat(($('#modal-tx-amount') as HTMLInputElement).value);
             const date = ($('#modal-tx-date') as HTMLInputElement).value;
             const accountId = parseInt(($('#modal-tx-account') as HTMLSelectElement).value);
             const category = ($('#modal-tx-category') as HTMLSelectElement).value;
             const description = ($('#modal-tx-desc') as HTMLInputElement).value;
+
             const activeSegment = document.querySelector('#transaction-modal .segment.active') as HTMLElement;
             const type = activeSegment?.dataset?.type || 'expense';
 
+            // Validation
             if (!amount || amount <= 0 || !date) {
                 return this.app.notifications.toast('Error', 'Please fill all required fields', 'error');
             }
 
+            // Construct payload
             const tx: any = {
                 amount,
                 start_date: date,
@@ -222,6 +259,7 @@ export class ModalManager {
             if (type === 'transfer') {
                 tx.to_account_id = parseInt(($('#modal-tx-to-account') as HTMLSelectElement).value);
                 tx.category = 'Transfer';
+
                 if (tx.account_id === tx.to_account_id) {
                     return this.app.notifications.toast('Error', 'Source and destination must be different', 'error');
                 }
@@ -316,26 +354,32 @@ export class ModalManager {
         });
     }
 
+    // ---------------------------------------------------------------------------
+    // Toggle Handlers
+    // ---------------------------------------------------------------------------
+
     /**
      * Transaction type toggle handlers (income/expense/transfer)
      */
     private setupTransactionTypeToggles(): void {
-        const checkCurrencies = (this as any)._checkCurrencies;
-
         document.querySelectorAll('#transaction-modal .segment').forEach((seg) => {
             seg.addEventListener('click', () => {
                 document.querySelectorAll('#transaction-modal .segment').forEach((s) => s.classList.remove('active'));
                 seg.classList.add('active');
 
                 const type = (seg as HTMLElement).dataset.type;
+
                 if (type === 'transfer') {
                     UIUtils.setHidden('#modal-tx-to-account-group', false);
                     UIUtils.setHidden('#modal-tx-category', true);
-                    if (checkCurrencies) checkCurrencies();
                 } else {
                     UIUtils.setHidden('#modal-tx-to-account-group', true);
                     UIUtils.setHidden('#modal-tx-category', false);
-                    if (checkCurrencies) checkCurrencies();
+                }
+
+                // Re-calculate currency state
+                if (this.checkCurrenciesHandler) {
+                    this.checkCurrenciesHandler();
                 }
             });
         });

@@ -44,10 +44,10 @@ export const BillsSettingsMixin = {
                 </td>
                 <td class="text-right">
                     <div class="row-actions justify-end">
-                        <button class="action-btn" onclick="app.views.settings.handleEditBillType(${bt.id})" title="Edit">
-                            <i data-lucide="edit-3"></i>
+                        <button class="action-btn" data-action="edit-bill-type" data-id="${bt.id}" title="Edit">
+                            <i data-lucide="edit-2"></i>
                         </button>
-                        <button class="action-btn danger" onclick="app.views.settings.handleDeleteBillType(${bt.id})" title="Delete">
+                        <button class="action-btn danger" data-action="delete-bill-type" data-id="${bt.id}" title="Delete">
                             <i data-lucide="trash-2"></i>
                         </button>
                     </div>

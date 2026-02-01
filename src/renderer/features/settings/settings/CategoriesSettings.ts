@@ -73,20 +73,20 @@ export const CategoriesSettingsMixin = {
                 <td>${cat.is_default ? '<span class="text-success">✓</span>' : ''}</td>
                 <td class="text-right">
                     <div class="row-actions justify-end">
-                        <button class="action-btn" onclick="app.views.settings.handleEditCategory(${cat.id})" title="Edit">
-                            <i data-lucide="edit-3"></i>
+                        <button class="action-btn" data-action="edit-category" data-id="${cat.id}" title="Edit">
+                            <i data-lucide="edit-2"></i>
                         </button>
                         ${cat.status === 'archived'
-            ? `<button class="action-btn success" onclick="app.views.settings.handleUnarchiveCategory(${cat.id})" title="Restore">
+            ? `<button class="action-btn success" data-action="unarchive-category" data-id="${cat.id}" title="Restore">
                                 <i data-lucide="archive-restore"></i>
                                </button>`
-            : `<button class="action-btn warning" onclick="app.views.settings.handleArchiveCategory(${cat.id})" title="Archive">
+            : `<button class="action-btn warning" data-action="archive-category" data-id="${cat.id}" title="Archive">
                                 <i data-lucide="archive"></i>
                                </button>`
           }
                         ${!cat.is_default
             ? `
-                            <button class="action-btn danger" onclick="app.views.settings.handleDeleteCategory(${cat.id})" title="Delete">
+                            <button class="action-btn danger" data-action="delete-category" data-id="${cat.id}" title="Delete">
                                 <i data-lucide="trash-2"></i>
                             </button>
                         `

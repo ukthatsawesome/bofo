@@ -56,18 +56,18 @@ export const AccountsSettingsMixin = {
                 </td>
                 <td class="text-right">
                     <div class="row-actions justify-end">
-                        <button class="action-btn" onclick="app.views.settings.handleEditAccount(${acc.id})" title="Edit">
-                            <i data-lucide="edit-3"></i>
+                        <button class="action-btn" data-action="edit-account" data-id="${acc.id}" title="Edit">
+                            <i data-lucide="edit-2"></i>
                         </button>
                         ${acc.status === 'archived'
-            ? `<button class="action-btn success" onclick="app.views.settings.handleUnarchiveAccount(${acc.id})" title="Restore">
+            ? `<button class="action-btn success" data-action="unarchive-account" data-id="${acc.id}" title="Restore">
                                 <i data-lucide="archive-restore"></i>
                                </button>`
-            : `<button class="action-btn warning" onclick="app.views.settings.handleArchiveAccount(${acc.id})" title="Archive">
+            : `<button class="action-btn warning" data-action="archive-account" data-id="${acc.id}" title="Archive">
                                 <i data-lucide="archive"></i>
                                </button>`
           }
-                        <button class="action-btn danger" onclick="app.views.settings.handleDeleteAccount(${acc.id})" title="Delete">
+                        <button class="action-btn danger" data-action="delete-account" data-id="${acc.id}" title="Delete">
                             <i data-lucide="trash-2"></i>
                         </button>
                     </div>
