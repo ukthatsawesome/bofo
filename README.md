@@ -108,7 +108,7 @@ npm run dist:linux
 Bofo follows a strict separation between the **Main** (Backend) and **Renderer** (Frontend) processes.
 
 - `src/main/`: Electron main process, Database, AI services, and IPC handlers.
-- `src/renderer/`: Frontend UI built with Vanilla TS + Tailwind CSS.
+- `src/renderer/`: Frontend UI organized by feature (Domain-Driven Architecture).
 - `src/shared/`: Common types and constants shared across processes.
 
 For a detailed breakdown, see [DIRECTORY_STRUCTURE.md](DIRECTORY_STRUCTURE.md).

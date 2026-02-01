@@ -37,24 +37,26 @@ The "Backend" of the application, running in a Node.js environment.
 - `webServer.ts`: Optional local web server for remote access feature.
 
 ### 🎨 Renderer Process (`src/renderer/`)
-The "Frontend" of the application, running in a Chromium environment.
+The "Frontend" of the application, now organized by feature (Domain-Driven Design).
 
-- `components/`: Reusable UI components (Buttons, Cards, Charts, etc.).
-- `core/`: Core application logic (Router, State Management, API bridge).
-- `fonts/`: Local font files for offline usage.
-- `modals/`: Interactive modal dialogs (BillType, Transaction, Budget, etc.).
-- `services/`: Frontend-specific service logic.
-- `views/`: Main page-level components.
-  - `settings/`: Modular settings pages (Accounts, Backup, Bills, Remote, AuditSettings, etc.).
-  - `DashboardView.ts`: Main hub with AI insights.
-  - `SandboxView.ts`: Financial scenario planning.
-  - `BillsView.ts`: Utility bill tracking.
-  - `AISettingsView.ts`: AI model configuration.
-  - `ForecastView.ts`, `GoalsView.ts`, etc.
-- `index.html`: Main entry point for the UI.
-- `renderer.ts`: Main entry point for renderer logic.
-- `tailwind-input.css`: Global styles and Tailwind composition.
-- `types.ts`: Frontend-specific TypeScript types.
+- `app/`: Application bootstrapping, core routing, and global styles.
+- `features/`: **Feature Logic**. Each folder contains Views and Modals for that domain.
+  - `dashboard/`: Dashboard view, Forecast view, and widgets.
+  - `transactions/`: Transaction list view, filtering, and `TransactionModal`.
+  - `budget/`: Budget management and modals.
+  - `bills/`: Bill tracking, recurring charges, and usage readings.
+  - `goals/`: Savings goals.
+  - `settings/`: Application settings (Accounts, Categories, AI, Backup, etc.).
+  - `sandbox/`: Scenario planning.
+- `components/`: Shared UI elements.
+  - `ui/`: Reusable "dumb" components (Buttons, Cards, Forms, Badges).
+  - `charts/`: Chart.js wrappers and configs.
+  - `layout/`: Layout components (ViewHeader, Sidebar).
+- `lib/`: Business logic and utilities.
+  - `api/`: API services (`FinanceService`).
+  - `state/`: State management (`StateManager`).
+  - `eventBus.ts`: Application-wide event emitter.
+  - `dom.ts`, `formatters.ts`, `types.ts`: DOM helpers and data formatting.
 
 ### ♻️ Shared (`src/shared/`)
 Code and types shared between Main and Renderer processes.

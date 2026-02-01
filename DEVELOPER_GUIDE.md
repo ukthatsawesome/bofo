@@ -8,13 +8,14 @@ Bofo uses a **Main-Renderer** architecture typical of Electron apps, but with a 
 
 - **Frontend (Renderer Process)**:
   - Located in `src/renderer/`
-  - Built with Vanilla TypeScript + DOM (no heavy framework like React/Vue).
-  - Uses `window.api` (via ContextBridge) to communicate with the backend.
-  - **State Management**: Simple observable state in `src/renderer/core/state.ts`.
-  - **Routing**: Hashtag-based router in `src/renderer/core/router.ts`.
+  - **Feature-Based Architecture**: Code is co-located by domain in `src/renderer/features/`.
+  - **App Core**: `src/renderer/app/` handles initialization (`main.ts`), global styles, and Routing (`router.ts`).
+  - **State Management**: managed by `StateManager` in `src/renderer/lib/state`.
+  - **API Layer**: `FinanceService` in `src/renderer/lib/api` bridges UI and Backend.
+  - **Components**: Shared UI atoms (Buttons, Cards) live in `src/renderer/components/ui/`.
   - **View Architecture**:
-    - `BaseView`: Abstract base class for all pages.
-    - **Mixins**: Complex views (like `SettingsView`) use Mixins (`src/renderer/views/settings/`) to separate logic into manageable chunks (e.g., `AuditSettings` for activity logs).
+    - Views extend `BaseView` (from `app/BaseView.ts`).
+    - Complex logic is split into helper classes or mixins within the feature folder.
 
 - **Backend (Main Process)**:
   - Located in `src/main/`
@@ -37,7 +38,7 @@ Bofo uses a **Main-Renderer** architecture typical of Electron apps, but with a 
 
 ## 🎨 CSS Architecture
 
-The project uses **Tailwind CSS** with a **Soft UI** design system in `src/renderer/tailwind-input.css`.
+The project uses **Tailwind CSS** with a **Soft UI** design system in `src/renderer/app/styles/tailwind-input.css`.
 
 | Layer | Description |
 |-------|-------------|
@@ -82,10 +83,11 @@ Expose your data to the frontend:
 3.  Update the `Window` interface in `src/renderer/types.ts` (or `renderer/renderer.ts`) to include the new API signature.
 
 ### 4. Build the UI
-1.  Create a View in `src/renderer/views/` (e.g., `MyNewView.ts`) inheriting from `BaseView`.
-2.  **Complexity Management**: If the view is complex, split logic into Mixins or sub-components (see `SettingsView` pattern).
-3.  Add HTML template and logic.
-4.  Register the route in `src/renderer/core/router.ts`.
+1.  Create a Feature folder in `src/renderer/features/` (e.g., `myfeature/`).
+2.  Create the View class (e.g., `MyFeatureView.ts`) inheriting from `BaseView`.
+3.  **Components**: If the feature needs specific modals or components, create them inside `features/myfeature/components` or `modals`.
+4.  **Shared UI**: Use generic components from `src/renderer/components/ui/` (e.g. `Button`, `Card`).
+5.  Register the route in `src/renderer/app/router.ts`.
 
 ## 🧪 Testing & Quality
 - **Unit Testing**: Run `npm run test` to execute Vitest suites.

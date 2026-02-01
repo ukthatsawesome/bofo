@@ -20,6 +20,11 @@ All notable changes to this project will be documented in this file.
     - Implemented global **Focus Trap** to cycle focus within active modals (Tab/Shift+Tab).
     - Standardized forms with accessible `FormGroup` components (explicit label association).
 - **DOM Safety**: Introduced `UIUtils.getInputValue()` helper to safely cast DOM elements without unsafe type assertions.
+- **Domain-Driven Architecture**:
+    - Refactored `src/renderer` into `app`, `features`, `components`, and `lib`.
+    - Moved all Views to their respective `features/` directories.
+    - Centralized core logic in `lib/` (`state`, `api`, `dom`).
+    - Decoupled `window.api` calls into `FinanceService`.
 
 ### ⚡ Performance
 - **Smart Startup**: Database initialization now skips schema execution on already-initialized databases (improved from ~5s to ~6ms on subsequent launches).

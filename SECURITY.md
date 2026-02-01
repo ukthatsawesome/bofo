@@ -244,7 +244,7 @@ For developers and security reviewers:
 | `src/main/database/db.ts` | Database connection with SQLCipher encryption |
 | `src/main/preload.ts` | Secure IPC bridge / Context Bridge |
 | `src/main/main.ts` | Main process entry and security configurations |
-| `src/renderer/core/api.ts` | Frontend API consumer |
+| `src/renderer/lib/api/FinanceService.ts` | Frontend API consumer |
 
 ---
 
