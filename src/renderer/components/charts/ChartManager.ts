@@ -1,6 +1,6 @@
 import Chart from 'chart.js/auto';
-import type { StateManager } from '../../core/state';
-import type { Formatter } from '../../core/formatter';
+import type { StateManager } from '../../lib/state/StateManager';
+import type { Formatter } from '../../lib/formatters';
 
 interface ThemeStyles {
   isLight: boolean;
