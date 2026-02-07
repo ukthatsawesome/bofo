@@ -108,6 +108,7 @@ contextBridge.exposeInMainWorld('api', {
   runBackupNow: () => invokeWithTimeout('run-backup-now'),
 
   // AI
+  aiChat: (message: string) => invokeWithTimeout('ai-chat', [message]),
   getAISettings: () => invokeWithTimeout('get-ai-settings'),
   getAIDefaults: () => invokeWithTimeout('get-ai-defaults'),
   saveAISettings: (settings: AISettings) => invokeWithTimeout('save-ai-settings', [settings]),
@@ -169,6 +170,10 @@ contextBridge.exposeInMainWorld('api', {
   onNativeThemeChanged: (callback: (isDark: boolean) => void) => {
     ipcRenderer.on('native-theme-changed', (_event, isDark: boolean) => callback(isDark));
   },
+  onDbStatus: (callback: (status: string, message?: string) => void) => {
+    ipcRenderer.on('app:db-status', (_event, status: string, message?: string) => callback(status, message));
+  },
+  getDbStatus: () => invokeWithTimeout('get-db-status'),
 
   // Audit
   getAuditLogs: (options: { limit?: number; offset?: number; source?: string }) => invokeWithTimeout('get-audit-logs', [options]),

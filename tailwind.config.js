@@ -1,49 +1,79 @@
 /** @type {import('tailwindcss').Config} */
 module.exports = {
   content: [
-    "./src/renderer/**/*.{html,js,ts}",
+    "./src/renderer/**/*.{html,js,ts,jsx,tsx}",
     "./src/renderer/index.html"
   ],
   darkMode: ['class', '[data-theme="dark"]'],
   theme: {
     extend: {
       colors: {
-        // Brand Colors - Using CSS variables for theme consistency
+        border: "hsl(var(--border) / <alpha-value>)",
+        input: "hsl(var(--input) / <alpha-value>)",
+        ring: "hsl(var(--ring) / <alpha-value>)",
+        background: "hsl(var(--background) / <alpha-value>)",
+        foreground: "hsl(var(--foreground) / <alpha-value>)",
+        primary: {
+          DEFAULT: "hsl(var(--primary) / <alpha-value>)",
+          foreground: "hsl(var(--primary-foreground) / <alpha-value>)",
+        },
+        secondary: {
+          DEFAULT: "hsl(var(--secondary) / <alpha-value>)",
+          foreground: "hsl(var(--secondary-foreground) / <alpha-value>)",
+        },
+        destructive: {
+          DEFAULT: "hsl(var(--destructive) / <alpha-value>)",
+          foreground: "hsl(var(--destructive-foreground) / <alpha-value>)",
+        },
+        muted: {
+          DEFAULT: "hsl(var(--muted) / <alpha-value>)",
+          foreground: "hsl(var(--muted-foreground) / <alpha-value>)",
+        },
+        accent: {
+          DEFAULT: "hsl(var(--accent) / <alpha-value>)",
+          foreground: "hsl(var(--accent-foreground) / <alpha-value>)",
+        },
+        popover: {
+          DEFAULT: "hsl(var(--popover) / <alpha-value>)",
+          foreground: "hsl(var(--popover-foreground) / <alpha-value>)",
+        },
+        card: {
+          DEFAULT: "hsl(var(--card) / <alpha-value>)",
+          foreground: "hsl(var(--card-foreground) / <alpha-value>)",
+        },
+        // Brand Colors
         brand: {
-          primary: 'var(--brand-primary)',
-          'primary-light': 'var(--brand-primary-light)',
-          secondary: 'var(--brand-secondary)',
+          primary: 'rgb(var(--brand-primary) / <alpha-value>)',
+          'primary-light': 'rgb(var(--brand-primary-light) / <alpha-value>)',
+          secondary: 'rgb(var(--brand-secondary) / <alpha-value>)',
         },
         // Semantic Colors
-        success: 'var(--success)',
-        danger: 'var(--danger)',
-        warning: 'var(--warning)',
-        info: 'var(--info)',
+        success: 'rgb(var(--success) / <alpha-value>)',
+        danger: 'rgb(var(--danger) / <alpha-value>)',
+        warning: 'rgb(var(--warning) / <alpha-value>)',
+        info: 'rgb(var(--info) / <alpha-value>)',
         // Surface Colors
         surface: {
-          base: 'var(--bg-base)',
-          panel: 'var(--bg-panel)',
-          card: 'var(--bg-card)',
-          elevated: 'var(--bg-elevated)',
-          input: 'var(--bg-input)',
-          'input-hover': 'var(--bg-input-hover)',
+          base: 'rgb(var(--bg-base) / <alpha-value>)',
+          panel: 'rgb(var(--bg-panel) / <alpha-value>)',
+          card: 'rgb(var(--bg-card) / <alpha-value>)',
+          elevated: 'rgb(var(--bg-elevated) / <alpha-value>)',
+          input: 'rgb(var(--bg-input) / <alpha-value>)',
+          'input-hover': 'rgb(var(--bg-input-hover) / <alpha-value>)',
+          active: 'rgb(var(--bg-active) / <alpha-value>)',
+          hover: 'rgb(var(--bg-hover) / <alpha-value>)',
         },
         // Text Colors
         text: {
-          primary: 'var(--text-primary)',
-          secondary: 'var(--text-secondary)',
-          muted: 'var(--text-muted)',
-          inverse: 'var(--text-inverse)',
-          // Legacy support
-          main: 'var(--text-primary)',
+          primary: 'rgb(var(--text-primary) / <alpha-value>)',
+          secondary: 'rgb(var(--text-secondary) / <alpha-value>)',
+          muted: 'rgb(var(--text-muted) / <alpha-value>)',
+          inverse: 'rgb(var(--text-inverse) / <alpha-value>)',
         },
-        // Border Colors
-        border: {
+        // Legacy Border Colors
+        borderColor: {
           DEFAULT: 'var(--border)',
-          strong: 'var(--border-strong)',
-          focus: 'var(--border-focus)',
         },
-        accent: 'var(--brand-primary)',
       },
       fontFamily: {
         sans: ['Outfit', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'system-ui', 'sans-serif'],

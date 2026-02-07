@@ -70,16 +70,43 @@ export class FinanceController implements IController {
       const settings = await FinanceModel.getAllSettings();
       const baseCurrency = settings.currency_base || 'USD';
 
-      // Fetch all data from DB
-      const transactions = await FinanceModel.getAll('transaction', { orderBy: 'start_date DESC' });
-      const recurringCharges = await FinanceModel.getAllRecurringCharges();
+      // Use provided data or fetch from DB
+      const transactions = data.transactions || await FinanceModel.getAll('transaction', { orderBy: 'start_date DESC' });
+      const recurringCharges = data.recurringCharges || await FinanceModel.getAllRecurringCharges();
 
-      // Get accounts with converted balances for multi-currency support
+      // Get accounts (if passed from UI, they might need balance conversion logic, 
+      // but UI usually sends raw accounts. Better to fetch fresh or rely on UI passing correct current balances)
+      // For consistency with currency conversion, we'll fetch from DB if not provided, 
+      // OR we expect UI to send us the active state. 
+      // Given the complexity of currency conversion, fetching accounts from DB is safer for "current balance" 
+      // unless we trust the UI's "accounts" array.
+      // However, to fix the "ignore UI data" issue, we optionally use data.accounts.
+      let accountsRaw = data.accounts;
+      if (!accountsRaw) {
+        accountsRaw = await FinanceModel.getAllAccounts();
+      }
+
+      // We need to normalize balances. If accounts came from UI, they might not have 'converted_balance'.
+      // We will re-calculate converted balance if needed or assume UI handled it? 
+      // The safest path for multi-currency is to rely on the Model helper for Accounts 
+      // OR re-implement the conversion here.
+      // Let's stick to the Model helper if data.accounts is missing, otherwise use simple mapping.
+      // BUT: The existing code used `FinanceModel.getAccountsWithConvertedBalances(baseCurrency)`.
+      // If we use UI data, we miss that conversion. 
+      // COMPROMISE: We will refetch Accounts from DB to ensure accurate Balance + Currency conversion 
+      // because Account balances don't change as often as "what-if" transactions in a forecast.
+      // Actually, if the user added an internal transaction in the UI store but didn't save it, 
+      // we want that reflected. But `calculateForecast` is usually for saved data + potential future.
+      // Let's use DB for accounts to guarantee accuracy of "Current Net Worth".
+
       const accountsConverted = await FinanceModel.getAccountsWithConvertedBalances(baseCurrency);
       const normalizedAccounts = accountsConverted.map(a => ({
         ...a,
         balance: a.converted_balance || 0, // Use converted balance for forecasting
       }));
+
+      // Cap months to prevent memory exhaustion
+      const monthsToForecast = Math.min(Math.max(1, data.months || 6), 60); // Max 5 years
 
       // Convert transaction amounts to base currency for accurate forecasting
       const normalizedTransactions = [];
@@ -92,8 +119,9 @@ export class FinanceController implements IController {
         }
         normalizedTransactions.push({
           ...tx,
-          amount: convertedAmount,
-          currency: baseCurrency, // Mark as converted to base
+          // Ensure amounts are numbers
+          amount: Number(convertedAmount),
+          currency: baseCurrency,
         });
       }
 
@@ -104,7 +132,7 @@ export class FinanceController implements IController {
         recurringCharges as any[]
       );
 
-      return engine.generateForecast(data.months || 6);
+      return engine.generateForecast(monthsToForecast);
 
     } catch (e) {
       Logger.error('Forecast error:', e);

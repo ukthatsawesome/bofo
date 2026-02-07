@@ -13,7 +13,7 @@
   <!-- Security: Content Security Policy -->
   <meta http-equiv="Content-Security-Policy"
     content="default-src 'self'; 
-            script-src 'self' 'unsafe-inline'; 
+            script-src 'self' 'unsafe-inline' 'unsafe-eval'; 
             style-src 'self' 'unsafe-inline'; 
             img-src 'self' data: https:; 
             font-src 'self' data:; 
@@ -72,78 +72,20 @@
   </style>
 
   <!-- Application Entry -->
-  <script type="module" src="./app/main.ts"></script>
+  <script type="module" src="./main.tsx"></script>
 </head>
 
-<body>
-  <div class="app-container">
-    <!-- Sidebar Navigation -->
-    <nav class="sidebar">
-      <ul class="nav-links top-nav">
-        <li class="active logo-nav" data-view="dashboard" title="Dashboard" aria-label="Dashboard">
-          <i data-lucide="piggy-bank"></i>
-        </li>
-        <li data-view="transactions" title="Transactions" aria-label="Transactions">
-          <i data-lucide="arrow-left-right" class="nav-icon"></i>
-        </li>
-        <li data-view="forecast" title="Forecast" aria-label="Forecast">
-          <i data-lucide="trending-up" class="nav-icon"></i>
-        </li>
-        <li data-view="budget" title="Budget" aria-label="Budget">
-          <i data-lucide="pie-chart" class="nav-icon"></i>
-        </li>
-        <li data-view="recurring" title="Recurring Charges" aria-label="Recurring Charges">
-          <i data-lucide="repeat" class="nav-icon"></i>
-        </li>
-        <li data-view="bills" title="Bills Tracking" aria-label="Bills Tracking">
-          <i data-lucide="receipt" class="nav-icon"></i>
-        </li>
-        <li data-view="goals" title="Goals" aria-label="Goals">
-          <i data-lucide="target" class="nav-icon"></i>
-        </li>
-        <li data-view="whatif" title="Sandbox" aria-label="Sandbox">
-          <i data-lucide="sparkles" class="nav-icon"></i>
-        </li>
-      </ul>
+<!-- Main Mount Point -->
+<div id="app" class="h-screen w-screen bg-surface-base"></div>
 
-      <ul class="nav-links bottom-nav">
-        <li id="ai-status-nav" class="ai-nav-item" title="AI Settings" aria-label="AI Settings">
-          <i data-lucide="bot" class="nav-icon"></i>
-          <span class="ai-status-dot-nav"></span>
-        </li>
-        <li data-view="settings" title="Settings" aria-label="Settings">
-          <i data-lucide="settings" class="nav-icon"></i>
-        </li>
-      </ul>
-    </nav>
+<!-- Dynamic Overlay Containers -->
+<div id="toast-container" class="toast-container"></div>
 
-    <!-- Main Content Area -->
-    <main class="content" id="main-content">
-      <section id="dashboard" class="view active"></section>
-      <section id="transactions" class="view"></section>
-      <section id="forecast" class="view"></section>
-      <section id="budget" class="view"></section>
-      <section id="recurring" class="view"></section>
-      <section id="bills" class="view"></section>
-      <section id="goals" class="view"></section>
-      <section id="whatif" class="view"></section>
-      <section id="settings" class="view"></section>
-      <section id="ai-settings" class="view"></section>
-    </main>
-  </div>
-
-  <!-- Dynamic Overlay Containers -->
-  <div id="dynamic-modals-container"></div>
-  <div id="tx-modal-container"></div>
-  <div id="sandbox-modal-container"></div>
-  <div id="notification-modal-container"></div>
-  <div id="toast-container" class="toast-container"></div>
-
-  <!-- Global Loader Overlay -->
-  <div id="global-loader" class="loader-overlay">
-    <div class="spinner"></div>
-    <p class="text-secondary" style="margin-top: 16px; font-weight: 500;">Loading...</p>
-  </div>
+<!-- Global Loader Overlay -->
+<div id="global-loader" class="loader-overlay">
+  <div class="spinner"></div>
+  <p class="text-secondary" style="margin-top: 16px; font-weight: 500;">Loading...</p>
+</div>
 </body>
 
 </html>

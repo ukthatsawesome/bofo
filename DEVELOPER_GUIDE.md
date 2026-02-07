@@ -8,14 +8,11 @@ Bofo uses a **Main-Renderer** architecture typical of Electron apps, but with a 
 
 - **Frontend (Renderer Process)**:
   - Located in `src/renderer/`
-  - **Feature-Based Architecture**: Code is co-located by domain in `src/renderer/features/`.
-  - **App Core**: `src/renderer/app/` handles initialization (`main.ts`), global styles, and Routing (`router.ts`).
-  - **State Management**: managed by `StateManager` in `src/renderer/lib/state`.
-  - **API Layer**: `FinanceService` in `src/renderer/lib/api` bridges UI and Backend.
-  - **Components**: Shared UI atoms (Buttons, Cards) live in `src/renderer/components/ui/`.
-  - **View Architecture**:
-    - Views extend `BaseView` (from `app/BaseView.ts`).
-    - Complex logic is split into helper classes or mixins within the feature folder.
+  - **Component-Based Architecture**: Built with Preact and Signals.
+  - **App Core**: `src/renderer/core/` handles initialization (`AppRoot.tsx`) and global state `financeStore.ts`.
+  - **Feature Components**: Located in `src/renderer/features/` (e.g., `dashboard`, `transactions`).
+  - **State Management**: Reactive state using `@preact/signals`.
+  - **API Layer**: `window.api` exposed via `preload.ts` calls Main process Controllers.
 
 - **Backend (Main Process)**:
   - Located in `src/main/`
@@ -71,11 +68,12 @@ If your feature needs database storage:
 2.  Update `src/database/types.ts` (shared types).
 3.  Add the model logic to `src/main/models/finance.ts`. Use the generic `FinanceModel` CRUD helpers if possible.
 
-### 2. Create the IPC Handler
+### 2. Create the IPC Controller
 Expose your data to the frontend:
-1.  Go to `src/main/ipc/handlers.ts`.
-2.  Add a route to `SIMPLE_ROUTES` (for basic CRUD) or register a new `ipcMain.handle` (for complex logic).
-3.  **Security Note**: Always validate inputs.
+1.  Create a new controller in `src/main/ipc/controllers/` (e.g., `MyFeatureController.ts`) extending `BaseController`.
+2.  Implement `registerRoutes()` to define your IPC channels.
+3.  Register the new controller in `src/main/ipc/handlers.ts`.
+4.  **Security Note**: Always validate inputs using Zod schemas or manual checks.
 
 ### 3. Expose via Preload
 1.  Go to `src/main/preload.ts`.

@@ -1,7 +1,9 @@
 import { defineConfig } from 'vite';
 import * as path from 'path';
+import preact from '@preact/preset-vite';
 
 export default defineConfig({
+    plugins: [preact()],
     root: 'src/renderer',
     base: './', // Makes paths relative (e.g., "assets/icon.png") which works better for Electron file://
     build: {

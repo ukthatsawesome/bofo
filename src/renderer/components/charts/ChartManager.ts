@@ -1,6 +1,10 @@
-import Chart from 'chart.js/auto';
-import type { StateManager } from '../../lib/state/StateManager';
-import type { Formatter } from '../../lib/formatters';
+import Chart, { ChartType, ChartData, ChartOptions, ScaleOptions } from 'chart.js/auto';
+
+// ==================== TYPES & INTERFACES ====================
+
+export interface IFormatter {
+  currency(value: number, currency: string): string;
+}
 
 interface ThemeStyles {
   isLight: boolean;
@@ -12,10 +16,10 @@ interface ThemeStyles {
   textColor: string;
   tooltipBg: string;
   tooltipTitle: string;
-  chartAreaBg: string; // Add this line
+  chartAreaBg: string;
 }
 
-interface ChartData {
+interface ChartDataInput {
   labels: string[];
   netWorth: number[];
   income: number[];
@@ -29,50 +33,175 @@ interface LineChartItem {
   isFuture?: boolean;
 }
 
-export class ChartManager {
-  private state: StateManager;
-  private formatter: Formatter;
-  private charts: Record<string, Chart>;
+interface SecondaryDatasetConfig {
+  label: string;
+  hidden?: boolean;
+}
 
-  constructor(stateManager: StateManager, formatter: Formatter) {
-    this.state = stateManager;
-    this.formatter = formatter;
+type ChartTypeKey = 'dashboard' | 'line' | 'forecast';
+
+// ==================== CHART MANAGER ====================
+
+export class ChartManager {
+  private charts: Record<string, Chart>;
+  private chartTypes: Record<string, ChartTypeKey>;
+  private formatter: IFormatter;
+  private observer: MutationObserver | null;
+
+  constructor(formatter: IFormatter) {
     this.charts = {};
+    this.chartTypes = {};
+    this.formatter = formatter;
+    this.observer = null;
+
+    this._setupThemeListener();
   }
 
-  /* ==================== THEME ==================== */
+  public dispose(): void {
+    if (this.observer) {
+      this.observer.disconnect();
+      this.observer = null;
+    }
+    this.destroyAll();
+  }
+
+  /* ==================== THEME LISTENER ==================== */
+
+  private _setupThemeListener(): void {
+    this.observer = new MutationObserver((mutations) => {
+      for (const mutation of mutations) {
+        if (mutation.type === 'attributes' && mutation.attributeName === 'data-theme') {
+          this._handleThemeChange();
+        }
+      }
+    });
+
+    this.observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['data-theme'],
+    });
+  }
+
+  private _handleThemeChange(): void {
+    const s = this._getThemeStyles();
+
+    Object.keys(this.charts).forEach((id) => {
+      const chart = this.charts[id];
+      const type = this.chartTypes[id];
+
+      if (!chart || !type) return;
+
+      // Update options (scales, legend, etc.)
+      chart.options = { ...chart.options, ...this._baseOptions(s) };
+
+      // Update specific dataset colors based on chart type
+      switch (type) {
+        case 'dashboard':
+          this._updateDashboardColors(chart, s);
+          break;
+        case 'line':
+          this._updateLineColors(chart, s);
+          break;
+        case 'forecast':
+          this._updateForecastColors(chart, s);
+          break;
+      }
+
+      chart.update('none'); // Efficient update without re-render
+    });
+  }
+
+  private _updateDashboardColors(chart: Chart, s: ThemeStyles): void {
+    if (chart.data.datasets.length < 3) return;
+
+    // Dataset 0: Net Worth (Line)
+    const ds0 = chart.data.datasets[0] as any;
+    ds0.borderColor = s.brandPrimary;
+    ds0.pointBackgroundColor = s.brandPrimary;
+
+    // Dataset 1: Income (Bar)
+    const ds1 = chart.data.datasets[1] as any;
+    ds1.backgroundColor = this._getCssColor('--success', s.isLight ? 0.6 : 0.4);
+
+    // Dataset 2: Expenses (Bar)
+    const ds2 = chart.data.datasets[2] as any;
+    ds2.backgroundColor = this._getCssColor('--danger', s.isLight ? 0.6 : 0.4);
+  }
+
+  private _updateLineColors(chart: Chart, s: ThemeStyles): void {
+    if (chart.data.datasets.length < 1) return;
+
+    // Dataset 0: Balance
+    const ds0 = chart.data.datasets[0] as any;
+    ds0.borderColor = s.brandPrimary;
+    ds0.backgroundColor = s.chartAreaBg;
+
+    // Dataset 1: Net Worth (Optional)
+    if (chart.data.datasets.length > 1) {
+      const ds1 = chart.data.datasets[1] as any;
+      ds1.borderColor = s.brandSecondary;
+      ds1.backgroundColor = this._getCssColor('--brand-secondary', s.isLight ? 0.05 : 0.1);
+    }
+  }
+
+  private _updateForecastColors(chart: Chart, s: ThemeStyles): void {
+    if (chart.data.datasets.length < 1) return;
+
+    // Dataset 0: Liquid Balance
+    const ds0 = chart.data.datasets[0] as any;
+    ds0.borderColor = s.brandPrimary;
+    ds0.pointBackgroundColor = s.brandPrimary;
+    ds0.pointBorderColor = this._getCssColor('--bg-panel');
+
+    // Note: We don't update the gradient callback here because it executes 
+    // on every render and should pick up fresh colors if we reconstructed it 
+    // correctly. But since the original implementation closed over 's', 
+    // we need to replace the callback or ensure it uses 'this'.
+    // Here we will update the backgroundColor callback to close over the NEW 's'.
+    ds0.backgroundColor = (context: any) => {
+      const chart = context.chart;
+      const { ctx: canvasCtx, chartArea } = chart;
+      if (!chartArea) return null;
+
+      const gradient = canvasCtx.createLinearGradient(0, chartArea.bottom, 0, chartArea.top);
+      gradient.addColorStop(0, 'transparent');
+      gradient.addColorStop(
+        1,
+        this._getCssColor('--brand-primary', s.isLight ? 0.15 : 0.2)
+      );
+      return gradient;
+    };
+
+    // Dataset 1: Net Worth
+    if (chart.data.datasets.length > 1) {
+      const ds1 = chart.data.datasets[1] as any;
+      ds1.borderColor = s.brandSecondary;
+    }
+  }
+
+  /* ==================== THEME HELPERS ==================== */
+
+  private _getCssColor(variable: string, alpha = 1): string {
+    // Get the value from the root element style
+    const value = getComputedStyle(document.documentElement).getPropertyValue(variable).trim();
+    return `rgba(${value} / ${alpha})`;
+  }
 
   private _getThemeStyles(): ThemeStyles {
     const isLight = document.documentElement.getAttribute('data-theme') === 'light';
 
-    if (isLight) {
-      return {
-        isLight: true,
-        brandPrimary: '#6366f1',
-        brandSecondary: '#0ea5e9',
-        brandSuccess: '#16a34a',
-        brandDanger: '#dc2626',
-        gridColor: 'rgba(0,0,0,0.05)',
-        textColor: '#475569',
-        tooltipBg: '#ffffff',
-        tooltipTitle: '#0f172a',
-        chartAreaBg: 'rgba(99, 102, 241, 0.08)',
-      };
-    } else {
-      // Dark Mode Palette
-      return {
-        isLight: false,
-        brandPrimary: '#818cf8',
-        brandSecondary: '#38bdf8',
-        brandSuccess: '#4ade80',
-        brandDanger: '#f87171',
-        gridColor: 'rgba(255,255,255,0.05)',
-        textColor: '#94a3b8',
-        tooltipBg: '#1e293b',
-        tooltipTitle: '#f8fafc',
-        chartAreaBg: 'rgba(99, 102, 241, 0.15)',
-      };
-    }
+    return {
+      isLight,
+      brandPrimary: this._getCssColor('--brand-primary'),
+      brandSecondary: this._getCssColor('--brand-secondary'),
+      brandSuccess: this._getCssColor('--success'),
+      brandDanger: this._getCssColor('--danger'),
+      gridColor: this._getCssColor('--border', 0.1), // Reduced alpha for grid
+      textColor: this._getCssColor('--text-secondary'),
+      tooltipBg: this._getCssColor('--bg-panel'),
+      tooltipTitle: this._getCssColor('--text-primary'),
+      chartAreaBg: this._getCssColor('--brand-primary', isLight ? 0.08 : 0.15),
+    };
   }
 
   /* ==================== HELPERS ==================== */
@@ -81,17 +210,17 @@ export class ChartManager {
     if (this.charts[canvasId]) {
       this.charts[canvasId].destroy();
       delete this.charts[canvasId];
+      delete this.chartTypes[canvasId];
     }
   }
 
   public destroyAll(): void {
-    Object.keys(this.charts).forEach(id => this.destroyChart(id));
+    Object.keys(this.charts).forEach((id) => this.destroyChart(id));
   }
 
   private _getContext(canvasId: string): CanvasRenderingContext2D | null {
     const canvas = document.getElementById(canvasId) as HTMLCanvasElement;
     if (!canvas) {
-      // If canvas is gone but chart exists, destroy it to free memory
       this.destroyChart(canvasId);
       return null;
     }
@@ -103,7 +232,22 @@ export class ChartManager {
     return canvas.getContext('2d');
   }
 
-  private _baseOptions(styles: ThemeStyles): any {
+  private _getCurrencyScaleOptions(
+    currency: string,
+    position: 'left' | 'right' = 'left',
+    color?: string
+  ): ScaleOptions<'linear'> {
+    return {
+      position,
+      grid: { drawOnChartArea: position === 'left' }, // Avoid double grid lines
+      ticks: {
+        color,
+        callback: (value: string | number) => this.formatter.currency(Number(value), currency),
+      },
+    };
+  }
+
+  private _baseOptions(styles: ThemeStyles): ChartOptions {
     return {
       responsive: true,
       maintainAspectRatio: false,
@@ -117,10 +261,6 @@ export class ChartManager {
         },
       },
       scales: {
-        y: {
-          grid: { color: styles.gridColor },
-          ticks: { color: styles.textColor },
-        },
         x: {
           grid: { display: false },
           ticks: { color: styles.textColor },
@@ -131,10 +271,15 @@ export class ChartManager {
 
   /* ==================== DASHBOARD ==================== */
 
-  renderDashboardChart(canvasId: string, data: ChartData): Chart | undefined {
+  renderDashboardChart(
+    canvasId: string,
+    data: ChartDataInput,
+    currency = 'USD'
+  ): Chart | undefined {
     const ctx = this._getContext(canvasId);
     if (!ctx) return;
 
+    this.chartTypes[canvasId] = 'dashboard';
     const s = this._getThemeStyles();
 
     this.charts[canvasId] = new Chart(ctx, {
@@ -143,7 +288,7 @@ export class ChartManager {
         labels: data.labels,
         datasets: [
           {
-            type: 'line',
+            type: 'line' as ChartType,
             label: 'Net Worth',
             data: data.netWorth,
             borderColor: s.brandPrimary,
@@ -157,13 +302,13 @@ export class ChartManager {
           {
             label: 'Income',
             data: data.income,
-            backgroundColor: s.isLight ? 'rgba(85, 239, 196, 0.6)' : 'rgba(85, 239, 196, 0.4)',
+            backgroundColor: this._getCssColor('--success', s.isLight ? 0.6 : 0.4),
             borderRadius: 6,
           },
           {
             label: 'Expenses',
             data: data.expenses,
-            backgroundColor: s.isLight ? 'rgba(255, 118, 117, 0.6)' : 'rgba(255, 118, 117, 0.4)',
+            backgroundColor: this._getCssColor('--danger', s.isLight ? 0.6 : 0.4),
             borderRadius: 6,
           },
         ],
@@ -171,24 +316,11 @@ export class ChartManager {
       options: {
         ...this._baseOptions(s),
         scales: {
-          y: {
-            position: 'left',
-            ticks: {
-              color: s.textColor,
-              callback: (v: string | number) => this.formatter.formatCurrency(Number(v)),
-            },
-          },
-          y1: {
-            position: 'right',
-            grid: { drawOnChartArea: false },
-            ticks: {
-              color: s.brandPrimary,
-              callback: (v: string | number) => this.formatter.formatCurrency(Number(v)),
-            },
-          },
+          y: this._getCurrencyScaleOptions(currency, 'left', s.textColor),
+          y1: this._getCurrencyScaleOptions(currency, 'right', s.brandPrimary),
         },
       },
-    } as any);
+    });
 
     return this.charts[canvasId];
   }
@@ -199,11 +331,12 @@ export class ChartManager {
     canvasId: string,
     data: LineChartItem[],
     label = 'Balance',
-    secondDataset: any = null
+    secondDataset: SecondaryDatasetConfig | null = null
   ): Chart | undefined {
     const ctx = this._getContext(canvasId);
     if (!ctx) return;
 
+    this.chartTypes[canvasId] = 'line';
     const s = this._getThemeStyles();
 
     const datasets: any[] = [
@@ -222,9 +355,9 @@ export class ChartManager {
     if (secondDataset) {
       datasets.push({
         label: secondDataset.label,
-        data: data.map((d) => d.netWorth),
+        data: data.map((d) => d.netWorth ?? 0),
         borderColor: s.brandSecondary,
-        backgroundColor: s.isLight ? 'rgba(0, 206, 201, 0.05)' : 'rgba(129, 236, 236, 0.1)',
+        backgroundColor: this._getCssColor('--brand-secondary', s.isLight ? 0.05 : 0.1),
         tension: 0.4,
         fill: true,
         borderWidth: 3,
@@ -240,17 +373,22 @@ export class ChartManager {
         datasets,
       },
       options: this._baseOptions(s),
-    } as any);
+    });
 
     return this.charts[canvasId];
   }
 
   /* ==================== FORECAST ==================== */
 
-  renderForecastChart(canvasId: string, timeline: LineChartItem[]): Chart | undefined {
+  renderForecastChart(
+    canvasId: string,
+    timeline: LineChartItem[],
+    currency = 'USD'
+  ): Chart | undefined {
     const ctx = this._getContext(canvasId);
     if (!ctx) return;
 
+    this.chartTypes[canvasId] = 'forecast';
     const s = this._getThemeStyles();
     const today = new Date().toISOString().split('T')[0];
 
@@ -264,31 +402,32 @@ export class ChartManager {
             data: timeline.map((d) => d.balance),
             borderColor: s.brandPrimary,
             backgroundColor: (context: any) => {
-              const { ctx, chartArea } = context.chart;
+              const chart = context.chart;
+              const { ctx: canvasCtx, chartArea } = chart;
               if (!chartArea) return null;
 
-              const g = ctx.createLinearGradient(0, chartArea.bottom, 0, chartArea.top);
-              g.addColorStop(0, 'transparent');
-              g.addColorStop(
+              const gradient = canvasCtx.createLinearGradient(0, chartArea.bottom, 0, chartArea.top);
+              gradient.addColorStop(0, 'transparent');
+              gradient.addColorStop(
                 1,
-                s.isLight ? 'rgba(108, 92, 231, 0.15)' : 'rgba(162, 155, 254, 0.2)'
+                this._getCssColor('--brand-primary', s.isLight ? 0.15 : 0.2)
               );
-              return g;
+              return gradient;
             },
             tension: 0.3,
             fill: true,
             borderWidth: 4,
-            pointRadius: (ctx: any) => (timeline[ctx.dataIndex]?.date === today ? 6 : 0),
+            pointRadius: (context: any) => (timeline[context.dataIndex]?.date === today ? 6 : 0),
             pointBackgroundColor: s.brandPrimary,
-            pointBorderColor: '#ffffff',
+            pointBorderColor: this._getCssColor('--bg-panel'),
             pointBorderWidth: 2,
             segment: {
-              borderDash: (ctx: any) => (timeline[ctx.p0DataIndex]?.isFuture ? [] : [5, 5]),
+              borderDash: (context: any) => (timeline[context.p0DataIndex]?.isFuture ? [] : [5, 5]),
             },
           },
           {
             label: 'Net Worth',
-            data: timeline.map((d) => d.netWorth),
+            data: timeline.map((d) => d.netWorth ?? 0),
             borderColor: s.brandSecondary,
             borderDash: [5, 5],
             tension: 0.3,
@@ -307,20 +446,14 @@ export class ChartManager {
                 const d = timeline[items[0].dataIndex];
                 return (d.isFuture ? 'Projected: ' : 'Actual: ') + d.date;
               },
-              label: (ctx: any) => {
-                // Use formatter for proper base currency display
-                return ctx.dataset.label + ': ' + this.formatter.formatCurrency(ctx.parsed.y);
+              label: (context: any) => {
+                return `${context.dataset.label}: ${this.formatter.currency(context.parsed.y, currency)}`;
               },
             },
           },
         },
         scales: {
-          y: {
-            ticks: {
-              color: s.textColor,
-              callback: (v: string | number) => this.formatter.formatCurrency(Number(v)),
-            },
-          },
+          y: this._getCurrencyScaleOptions(currency, 'left', s.textColor),
           x: {
             ticks: {
               color: s.textColor,
@@ -331,7 +464,7 @@ export class ChartManager {
           },
         },
       },
-    } as any);
+    });
 
     return this.charts[canvasId];
   }

@@ -8,7 +8,7 @@
  * @module helpers
  */
 
-import type { Database, RunResult } from 'sqlite3';
+import type { Database, RunResult } from './types';
 
 // =============================================================================
 // PUBLIC INTERFACES

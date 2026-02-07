@@ -53,11 +53,13 @@ interface TableDefinition {
 // =============================================================================
 
 // Use SQLCipher instead of plain sqlite3
-let sqlite3: typeof import('sqlite3');
+let sqlite3: any;
 try {
   sqlite3 = require('@journeyapps/sqlcipher').verbose();
   log('[DB] Using SQLCipher engine');
-} catch {
+} catch (e: any) {
+  console.error('[DB] Failed to load SQLCipher:', e);
+  log(`[DB] Failed to load SQLCipher: ${e.message}`);
   log('[DB] Falling back to plain sqlite3');
   sqlite3 = require('sqlite3').verbose();
 }
@@ -134,7 +136,7 @@ const dbInitialized = new Promise<void>((resolve, reject) => {
 });
 
 // Create database connection
-export const dbInstance = new sqlite3.Database(dbPath, async (err) => {
+export const dbInstance = new sqlite3.Database(dbPath, async (err: Error | null) => {
   if (err) {
     log(`[DB] FAILED to open: ${err.message}`);
     dbReject(err);

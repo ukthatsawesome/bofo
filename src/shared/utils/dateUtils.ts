@@ -1,11 +1,11 @@
 /**
- * Date Utilities
+ * Date Utilities - The Single Source of Truth for Time
  *
- * Centralized date manipulation functions to ensure consistency
- * and prevent timezone-related bugs across the application.
- *
- * All functions handle dates in a UTC-safe manner and return
- * ISO 8601 formatted strings (YYYY-MM-DD) where applicable.
+ * All dates in Bofo are stored as YYYY-MM-DD strings in the database.
+ * This utility ensures that:
+ * 1. All conversions happen in UTC (preventing timezone off-by-one errors)
+ * 2. Format is strictly consistent
+ * 3. Math (addDays, diff) is consistent
  */
 
 export interface DateRange {
@@ -15,16 +15,16 @@ export interface DateRange {
 
 export class DateUtils {
     /**
-     * Converts a Date object to a UTC-safe YYYY-MM-DD string.
-     *
-     * @param date - The date to convert.
-     * @returns ISO date string in YYYY-MM-DD format.
-     * 
-     * @example
-     * DateUtils.toDateString(new Date('2024-03-15T10:30:00Z'))
-     * // Returns: '2024-03-15'
+     * Get today's date string (YYYY-MM-DD) relative to UTC
      */
-    static toDateString(date: Date): string {
+    static today(): string {
+        return this.toISODateString(new Date());
+    }
+
+    /**
+     * Convert a Date object to YYYY-MM-DD string using strictly UTC methods
+     */
+    static toISODateString(date: Date): string {
         const year = date.getUTCFullYear();
         const month = String(date.getUTCMonth() + 1).padStart(2, '0');
         const day = String(date.getUTCDate()).padStart(2, '0');
@@ -32,90 +32,111 @@ export class DateUtils {
     }
 
     /**
-     * Gets today's date as a UTC-safe YYYY-MM-DD string.
-     *
-     * @returns Today's date in YYYY-MM-DD format.
+     * Parse a YYYY-MM-DD string into a Date object at 00:00:00 UTC
      */
-    static today(): string {
-        return this.toDateString(new Date());
+    static parseISODate(dateString: string): Date {
+        if (!this.isValidDateString(dateString)) {
+            throw new Error(`Invalid date string: ${dateString}`);
+        }
+        const [year, month, day] = dateString.split('-').map(Number);
+        return new Date(Date.UTC(year, month - 1, day));
     }
 
     /**
-     * Gets the first day of the month for a given date (UTC).
-     *
-     * @param date - Reference date. Defaults to current date.
-     * @returns Date object set to the first day of the month at 00:00:00 UTC.
+     * Check if a string is a valid YYYY-MM-DD date
      */
-    static getMonthStart(date: Date = new Date()): Date {
-        return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1));
+    static isValidDateString(dateString: string): boolean {
+        // Regex check
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(dateString)) return false;
+
+        // Logical check (e.g., Feb 30)
+        const [year, month, day] = dateString.split('-').map(Number);
+        const date = new Date(Date.UTC(year, month - 1, day));
+
+        return date.getUTCFullYear() === year &&
+            date.getUTCMonth() === month - 1 &&
+            date.getUTCDate() === day;
     }
 
     /**
-     * Gets the last day of the month for a given date (UTC).
-     *
-     * @param date - Reference date. Defaults to current date.
-     * @returns Date object set to the last day of the month at 00:00:00 UTC.
+     * Add N days to a date string
      */
-    static getMonthEnd(date: Date = new Date()): Date {
-        // Date.UTC(..., month + 1, 0) returns the last day of the target month
-        return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 0));
+    static addDays(dateString: string, days: number): string {
+        const date = this.parseISODate(dateString);
+        date.setUTCDate(date.getUTCDate() + days);
+        return this.toISODateString(date);
     }
 
     /**
-     * Gets the start and end dates of a month as ISO strings.
-     *
-     * @param date - Reference date. Defaults to current date.
-     * @returns Object containing 'start' and 'end' date strings.
-     * 
-     * @example
-     * DateUtils.getMonthBoundaries(new Date('2024-02-15'))
-     * // Returns: { start: '2024-02-01', end: '2024-02-29' }
+     * Add N months to a date string (handling end-of-month overflow)
      */
-    static getMonthBoundaries(date: Date = new Date()): DateRange {
+    static addMonths(dateString: string, months: number): string {
+        const date = this.parseISODate(dateString);
+        const originalDay = date.getUTCDate();
+
+        date.setUTCMonth(date.getUTCMonth() + months);
+
+        // Handle "Feb 30" issue by clamping to last day of month
+        if (date.getUTCDate() !== originalDay) {
+            // We overflowed into next month, go back to last day of intended month
+            date.setUTCDate(0);
+        }
+
+        return this.toISODateString(date);
+    }
+
+    /**
+     * Get the first day of the month for a given date
+     */
+    static getMonthStart(dateString: string = this.today()): string {
+        const date = this.parseISODate(dateString);
+        date.setUTCDate(1);
+        return this.toISODateString(date);
+    }
+
+    /**
+     * Get the last day of the month for a given date
+     */
+    static getMonthEnd(dateString: string = this.today()): string {
+        const date = this.parseISODate(dateString);
+        return this.toISODateString(
+            new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 0))
+        );
+    }
+
+    /**
+     * Get start and end dates for a month
+     */
+    static getMonthBoundaries(dateString: string = this.today()): DateRange {
         return {
-            start: this.toDateString(this.getMonthStart(date)),
-            end: this.toDateString(this.getMonthEnd(date)),
+            start: this.getMonthStart(dateString),
+            end: this.getMonthEnd(dateString),
         };
     }
 
     /**
-     * Gets month boundaries for a specific year and month (1-12).
-     *
-     * @param year - Four-digit year.
-     * @param month - Month number (1-12).
-     * @returns Object containing 'start' and 'end' date strings.
+     * Format for display (e.g. "Jan 01, 2024")
+     * Uses browser locale but forces UTC values
      */
-    static getMonthBoundariesForYearMonth(year: number, month: number): DateRange {
-        const date = new Date(Date.UTC(year, month - 1, 1));
-        return this.getMonthBoundaries(date);
+    static formatForDisplay(dateString: string, locale: string = 'en-US'): string {
+        if (!dateString) return '-';
+        try {
+            const date = this.parseISODate(dateString);
+            return new Intl.DateTimeFormat(locale, {
+                year: 'numeric',
+                month: 'short',
+                day: '2-digit',
+                timeZone: 'UTC' // Critical: force UTC interpretation
+            }).format(date);
+        } catch (e) {
+            return dateString;
+        }
     }
 
     /**
-     * Pads a number with a leading zero if single digit.
-     *
-     * @param n - Number to pad.
-     * @returns Two-digit string.
-     * 
-     * @example
-     * DateUtils.pad(5)  // '05'
-     * DateUtils.pad(12) // '12'
-     */
-    static pad(n: number): string {
-        return n.toString().padStart(2, '0');
-    }
-
-    /**
-     * Constructs a date string from year, month, and day components.
-     *
-     * @param year - Four-digit year.
-     * @param month - Month number (1-12).
-     * @param day - Day of month (1-31).
-     * @returns ISO date string in YYYY-MM-DD format.
-     * 
-     * @example
-     * DateUtils.fromComponents(2024, 3, 5) // '2024-03-05'
+     * Create string from components
      */
     static fromComponents(year: number, month: number, day: number): string {
-        return `${year}-${this.pad(month)}-${this.pad(day)}`;
+        return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
     }
 }

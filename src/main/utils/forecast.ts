@@ -465,7 +465,7 @@ export class ForecastEngine {
 
   private _toDateString(date: Date): string {
     // Use centralized DateUtils for consistency
-    return DateUtils.toDateString(date);
+    return DateUtils.toISODateString(date);
   }
 
   private _addMonths(date: Date, months: number): Date {

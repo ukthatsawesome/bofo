@@ -1,0 +1,203 @@
+/* Google Fonts import removed for offline compatibility */
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* Bento UI Tokens */
+  --font-sans: 'Inter', sans-serif;
+  --font-display: 'Outfit', sans-serif;
+
+  --radius-card: 16px;
+  /* rounded-2xl */
+  --radius-pill: 9999px;
+
+  --shadow-soft: 0 4px 20px -2px rgba(0, 0, 0, 0.05);
+  --shadow-lift: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+}
+
+body {
+  font-family: var(--font-sans);
+  background-color: #f8fafc;
+  background-image:
+    radial-gradient(at 0% 0%, rgba(16, 185, 129, 0.05) 0px, transparent 50%),
+    radial-gradient(at 100% 0%, rgba(20, 184, 166, 0.05) 0px, transparent 50%);
+  background-attachment: fixed;
+  color: #0f172a;
+  -webkit-font-smoothing: antialiased;
+}
+
+.dark body {
+  background-color: #0f172a;
+  /* slate-900 */
+  background-image:
+    radial-gradient(at 0% 0%, rgba(16, 185, 129, 0.12) 0px, transparent 50%),
+    radial-gradient(at 100% 0%, rgba(20, 184, 166, 0.12) 0px, transparent 50%);
+  color: #f8fafc;
+}
+
+/* Premium Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: #334155;
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: #475569;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family: var(--font-display);
+}
+
+/* Custom Utilities for Bento UI */
+@layer components {
+  .card-bento {
+    @apply bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm transition-all duration-300;
+  }
+
+  .card-bento:hover {
+    @apply shadow-md scale-[1.005] border-slate-200 dark:border-slate-700;
+  }
+
+  .btn-soft {
+    @apply px-4 py-2 rounded-xl font-medium transition-all active:scale-95;
+  }
+}
+
+@layer base {
+  :root {
+    /* Brand Palette - Money Green (Emerald/Teal) */
+    --brand-primary: 16 185 129;
+    /* Emerald 500 */
+    --brand-primary-light: 167 243 208;
+    /* Emerald 200 */
+    --brand-secondary: 20 184 166;
+    /* Teal 500 */
+
+    /* Semantic Status */
+    --success: 34 197 94;
+    /* Green 500 */
+    --warning: 245 158 11;
+    --danger: 239 68 68;
+    --info: 59 130 246;
+
+    /* Surface Colors (Light Mode) */
+    --bg-base: 248 250 252;
+    /* Slate 50 */
+    --bg-panel: 255 255 255;
+    --bg-card: 255 255 255;
+    --bg-elevated: 255 255 255;
+    --bg-input: 241 245 249;
+    /* Slate 100 */
+    --bg-input-hover: 226 232 240;
+    /* Slate 200 */
+    --bg-active: 241 245 249;
+    /* Slate 100 - for active/selected states */
+    --bg-hover: 248 250 252;
+    /* Slate 50 - for hover states */
+    --bg-sidebar: 255 255 255;
+    /* White sidebar for light mode */
+
+    /* Text Colors (Light Mode) */
+    --text-primary: 15 23 42;
+    /* Slate 900 */
+    --text-secondary: 71 85 105;
+    /* Slate 600 */
+    --text-muted: 100 116 139;
+    /* Slate 500 */
+    --text-inverse: 255 255 255;
+
+    /* Borders */
+    --border: 226 232 240;
+    /* Slate 200 */
+
+    /* Radius */
+    --radius-xs: 0.25rem;
+    --radius-sm: 0.375rem;
+    --radius-md: 0.5rem;
+    --radius-lg: 0.75rem;
+    --radius-xl: 1rem;
+
+    /* Shadows */
+    --shadow-xs: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+    --shadow-sm: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+    --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+    --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+  }
+
+  .dark {
+    /* Brand (slightly brighter for dark mode) */
+    --brand-primary: 52 211 153;
+    /* Emerald 400 */
+    --brand-primary-light: 6 78 59;
+    /* Emerald 900 */
+    --brand-secondary: 45 212 191;
+    /* Teal 400 */
+
+    /* Surface Colors (Dark Mode) */
+    --bg-base: 15 23 42;
+    /* Slate 900 */
+    --bg-panel: 30 41 59;
+    /* Slate 800 */
+    --bg-card: 30 41 59;
+    /* Slate 800 */
+    --bg-elevated: 51 65 85;
+    /* Slate 700 */
+    --bg-input: 30 41 59;
+    /* Slate 800 - softer than pure dark */
+    --bg-input-hover: 51 65 85;
+    --bg-active: 51 65 85;
+    /* Slate 700 - for active/selected states */
+    --bg-hover: 30 41 59;
+    /* Slate 800 - for hover states */
+    --bg-sidebar: 15 23 42;
+    /* Slate 900 */
+
+    /* Text Colors (Dark Mode) */
+    --text-primary: 248 250 252;
+    /* Slate 50 */
+    --text-secondary: 203 213 225;
+    /* Slate 300 */
+    --text-muted: 148 163 184;
+    /* Slate 400 */
+    --text-inverse: 15 23 42;
+
+    /* Borders */
+    --border: 51 65 85;
+    /* Slate 700 */
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+  }
+}

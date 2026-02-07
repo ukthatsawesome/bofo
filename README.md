@@ -46,8 +46,8 @@ Recent updates have significantly hardened the application architecture:
 
 ## 🛠️ Technology Stack
 
-- **Frontend**: TypeScript / JavaScript (ESM), Tailwind CSS, Lucide Icons
-- **Backend**: Electron (Main/Renderer IPC Architecture) with TypeScript logic
+- **Frontend**: Preact / Signals, TypeScript / JavaScript (ESM), Tailwind CSS, Lucide Icons
+- **Backend**: Electron (Controller-based IPC Architecture) with TypeScript logic
 - **Database**: SQLCipher (AES-256 encrypted SQLite)
 - **Visualization**: Chart.js
 - **AI Integration**: Ollama (REST API)

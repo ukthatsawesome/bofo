@@ -108,7 +108,7 @@ async function handleExcelExport(task: WorkerTask): Promise<WorkerResult> {
         return { success: false, error: 'No sheets provided for Excel export' };
     }
 
-    // Dynamic import to avoid loading exceljs unless needed
+    // @ts-ignore - Dynamic import
     const ExcelJS = await import('exceljs');
     const workbook = new ExcelJS.Workbook();
     workbook.creator = 'Bofo Finance Manager';
@@ -135,7 +135,7 @@ async function handleExcelExport(task: WorkerTask): Promise<WorkerResult> {
                 if (!column) continue;
                 let maxLength = 0;
                 if (column.eachCell) {
-                    column.eachCell({ includeEmpty: true }, (cell) => {
+                    column.eachCell({ includeEmpty: true }, (cell: any) => {
                         const columnLength = cell.value ? cell.value.toString().length : 10;
                         if (columnLength > maxLength) {
                             maxLength = columnLength;

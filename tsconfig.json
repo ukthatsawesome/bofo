@@ -8,6 +8,8 @@
             "DOM",
             "DOM.Iterable"
         ],
+        "jsx": "react-jsx",
+        "jsxImportSource": "preact",
         "strict": true,
         "esModuleInterop": true,
         "skipLibCheck": true,

@@ -10,10 +10,6 @@ import {
 import * as path from 'path';
 import { Logger } from './utils/logger';
 import { registerIpcHandlers, performAutoBackup } from './ipc/handlers';
-import { IpcRouter } from './ipc/router';
-import { SettingsController } from './ipc/controllers/SettingsController';
-import { TransactionController } from './ipc/controllers/TransactionController';
-import { FinanceController } from './ipc/controllers/FinanceController';
 import { startWebServer, restartWebServer } from './webServer';
 import { dbInitialized } from './database/db';
 
@@ -99,7 +95,7 @@ function setupMenu(): void {
         {
           label: 'About Bofo',
           click: async () => {
-            const { dialog } = require('electron');
+            const { dialog } = await import('electron');
             dialog.showMessageBox({
               type: 'info',
               title: 'About Bofo',
@@ -125,6 +121,14 @@ app.whenReady().then(async () => {
   createWindow();
 
   // Phase 2: Async DB Initialization
+  let dbStatus = 'initializing';
+
+  // Register status check handler
+  ipcMain.handle('get-db-status', () => {
+    Logger.info(`[IPC] get-db-status requested. Returning: ${dbStatus}`);
+    return dbStatus;
+  });
+
   try {
     const windows = BrowserWindow.getAllWindows();
     const win = windows[0];
@@ -132,18 +136,20 @@ app.whenReady().then(async () => {
     // Inform renderer we are connecting (if it's listening)
     if (win) {
       win.webContents.on('did-finish-load', () => {
-        win.webContents.send('app:db-status', 'connecting');
+        win.webContents.send('app:db-status', dbStatus);
       });
     }
 
     Logger.info('[Main] Waiting for database...');
     await dbInitialized;
+    dbStatus = 'ready';
     Logger.info('[Main] Database ready.');
 
     if (win) {
       win.webContents.send('app:db-status', 'ready');
     }
   } catch (err) {
+    dbStatus = 'error';
     Logger.error('[Main] Database failed to initialize:', err);
     // Send error to UI
     const windows = BrowserWindow.getAllWindows();
@@ -153,24 +159,13 @@ app.whenReady().then(async () => {
   }
 
   try {
-    // Phase 1: Initialize Router
-    const settingsController = new SettingsController();
-    const transactionController = new TransactionController();
-    const financeController = new FinanceController();
-    const router = new IpcRouter([settingsController, transactionController, financeController]);
-
-    // Register new controller routes
-    router.registerAll();
-    Logger.info('[Main] IPC Router initialized successfully.');
-
-    // Identify which channels were handled to prevent duplication in legacy
-    const handled = router.getRegisteredChannels();
-    registerIpcHandlers(handled);
+    // Phase 1: Initialize Router & Handlers
+    // We now use a unified registration entry point that sets up all Controllers.
+    registerIpcHandlers();
+    Logger.info('[Main] IPC Handlers registered successfully.');
 
   } catch (err) {
-    Logger.error('[Main] IPC Router failed to initialize, falling back to legacy handlers:', err);
-    // Fallback: register everything via legacy method
-    registerIpcHandlers();
+    Logger.error('[Main] Failed to register IPC handlers:', err);
   }
 
   // Listen for web server control
@@ -206,10 +201,11 @@ app.whenReady().then(async () => {
  */
 async function performStartupRateSync(): Promise<void> {
   try {
-    const { FinanceModel } = require('./models/finance');
+    const { FinanceModel } = await import('./models/finance');
     const settings = await FinanceModel.getAllSettings();
 
     // Check if auto-sync on startup is enabled (opt-in)
+    // Note: settings values are strings in the DB
     if (settings.exchange_rate_sync_on_startup !== 'true') {
       return;
     }
@@ -223,7 +219,7 @@ async function performStartupRateSync(): Promise<void> {
 
     Logger.info('[Main] Exchange rates are stale, performing startup sync...');
 
-    const CurrencyService = require('./services/currencyService').CurrencyService;
+    const { CurrencyService } = await import('./services/currencyService');
     const provider = settings.currency_api_provider || 'frankfurter';
     const baseCurrency = settings.currency_base || 'USD';
     const customUrl = settings.currency_custom_url || null;

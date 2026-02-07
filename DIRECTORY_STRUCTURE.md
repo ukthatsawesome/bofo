@@ -27,7 +27,10 @@ This document provides a detailed overview of the Bofo project structure.
 The "Backend" of the application, running in a Node.js environment.
 
 - `database/`: Database initialization, encryption, and migrations.
-- `ipc/`: Inter-Process Communication handlers for frontend requests.
+- `ipc/`: Inter-Process Communication.
+  - `controllers/`: Domain-specific controllers (e.g., `TransactionController.ts`).
+  - `handlers.ts`: Main entry point for registering controllers.
+  - `router.ts`: Router logic for dispatching IPC calls.
 - `models/`: Data Access Objects (DAO) and business logic for specific entities.
 - `scripts/`: Development utilities (`seed.ts` for populating test data).
 - `services/`: External integrations (AI, Exchange Rates, etc.) and `anomalyService.ts`.
@@ -37,26 +40,21 @@ The "Backend" of the application, running in a Node.js environment.
 - `webServer.ts`: Optional local web server for remote access feature.
 
 ### 🎨 Renderer Process (`src/renderer/`)
-The "Frontend" of the application, now organized by feature (Domain-Driven Design).
+The "Frontend" of the application, built with **Preact** and **Signals**.
 
-- `app/`: Application bootstrapping, core routing, and global styles.
-- `features/`: **Feature Logic**. Each folder contains Views and Modals for that domain.
-  - `dashboard/`: Dashboard view, Forecast view, and widgets.
-  - `transactions/`: Transaction list view, filtering, and `TransactionModal`.
-  - `budget/`: Budget management and modals.
-  - `bills/`: Bill tracking, recurring charges, and usage readings.
-  - `goals/`: Savings goals.
-  - `settings/`: Application settings (Accounts, Categories, AI, Backup, etc.).
-  - `sandbox/`: Scenario planning.
+- `core/`: Core application logic.
+  - `AppRoot.tsx`: Main component and initialization logic.
+  - `financeStore.ts`: Global state management using Signals.
+  - `router.tsx`: Client-side routing.
+- `features/`: **Feature Components**.
+  - `dashboard/`: Dashboard widgets and charts.
+  - `transactions/`: Transaction list and forms.
+  - `...`: Other feature domains.
 - `components/`: Shared UI elements.
-  - `ui/`: Reusable "dumb" components (Buttons, Cards, Forms, Badges).
-  - `charts/`: Chart.js wrappers and configs.
-  - `layout/`: Layout components (ViewHeader, Sidebar).
-- `lib/`: Business logic and utilities.
-  - `api/`: API services (`FinanceService`).
-  - `state/`: State management (`StateManager`).
-  - `eventBus.ts`: Application-wide event emitter.
-  - `dom.ts`, `formatters.ts`, `types.ts`: DOM helpers and data formatting.
+  - `ui/`: Reusable primitives (Buttons, Inputs, Modals).
+  - `layout/`: Layout components (Sidebar, Header).
+- `hooks/`: Custom React hooks (e.g., `useAppInit`).
+- `assets/`: Styles and static assets.
 
 ### ♻️ Shared (`src/shared/`)
 Code and types shared between Main and Renderer processes.

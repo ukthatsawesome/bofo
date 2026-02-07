@@ -440,6 +440,41 @@ export const FinanceModel = {
     }
   },
 
+  getAuditLogs: async (options: { limit?: number; offset?: number; source?: string } = {}) => {
+    const limit = Math.min(Math.max(1, options.limit || 50), 100);
+    const offset = Math.max(0, options.offset || 0);
+    const conditions = [];
+    const params = [];
+
+    if (options.source) {
+      conditions.push('source = ?');
+      params.push(options.source);
+    }
+
+    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+
+    const rows = await all<any>(
+      `SELECT * FROM audit_logs ${whereClause} ORDER BY created_at DESC LIMIT ? OFFSET ?`,
+      [...params, limit, offset]
+    );
+
+    const countResult = await get<{ count: number }>(
+      `SELECT COUNT(*) as count FROM audit_logs ${whereClause}`,
+      params
+    );
+
+    return {
+      data: rows.map(r => ({
+        ...r,
+        changes: r.changes ? JSON.parse(r.changes) : null,
+        metadata: r.metadata ? JSON.parse(r.metadata) : null
+      })),
+      total: countResult?.count || 0,
+      limit,
+      offset
+    };
+  },
+
   /**
    * Get all entities of a type
    */
@@ -877,7 +912,7 @@ export const FinanceModel = {
     const baseCurrency = await getBaseCurrency();
     const threeMonthsAgo = new Date();
     threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
-    const startDate = DateUtils.toDateString(threeMonthsAgo);
+    const startDate = DateUtils.toISODateString(threeMonthsAgo);
 
     const incomeByCurrency = await all<{ currency: string; total: number }>(
       `SELECT 

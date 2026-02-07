@@ -15,17 +15,53 @@ import * as crypto from 'crypto';
 import * as fs from 'fs';
 import * as path from 'path';
 import { app } from 'electron';
-import { SIMPLE_ROUTES } from './ipc/handlers';
-import type { IncomingMessage, ServerResponse } from 'http';
+import { TransactionController } from './ipc/controllers/TransactionController';
+import { AccountController } from './ipc/controllers/AccountController';
+import { FinanceController } from './ipc/controllers/FinanceController';
+import { SettingsController } from './ipc/controllers/SettingsController';
+import { GoalController } from './ipc/controllers/GoalController';
+import { BudgetController } from './ipc/controllers/BudgetController';
+import { RecurringController } from './ipc/controllers/RecurringController';
+import { BillController } from './ipc/controllers/BillController';
+import { AnomalyController } from './ipc/controllers/AnomalyController';
+import { BofoAIController } from './ipc/controllers/BofoAIController';
+import { CategoryController } from './ipc/controllers/CategoryController';
+import { AuditController } from './ipc/controllers/AuditController';
 
-// Lazy load FinanceModel to avoid circular dependency issues
-let _financeModel: typeof import('./models/finance').FinanceModel | null = null;
-function getFinanceModel() {
-  if (!_financeModel) {
-    const module = require('./models/finance');
-    _financeModel = module.FinanceModel;
+// Build a map of allowed web routes from Controllers
+const controllers = [
+  new TransactionController(),
+  new AccountController(),
+  new FinanceController(),
+  new SettingsController(),
+  new GoalController(),
+  new BudgetController(),
+  new RecurringController(),
+  new BillController(),
+  new AnomalyController(),
+  new BofoAIController(),
+  new CategoryController(),
+  new AuditController()
+];
+
+const WEB_ROUTES: Record<string, Function> = {};
+
+// Flatten controller routes into a single map
+// Note: We skip 'export' related routes safely as they might depend on Electron dialogs which don't work in headless web request context
+// unless we handle them carefully. For now, we include most CRUD.
+for (const controller of controllers) {
+  const routes = controller.registerRoutes();
+  for (const [channel, route] of Object.entries(routes)) {
+    if (!route) continue;
+    // Modern route object vs legacy function
+    const handler = (typeof route === 'object' && 'handler' in route) ? route.handler : route;
+    WEB_ROUTES[channel] = handler as Function;
   }
-  return _financeModel!;
+}
+
+function getFinanceModel() {
+  // Legacy helper removal or keep if needed elsewhere
+  return require('./models/finance').FinanceModel;
 }
 
 let server: http.Server | null = null;
@@ -69,7 +105,7 @@ function secureCompare(a: string | unknown, b: string): boolean {
 /**
  * Get client IP address from request
  */
-function getClientIP(req: IncomingMessage): string {
+function getClientIP(req: http.IncomingMessage): string {
   const forwarded = req.headers['x-forwarded-for'];
   if (typeof forwarded === 'string') {
     return forwarded.split(',')[0].trim();
@@ -119,7 +155,7 @@ function sanitizeError(err: any): string {
 /**
  * Set security headers on response
  */
-function setSecurityHeaders(res: ServerResponse): void {
+function setSecurityHeaders(res: http.ServerResponse): void {
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('X-Frame-Options', 'DENY');
   res.setHeader('X-XSS-Protection', '1; mode=block');
@@ -130,8 +166,8 @@ function setSecurityHeaders(res: ServerResponse): void {
  * Handle CORS with origin validation
  */
 function handleCORS(
-  req: IncomingMessage,
-  res: ServerResponse,
+  req: http.IncomingMessage,
+  res: http.ServerResponse,
   isDev: boolean,
   origins: Set<string>
 ): void {
@@ -163,12 +199,12 @@ function handleCORS(
 /**
  * Read request body with size limit
  */
-function readBody(req: IncomingMessage, maxSize: number): Promise<string> {
+function readBody(req: http.IncomingMessage, maxSize: number): Promise<string> {
   return new Promise((resolve, reject) => {
     let body = '';
     let size = 0;
 
-    req.on('data', (chunk) => {
+    req.on('data', (chunk: any) => {
       size += chunk.length;
       if (size > maxSize) {
         req.destroy();
@@ -354,7 +390,7 @@ export async function startWebServer(): Promise<void> {
         }
 
         // Check if channel exists and is allowed via web
-        const handler = SIMPLE_ROUTES[channel];
+        const handler = WEB_ROUTES[channel];
         if (!handler) {
           res.writeHead(404, { 'Content-Type': 'application/json' });
           res.end(

@@ -1,0 +1,27 @@
+/* Balance Preview */
+.balance-preview-container {
+    padding: 0 0.5rem;
+    color: var(--text-muted);
+}
+
+/* Scoped utility overrides for this container */
+.balance-preview-container .text-success {
+    color: rgb(var(--success));
+}
+
+.balance-preview-container .text-danger {
+    color: rgb(var(--danger));
+}
+
+.balance-preview-container .font-semibold {
+    font-weight: 600;
+}
+
+.balance-preview-container .text-xs {
+    font-size: 0.75rem;
+}
+
+/* Legacy Support */
+.transfer-preview-horizontal {
+    display: none;
+}

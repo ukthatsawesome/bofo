@@ -217,6 +217,7 @@ export interface TransactionPayload {
   to_account_id?: number | null;
   type: TransactionType;
   category?: string;
+  category_id?: number;
   amount: number;
   description?: string;
   start_date: string;
@@ -225,6 +226,7 @@ export interface TransactionPayload {
   frequency?: TransactionFrequency;
   exchange_rate?: number;
   to_amount?: number;
+  is_active?: number;
 }
 
 export interface CategoryPayload {

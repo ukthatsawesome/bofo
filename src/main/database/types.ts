@@ -8,7 +8,12 @@
  * @module types
  */
 
-import type { Database, RunResult } from 'sqlite3';
+// Mock types to replace missing @types/sqlite3
+export type Database = any;
+export interface RunResult {
+  lastID: number;
+  changes: number;
+}
 
 // =============================================================================
 // SHARED TYPES RE-EXPORT
@@ -194,4 +199,4 @@ export interface MigrationContext {
 // =============================================================================
 
 /** Re-export core sqlite3 types for convenience within the DB module */
-export type { Database, RunResult };
+// export type { Database, RunResult }; // Removed to avoid conflict with local definition
