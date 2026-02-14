@@ -10,7 +10,6 @@ import { GoalsPage } from '../features/goals/GoalsPage';
 import { ForecastPage } from '../features/dashboard/ForecastPage';
 import { SandboxPage } from '../features/sandbox/SandboxPage';
 import { RecurringPage } from '../features/recurring/RecurringPage';
-import { AISettingsPage } from '../features/settings/AISettingsPage';
 
 export const Routes = () => {
     return (
@@ -53,10 +52,6 @@ export const Routes = () => {
 
                 <Route path="/settings">
                     <SettingsPage />
-                </Route>
-
-                <Route path="/ai-settings">
-                    <AISettingsPage />
                 </Route>
 
                 <Route path="/:view">

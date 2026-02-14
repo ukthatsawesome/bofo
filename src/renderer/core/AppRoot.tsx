@@ -2,6 +2,7 @@
 import { h } from 'preact';
 import { Routes } from '../routes/Routes';
 import { useAppInit } from '../hooks/useAppInit';
+import { api } from './lib/api';
 
 // --- Styles ---
 import '../assets/styles/app/validation.css';
@@ -27,7 +28,7 @@ export const AppRoot = () => {
                     <h1 className="text-2xl font-bold mb-4">Startup Error</h1>
                     <p className="mb-6 opacity-80">{error}</p>
                     <button
-                        onClick={() => window.api.restartWebServer()}
+                        onClick={() => api.restartWebServer()}
                         className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded transition-colors"
                     >
                         Restart App

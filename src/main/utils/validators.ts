@@ -142,14 +142,30 @@ export const EntityValidators: {
     if (isCreate) {
       validateRequired(data as Record<string, unknown>, [
         'type',
-        'category',
         'amount',
         'start_date',
+        'account_id',
       ]);
+      // Category is mandatory unless it's a transfer
+      if (data.type !== 'transfer') {
+        validateRequired(data as Record<string, unknown>, ['category']);
+      }
+      // To Account is mandatory for transfers
+      if (data.type === 'transfer') {
+        validateRequired(data as Record<string, unknown>, ['to_account_id']);
+      }
     }
     if (data.type) {
       validateEnum(data.type, ['income', 'expense', 'transfer', 'asset', 'liability'], 'type');
     }
+
+    // Enforce "Transfer" best practice: Transfers should not have a user-defined category.
+    if (data.type === 'transfer') {
+      // We use 'as any' because Partial<T> fields are optional but we want to explicitly set them to null
+      (data as any).category = null;
+      (data as any).category_id = null;
+    }
+
     if (data.amount !== undefined) {
       data.amount = validateAmount(data.amount);
     }

@@ -1,10 +1,16 @@
 {
     "extends": "./tsconfig.json",
     "compilerOptions": {
-        "outDir": "dist",
-        "rootDir": "src",
+        /* ==================== Modules & Resolution ==================== */
+        // Override: Node.js requires CommonJS (require) instead of ES Modules (import)
         "module": "CommonJS",
-        "moduleResolution": "Node"
+        // Override: Node.js uses Node-specific resolution algorithm
+        "moduleResolution": "Node",
+        /* ==================== Output Structure ==================== */
+        // Output directory for compiled JavaScript
+        "outDir": "dist",
+        // Root directory of input source files
+        "rootDir": "src"
     },
     "include": [
         "src/main/**/*",

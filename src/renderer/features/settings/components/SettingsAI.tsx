@@ -4,10 +4,10 @@ import { useAISettings } from '@/features/settings/hooks/useAISettings';
 import { UiCard } from '@/components/ui/UiCard';
 import { UiButton } from '@/components/ui/UiButton';
 import { Input } from '@/components/ui/Input';
-import { Bot, Save, RefreshCw, CheckCircle2, AlertCircle, Sparkles } from 'lucide-preact';
+import { Save, RefreshCw, CheckCircle2, AlertCircle, Sparkles } from 'lucide-preact';
 import { clsx } from 'clsx';
 
-export const AISettingsPage = () => {
+export const SettingsAI = () => {
     const {
         settings,
         setSettings,
@@ -39,15 +39,8 @@ export const AISettingsPage = () => {
     }
 
     return (
-        <div className="p-6 max-w-4xl mx-auto space-y-6 animate-fade-in">
-            <div className="flex justify-between items-center">
-                <div>
-                    <h1 className="text-2xl font-bold text-text-primary flex items-center gap-2">
-                        <Bot className="text-brand-primary" />
-                        AI Settings
-                    </h1>
-                    <p className="text-text-muted text-sm mt-1">Configure your local or remote AI engine (Ollama supported)</p>
-                </div>
+        <div className="space-y-6 animate-fade-in pb-20">
+            <div className="flex justify-end sticky top-0 bg-surface-base/95 backdrop-blur z-10 py-2 border-b border-border/50 -mx-6 px-6 -mt-6 mb-6">
                 <UiButton
                     icon={<Save size={18} />}
                     onClick={handleSave}
@@ -57,8 +50,8 @@ export const AISettingsPage = () => {
                 </UiButton>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="md:col-span-2 space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div className="lg:col-span-2 space-y-6">
                     <UiCard title="Connection Settings">
                         <div className="space-y-4">
                             <div className="flex items-center justify-between p-4 bg-surface-base rounded-xl border border-border/50">

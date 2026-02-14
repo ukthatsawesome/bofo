@@ -5,6 +5,8 @@ import { UiSelect } from '@/components/ui/UiSelect';
 import { financeStore } from '@/core/financeStore';
 import { Moon, Sun, Globe } from 'lucide-preact';
 import { SectionTitle, Caption } from '@/components/ui/Typography';
+import { api } from '@/core/lib/api';
+import { CURRENCIES } from '../../../../shared/currencies';
 
 export const SettingsPreferences = () => {
     // We can assume financeStore.settings has been loaded by App init, 
@@ -18,7 +20,7 @@ export const SettingsPreferences = () => {
     // Initial Load
     useEffect(() => {
         const load = async () => {
-            const settings = await (window as any).api.getSettings();
+            const settings = await api.getSettings();
             setTheme(settings.theme || 'system');
             setCurrency(settings.currency_base || 'USD');
         };
@@ -28,7 +30,7 @@ export const SettingsPreferences = () => {
     const handleThemeChange = async (newTheme: string) => {
         setLoading(true);
         try {
-            await (window as any).api.updateSetting({ key: 'theme', value: newTheme });
+            await api.updateSetting({ key: 'theme', value: newTheme });
             setTheme(newTheme);
             (window as any).location.reload(); // Simple reload to apply theme for now
         } finally {
@@ -39,7 +41,7 @@ export const SettingsPreferences = () => {
     const handleCurrencyChange = async (newCurrency: string) => {
         setLoading(true);
         try {
-            await (window as any).api.updateSetting({ key: 'currency_base', value: newCurrency });
+            await api.updateSetting({ key: 'currency_base', value: newCurrency });
             setCurrency(newCurrency);
             // Ideally trigger a store refresh
         } finally {
@@ -53,13 +55,11 @@ export const SettingsPreferences = () => {
         { label: 'Dark Mode', value: 'dark' },
     ];
 
-    const currencies = [
-        { label: 'USD - US Dollar', value: 'USD' },
-        { label: 'EUR - Euro', value: 'EUR' },
-        { label: 'GBP - British Pound', value: 'GBP' },
-        { label: 'JPY - Japanese Yen', value: 'JPY' },
-        // Add more if available from a shared constant
-    ];
+
+    const currencies = CURRENCIES.map(c => ({
+        label: `${c.code} - ${c.name}`,
+        value: c.code
+    }));
 
     return (
         <div className="space-y-6">

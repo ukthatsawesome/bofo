@@ -12,13 +12,25 @@ import { IconButton } from '@/components/ui/IconButton';
 import { formatCurrency } from '@/utils/format';
 import { Account } from '../../../../shared/types';
 import { clsx } from 'clsx';
+import { useSortedData } from '@/hooks/useSortedData';
+import { CURRENCIES } from '../../../../shared/currencies';
 
 export const SettingsAccounts = () => {
     const accounts = financeStore.accounts.value;
     const isLoading = financeStore.isLoading.value;
 
+    const { sortedData, sortColumn, sortDirection, handleSort } = useSortedData({
+        data: accounts,
+        initialSortColumn: 'name'
+    });
+
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingAccount, setEditingAccount] = useState<Partial<Account> | undefined>(undefined);
+
+    const currencyOptions = CURRENCIES.map(c => ({
+        label: `${c.code} - ${c.name}`,
+        value: c.code
+    }));
 
     // Form State
     const [formData, setFormData] = useState({
@@ -86,17 +98,20 @@ export const SettingsAccounts = () => {
     const columns: Column<Account>[] = [
         {
             header: 'Name',
-            accessor: (a) => (
-                <div className="font-medium text-text-primary">{a.name}</div>
-            )
+            accessor: 'name',
+            sortable: true,
+            className: 'font-medium text-text-primary'
         },
         {
             header: 'Type',
-            accessor: (a) => <span className="capitalize">{a.type.replace('_', ' ')}</span>
+            accessor: (a) => <span className="capitalize">{a.type.replace('_', ' ')}</span>,
+            sortable: true,
+            sortKey: 'type'
         },
         {
             header: 'Currency',
             accessor: 'currency',
+            sortable: true,
             className: 'text-xs text-text-muted'
         },
         {
@@ -105,7 +120,9 @@ export const SettingsAccounts = () => {
                 <span className={a.balance < 0 ? 'text-danger' : 'text-success'}>
                     {formatCurrency(a.balance, a.currency)}
                 </span>
-            )
+            ),
+            sortable: true,
+            sortKey: 'balance'
         },
         {
             header: 'Status',
@@ -116,7 +133,9 @@ export const SettingsAccounts = () => {
                 )}>
                     {a.status === 'archived' ? 'Archived' : 'Active'}
                 </span>
-            )
+            ),
+            sortable: true,
+            sortKey: 'status'
         },
         {
             header: 'Actions',
@@ -147,7 +166,7 @@ export const SettingsAccounts = () => {
     return (
         <div className="space-y-6">
             <UiCard
-                title={undefined} // Title handled by page header, or we can use it here if we want a sub-card
+                title={undefined}
                 className="overflow-hidden"
                 actions={
                     <UiButton icon={<Plus size={18} />} onClick={handleNew} variant="primary" size="sm">
@@ -156,11 +175,14 @@ export const SettingsAccounts = () => {
                 }
             >
                 <DataTable
-                    data={accounts}
+                    data={sortedData}
                     columns={columns}
                     keyField="id"
                     isLoading={isLoading}
                     emptyMessage="No accounts connected. Add one to get started!"
+                    sortColumn={sortColumn}
+                    sortDirection={sortDirection}
+                    onSort={handleSort}
                 />
             </UiCard>
 
@@ -190,12 +212,11 @@ export const SettingsAccounts = () => {
                             onInput={(e) => setFormData({ ...formData, initial_balance: (e.target as HTMLInputElement).value })}
                             required
                         />
-                        <Input
+                        <UiSelect
                             label="Currency"
+                            options={currencyOptions}
                             value={formData.currency}
-                            onInput={(e) => setFormData({ ...formData, currency: (e.target as HTMLInputElement).value })}
-                            required
-                            placeholder="USD"
+                            onChange={(e) => setFormData({ ...formData, currency: (e.target as HTMLSelectElement).value })}
                         />
                     </div>
 

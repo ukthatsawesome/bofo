@@ -2,6 +2,7 @@
  * Centralized AI Insight Cache Manager
  * Provides unified caching, background fetching, and smart invalidation for AI insights
  */
+import { api } from '../api';
 
 export interface AIInsight {
     text: string;
@@ -248,14 +249,14 @@ export class AIInsightCache {
         }
 
         try {
-            const settings = await window.api.getAISettings();
+            const settings = await api.getAISettings();
             if (!settings.enabled) {
                 this.connectionStatus = false;
                 this.lastConnectionCheck = now;
                 return false;
             }
 
-            const connected = await window.api.checkAIConnection();
+            const connected = await api.checkAIConnection();
             this.connectionStatus = connected;
             this.lastConnectionCheck = now;
             this.emitConnectionStatus(connected);

@@ -5,54 +5,60 @@ module.exports = {
     "./src/renderer/index.html"
   ],
   darkMode: ['class', '[data-theme="dark"]'],
+
   theme: {
     extend: {
+      // ==================== COLORS ====================
       colors: {
-        border: "hsl(var(--border) / <alpha-value>)",
-        input: "hsl(var(--input) / <alpha-value>)",
-        ring: "hsl(var(--ring) / <alpha-value>)",
-        background: "hsl(var(--background) / <alpha-value>)",
-        foreground: "hsl(var(--foreground) / <alpha-value>)",
+        // Base UI (Shadcn/UI Style - HSL based)
+        border: "rgb(var(--border) / <alpha-value>)",
+        input: "rgb(var(--input) / <alpha-value>)",
+        ring: "rgb(var(--ring) / <alpha-value>)",
+        background: "rgb(var(--background) / <alpha-value>)",
+        foreground: "rgb(var(--foreground) / <alpha-value>)",
         primary: {
-          DEFAULT: "hsl(var(--primary) / <alpha-value>)",
-          foreground: "hsl(var(--primary-foreground) / <alpha-value>)",
+          DEFAULT: "rgb(var(--primary) / <alpha-value>)",
+          foreground: "rgb(var(--primary-foreground) / <alpha-value>)",
         },
         secondary: {
-          DEFAULT: "hsl(var(--secondary) / <alpha-value>)",
-          foreground: "hsl(var(--secondary-foreground) / <alpha-value>)",
+          DEFAULT: "rgb(var(--secondary) / <alpha-value>)",
+          foreground: "rgb(var(--secondary-foreground) / <alpha-value>)",
         },
         destructive: {
-          DEFAULT: "hsl(var(--destructive) / <alpha-value>)",
-          foreground: "hsl(var(--destructive-foreground) / <alpha-value>)",
+          DEFAULT: "rgb(var(--destructive) / <alpha-value>)",
+          foreground: "rgb(var(--destructive-foreground) / <alpha-value>)",
         },
         muted: {
-          DEFAULT: "hsl(var(--muted) / <alpha-value>)",
-          foreground: "hsl(var(--muted-foreground) / <alpha-value>)",
+          DEFAULT: "rgb(var(--muted) / <alpha-value>)",
+          foreground: "rgb(var(--muted-foreground) / <alpha-value>)",
         },
         accent: {
-          DEFAULT: "hsl(var(--accent) / <alpha-value>)",
-          foreground: "hsl(var(--accent-foreground) / <alpha-value>)",
+          DEFAULT: "rgb(var(--accent) / <alpha-value>)",
+          foreground: "rgb(var(--accent-foreground) / <alpha-value>)",
         },
         popover: {
-          DEFAULT: "hsl(var(--popover) / <alpha-value>)",
-          foreground: "hsl(var(--popover-foreground) / <alpha-value>)",
+          DEFAULT: "rgb(var(--popover) / <alpha-value>)",
+          foreground: "rgb(var(--popover-foreground) / <alpha-value>)",
         },
         card: {
-          DEFAULT: "hsl(var(--card) / <alpha-value>)",
-          foreground: "hsl(var(--card-foreground) / <alpha-value>)",
+          DEFAULT: "rgb(var(--card) / <alpha-value>)",
+          foreground: "rgb(var(--card-foreground) / <alpha-value>)",
         },
-        // Brand Colors
+
+        // Brand Colors (RGB based)
         brand: {
           primary: 'rgb(var(--brand-primary) / <alpha-value>)',
           'primary-light': 'rgb(var(--brand-primary-light) / <alpha-value>)',
           secondary: 'rgb(var(--brand-secondary) / <alpha-value>)',
         },
-        // Semantic Colors
+
+        // Semantic Colors (RGB based)
         success: 'rgb(var(--success) / <alpha-value>)',
         danger: 'rgb(var(--danger) / <alpha-value>)',
         warning: 'rgb(var(--warning) / <alpha-value>)',
         info: 'rgb(var(--info) / <alpha-value>)',
-        // Surface Colors
+
+        // Surface Colors (RGB based)
         surface: {
           base: 'rgb(var(--bg-base) / <alpha-value>)',
           panel: 'rgb(var(--bg-panel) / <alpha-value>)',
@@ -63,23 +69,33 @@ module.exports = {
           active: 'rgb(var(--bg-active) / <alpha-value>)',
           hover: 'rgb(var(--bg-hover) / <alpha-value>)',
         },
-        // Text Colors
+
+        // Text Colors (RGB based)
         text: {
           primary: 'rgb(var(--text-primary) / <alpha-value>)',
           secondary: 'rgb(var(--text-secondary) / <alpha-value>)',
           muted: 'rgb(var(--text-muted) / <alpha-value>)',
           inverse: 'rgb(var(--text-inverse) / <alpha-value>)',
         },
-        // Legacy Border Colors
+
+        // Legacy
         borderColor: {
           DEFAULT: 'var(--border)',
         },
       },
+
+      // ==================== TYPOGRAPHY ====================
       fontFamily: {
         sans: ['Outfit', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'system-ui', 'sans-serif'],
       },
       fontSize: {
         '2xs': ['0.65rem', { lineHeight: '1rem' }],
+      },
+
+      // ==================== SPACING & BORDERS ====================
+      spacing: {
+        '18': '4.5rem',
+        '22': '5.5rem',
       },
       borderRadius: {
         'xs': 'var(--radius-xs)',
@@ -88,6 +104,8 @@ module.exports = {
         'lg': 'var(--radius-lg)',
         'xl': 'var(--radius-xl)',
       },
+
+      // ==================== EFFECTS ====================
       boxShadow: {
         'xs': 'var(--shadow-xs)',
         'sm': 'var(--shadow-sm)',
@@ -103,6 +121,8 @@ module.exports = {
         'base': '250ms',
         'slow': '400ms',
       },
+
+      // ==================== ANIMATIONS ====================
       animation: {
         'fade-in': 'fadeIn 0.3s var(--ease-smooth)',
         'slide-up': 'slideUp 0.3s var(--ease-smooth)',
@@ -136,46 +156,42 @@ module.exports = {
           'to': { transform: 'rotate(360deg)' },
         },
       },
-      spacing: {
-        '18': '4.5rem',
-        '22': '5.5rem',
-      },
     },
   },
   plugins: [],
+
+  // ==================== SAFELIST ====================
+  // Explicitly whitelist classes that are not detected by static analysis
+  // or generated dynamically via JavaScript.
   safelist: [
-    // Status colors
-    'text-success', 'text-danger', 'text-warning', 'text-info', 'text-brand',
-    'bg-success', 'bg-danger', 'bg-warning', 'bg-info', 'bg-brand-primary',
-    // Button variants
+    // --- UI Components ---
     'btn-primary', 'btn-secondary', 'btn-danger', 'btn-text', 'btn-sm',
-    // Card variants
     'card-glass', 'card-panel', 'clickable-card',
-    // Stat card
     'stat-card',
-    // Form elements
     'input-field', 'select-field', 'form-control',
-    // Modal
     'modal', 'modal-content', 'close',
-    // Tables
     'data-table', 'action-btn',
-    // Badges
     'badge', 'badge-success', 'badge-danger', 'badge-warning', 'badge-info',
     'type-pill',
-    // Progress
     'progress-bar-container', 'progress-bar-fill',
-    // Loader
     'loader-overlay', 'spinner',
-    // Toast
     'toast-container', 'toast',
-    // Utilities
+
+    // --- Utilities ---
     'hidden', 'truncate', 'spinning',
+    'bg-brand-primary', // Not covered by the generic brand pattern below
+
+    // --- Dynamic Patterns ---
+
+    // Generates: bg-success, bg-danger, bg-warning, bg-info (and hover variants)
     {
       pattern: /bg-(success|danger|warning|info)/,
       variants: ['hover'],
     },
+
+    // Generates: text-{color}, border-{color} for success, danger, warning, info, brand
     {
       pattern: /(text|border)-(success|danger|warning|info|brand)/,
     },
   ],
-}
+};

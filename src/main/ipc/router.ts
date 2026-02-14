@@ -40,6 +40,9 @@ export class IpcRouter {
         const handler = isModern ? (route as RouteDefinition).handler : (route as RouteHandler);
         const schema = isModern ? (route as RouteDefinition).schema : undefined;
 
+        // Ensure idempotency by removing any existing handler for this channel
+        ipcMain.removeHandler(channel);
+
         ipcMain.handle(channel, async (event, ...args) => {
           try {
             // In Electron IPC, the first arg is event. The rest are arguments.

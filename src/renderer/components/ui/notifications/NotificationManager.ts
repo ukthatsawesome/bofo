@@ -94,20 +94,23 @@ export class NotificationManager {
             </div>
         `;
 
-    const container = document.getElementById('toast-container');
-    if (container) {
-      container.appendChild(toast);
-      if (typeof window.lucide !== 'undefined') {
-        window.lucide.createIcons({ root: toast });
-      }
+    const container = document.getElementById('toast-container') || (() => {
+      const el = document.createElement('div');
+      el.id = 'toast-container';
+      el.style.cssText = 'position:fixed;top:1rem;right:1rem;z-index:9999;display:flex;flex-direction:column;gap:0.5rem;max-width:24rem;pointer-events:none;';
+      document.body.appendChild(el);
+      return el;
+    })();
 
-      setTimeout(() => {
-        toast.style.opacity = '0';
-        toast.style.transform = 'translateX(100%)';
-        toast.style.transition = 'all 0.3s ease';
-        setTimeout(() => toast.remove(), 300);
-      }, duration);
-    }
+    toast.style.pointerEvents = 'auto';
+    container.appendChild(toast);
+
+    setTimeout(() => {
+      toast.style.opacity = '0';
+      toast.style.transform = 'translateX(100%)';
+      toast.style.transition = 'all 0.3s ease';
+      setTimeout(() => toast.remove(), 300);
+    }, duration);
   }
 
   /**

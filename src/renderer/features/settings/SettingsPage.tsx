@@ -24,6 +24,8 @@ import { SettingsExchangeRates } from './components/SettingsExchangeRates';
 import { SettingsBackup } from './components/SettingsBackup';
 import { SettingsRemote } from './components/SettingsRemote';
 import { SettingsAudit } from './components/SettingsAudit';
+import { SettingsAI } from './components/SettingsAI';
+import { Bot } from 'lucide-preact';
 
 export const SettingsPage = () => {
     const [activeTab, setActiveTab] = useState('accounts');
@@ -35,6 +37,7 @@ export const SettingsPage = () => {
         { id: 'preferences', label: 'Preferences', icon: Settings2, component: SettingsPreferences, description: 'App appearance and behavior' },
         { id: 'currencies', label: 'Exchange Rates', icon: Coins, component: SettingsExchangeRates, description: 'Multi-currency settings' },
         { id: 'bills', label: 'Bill Types', icon: Receipt, component: SettingsBillTypes, description: 'Manage recurring bill types' },
+        { id: 'ai', label: 'AI Assistant', icon: Bot, component: SettingsAI, description: 'Configure local AI engine' },
         { id: 'backup', label: 'Backup & Data', icon: Database, component: SettingsBackup, description: 'Export, import, and backup data' },
         { id: 'remote', label: 'Remote Access', icon: Wifi, component: SettingsRemote, description: 'Configure remote server access' },
         { id: 'audit', label: 'Activity Log', icon: ClipboardList, component: SettingsAudit, description: 'View system activity logs' },

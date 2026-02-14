@@ -242,7 +242,8 @@ export class HttpApiProvider {
   }
 
   // Stubs for listeners (not supported over simple HTTP yet)
-  onChatSandboxChunk(): void {
+  onChatSandboxChunk(): () => void {
     console.warn('[HttpApi] Streaming is not supported in Web mode yet.');
+    return () => {};
   }
 }

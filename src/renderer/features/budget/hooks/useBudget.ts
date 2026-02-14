@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'preact/hooks';
 import { financeStore } from '@/core/financeStore';
-import { Budget } from '../../../../shared/types';
+import { Budget, CategorySpending } from '../../../../shared/types';
+import { api } from '@/core/lib/api';
 
 export function useBudget() {
     const budgets = financeStore.budgets.value;
@@ -60,10 +61,9 @@ export function useBudget() {
                     end = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
                 }
 
-                // @ts-ignore
-                const data = await window.api.getCategorySpending(start, end);
+                const data: CategorySpending[] = await api.getCategorySpending(start, end);
                 const map: Record<string, number> = {};
-                data.forEach((item: any) => {
+                data.forEach((item) => {
                     map[item.category] = item.amount;
                 });
                 setSpendingData(map);
@@ -98,8 +98,8 @@ export function useBudget() {
     }, [filteredBudgets, spendingData]);
 
     const stats = useMemo(() => {
-        const totalBudgeted = budgetsWithProgress.reduce((sum: number, b: any) => sum + b.amount, 0);
-        const totalSpent = budgetsWithProgress.reduce((sum: number, b: any) => sum + b.spent, 0);
+        const totalBudgeted = budgetsWithProgress.reduce((sum, b) => sum + b.amount, 0);
+        const totalSpent = budgetsWithProgress.reduce((sum, b) => sum + b.spent, 0);
         return {
             totalBudgeted,
             totalSpent,

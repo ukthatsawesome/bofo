@@ -11,6 +11,8 @@ import { IconButton } from '@/components/ui/IconButton';
 import { ExchangeRate } from '../../../../shared/types';
 import { clsx } from 'clsx';
 import { SectionTitle, Caption } from '@/components/ui/Typography';
+import { CURRENCY_API_PROVIDERS } from '../../../../shared/currencies';
+import { useSortedData } from '@/hooks/useSortedData';
 
 export const SettingsExchangeRates = () => {
     const [rates, setRates] = useState<ExchangeRate[]>([]);
@@ -20,6 +22,11 @@ export const SettingsExchangeRates = () => {
     const [autoSync, setAutoSync] = useState(false);
     const [lastSync, setLastSync] = useState<any>(null);
     const [loading, setLoading] = useState(false);
+
+    const { sortedData, sortColumn, sortDirection, handleSort } = useSortedData({
+        data: rates,
+        initialSortColumn: 'from_currency'
+    });
 
     // Modal State
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -100,9 +107,9 @@ export const SettingsExchangeRates = () => {
     };
 
     const columns: Column<ExchangeRate>[] = [
-        { header: 'From', accessor: 'from_currency', className: 'font-bold' },
-        { header: 'To', accessor: 'to_currency', className: 'font-bold' },
-        { header: 'Rate', accessor: (r) => r.rate.toFixed(6) },
+        { header: 'From', accessor: 'from_currency', className: 'font-bold', sortable: true },
+        { header: 'To', accessor: 'to_currency', className: 'font-bold', sortable: true },
+        { header: 'Rate', accessor: (r) => r.rate.toFixed(6), sortable: true, sortKey: 'rate' },
         {
             header: 'Source', accessor: (r) => (
                 <span className={clsx(
@@ -111,9 +118,17 @@ export const SettingsExchangeRates = () => {
                 )}>
                     {r.source === 'api' ? 'API' : 'Manual'}
                 </span>
-            )
+            ),
+            sortable: true,
+            sortKey: 'source'
         },
-        { header: 'Updated', accessor: (r) => new Date(r.last_updated).toLocaleDateString(), className: 'text-xs text-text-muted' },
+        {
+            header: 'Updated',
+            accessor: (r) => new Date(r.last_updated).toLocaleDateString(),
+            className: 'text-xs text-text-muted',
+            sortable: true,
+            sortKey: 'last_updated'
+        },
         {
             header: 'Actions',
             accessor: (r) => (
@@ -126,11 +141,11 @@ export const SettingsExchangeRates = () => {
         }
     ];
 
-    const providerOptions = [
-        { label: 'Frankfurter (Open Source)', value: 'frankfurter' },
-        { label: 'ExchangeRate-API', value: 'exchangerate-api' },
-        { label: 'Custom Endpoint', value: 'custom' },
-    ];
+
+    const providerOptions = CURRENCY_API_PROVIDERS.map(p => ({
+        label: p.name,
+        value: p.id
+    }));
 
     return (
         <div className="space-y-6">
@@ -203,7 +218,15 @@ export const SettingsExchangeRates = () => {
                     </UiButton>
                 </div>
 
-                <DataTable data={rates} columns={columns} keyField="id" isLoading={loading} />
+                <DataTable
+                    data={sortedData}
+                    columns={columns}
+                    keyField="id"
+                    isLoading={loading}
+                    sortColumn={sortColumn}
+                    sortDirection={sortDirection}
+                    onSort={handleSort}
+                />
             </div>
 
             {/* @ts-ignore */}

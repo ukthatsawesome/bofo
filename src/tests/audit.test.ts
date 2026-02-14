@@ -49,12 +49,20 @@ describe('Audit System Integration', () => {
     });
 
     it('should log Transaction creation with default USER source', async () => {
+        // Create a dummy account first
+        const account = await FinanceModel.create('account', {
+            name: 'Test Account',
+            type: 'bank',
+            balance: 1000
+        });
+
         const tx = await FinanceModel.create('transaction', {
             amount: 100,
             type: 'expense',
             category: 'Food',
             description: 'Lunch',
-            start_date: new Date().toISOString().split('T')[0]
+            start_date: new Date().toISOString().split('T')[0],
+            account_id: account.id
         });
 
         const logs = await new Promise<any[]>((resolve, reject) => {
@@ -70,11 +78,19 @@ describe('Audit System Integration', () => {
     });
 
     it('should log Transaction update with AI source', async () => {
+        // Create a dummy account first
+        const account = await FinanceModel.create('account', {
+            name: 'Test Account 2',
+            type: 'bank',
+            balance: 1000
+        });
+
         const tx = await FinanceModel.create('transaction', {
             amount: 50,
             type: 'expense',
             category: 'Misc',
-            start_date: new Date().toISOString().split('T')[0]
+            start_date: new Date().toISOString().split('T')[0],
+            account_id: account.id
         });
 
         await FinanceModel.update('transaction', tx.id, { category: 'Coffee' }, { source: 'AI', metadata: { confidence: 0.99 } });

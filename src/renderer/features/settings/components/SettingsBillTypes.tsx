@@ -11,8 +11,8 @@ import { IconButton } from '@/components/ui/IconButton';
 import { BillType } from '../../../../shared/types';
 import { formatCurrency } from '@/utils/format';
 import { clsx } from 'clsx';
-import { useSignal } from '@preact/signals';
 import { SectionTitle, Caption } from '@/components/ui/Typography';
+import { useSortedData } from '@/hooks/useSortedData';
 
 // Icon mapping helper
 const getIcon = (name: string | undefined | null) => {
@@ -31,6 +31,11 @@ export const SettingsBillTypes = () => {
     const categories = financeStore.categories.value;
     const accounts = financeStore.accounts.value;
     const isLoading = financeStore.isLoading.value;
+
+    const { sortedData, sortColumn, sortDirection, handleSort } = useSortedData({
+        data: billTypes,
+        initialSortColumn: 'name'
+    });
 
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingId, setEditingId] = useState<number | null>(null);
@@ -114,16 +119,21 @@ export const SettingsBillTypes = () => {
                         {bt.name}
                     </div>
                 );
-            }
+            },
+            sortable: true,
+            sortKey: 'name'
         },
         {
             header: 'Unit',
             accessor: 'unit_name',
-            className: 'text-text-muted text-sm'
+            className: 'text-text-muted text-sm',
+            sortable: true
         },
         {
             header: 'Cost/Unit',
-            accessor: (bt) => formatCurrency(bt.cost_per_unit, bt.currency)
+            accessor: (bt) => formatCurrency(bt.cost_per_unit, bt.currency),
+            sortable: true,
+            sortKey: 'cost_per_unit'
         },
         {
             header: 'Category / Account',
@@ -135,7 +145,9 @@ export const SettingsBillTypes = () => {
                         {acc && <div>via {acc.name}</div>}
                     </div>
                 );
-            }
+            },
+            sortable: true,
+            sortKey: 'category_name'
         },
         {
             header: 'Auto-Tx',
@@ -146,7 +158,9 @@ export const SettingsBillTypes = () => {
                 )}>
                     {bt.auto_transaction ? 'Enabled' : 'Disabled'}
                 </span>
-            )
+            ),
+            sortable: true,
+            sortKey: 'auto_transaction'
         },
         {
             header: 'Actions',
@@ -195,11 +209,14 @@ export const SettingsBillTypes = () => {
             </div>
 
             <DataTable
-                data={billTypes}
+                data={sortedData}
                 columns={columns}
                 keyField="id"
                 isLoading={isLoading}
                 emptyMessage="No bill types configured."
+                sortColumn={sortColumn}
+                sortDirection={sortDirection}
+                onSort={handleSort}
             />
 
             {/* @ts-ignore */}

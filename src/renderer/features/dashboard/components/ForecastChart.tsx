@@ -117,7 +117,7 @@ export const ForecastChart = ({ data }: ForecastChartProps) => {
                         ticks: {
                             color: textColor,
                             font: { family: "'Inter', sans-serif", size: 11 },
-                            callback: (value) => formatCurrency(value as number, 'USD', true) // Compact notation
+                            callback: (value) => formatCurrency(value as number, undefined, true) // Compact notation
                         },
                         border: { display: false }
                     },

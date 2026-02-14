@@ -29,12 +29,15 @@ export class FinanceController implements IController {
    */
   async getSummaryStats(event: IpcMainInvokeEvent) {
     try {
+      const settings = await FinanceModel.getAllSettings();
+      const baseCurrency = settings.currency_base || 'USD';
+
       // 1. Get Accounts for Net Worth (Assets - Liabilities)
-      const accounts = await FinanceModel.getAllAccounts();
+      const accounts = await FinanceModel.getAccountsWithConvertedBalances(baseCurrency);
       const assets = accounts.filter(a => ['bank', 'wallet', 'investment'].includes((a.type || '').toLowerCase()))
-        .reduce((sum, a) => sum + (a.balance || 0), 0);
+        .reduce((sum, a) => sum + (a.converted_balance ?? 0), 0);
       const liabilities = accounts.filter(a => !['bank', 'wallet', 'investment'].includes((a.type || '').toLowerCase()))
-        .reduce((sum, a) => sum + Math.abs(a.balance || 0), 0);
+        .reduce((sum, a) => sum + Math.abs(a.converted_balance ?? 0), 0);
 
       const netWorth = assets - liabilities; // Assuming balance is positive for liability accounts implies debt size
 
@@ -42,7 +45,7 @@ export class FinanceController implements IController {
       const { start: firstDay, end: lastDay } = DateUtils.getMonthBoundaries();
 
       // We'll add a helper to FinanceModel for this specific aggregation to avoid raw SQL here
-      const monthlyStats = await FinanceModel.getMonthlyTotals(firstDay, lastDay);
+      const monthlyStats = await FinanceModel.getMonthlyTotals(firstDay, lastDay, baseCurrency);
 
       return {
         netWorth,

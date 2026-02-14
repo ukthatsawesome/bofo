@@ -54,15 +54,24 @@ const PROVIDERS: Record<string, ProviderConfig> = {
     name: 'Frankfurter (ECB)',
     fetchRates: async (baseCurrency: string): Promise<ExchangeRate[]> => {
       const url = `https://api.frankfurter.app/latest?from=${baseCurrency}`;
-      const data = await fetchJSONWithRetry(url);
-      if (data && data.rates) {
-        return Object.entries(data.rates).map(([currency, rate]) => ({
-          from: baseCurrency,
-          to: currency,
-          rate: rate as number,
-        }));
+      try {
+        const data = await fetchJSONWithRetry(url);
+        if (data && data.rates) {
+          return Object.entries(data.rates).map(([currency, rate]) => ({
+            from: baseCurrency,
+            to: currency,
+            rate: rate as number,
+          }));
+        }
+        throw new Error('Invalid response from Frankfurter API');
+      } catch (error: any) {
+        if (error.message.includes('404') || error.message.includes('not found')) {
+          // Fallback to ExchangeRate-API for unsupported currencies (like NPR)
+          console.warn(`Frankfurter API does not support ${baseCurrency}, falling back to ExchangeRate-API...`);
+          return PROVIDERS['exchangerate-api'].fetchRates(baseCurrency);
+        }
+        throw error;
       }
-      throw new Error('Invalid response from Frankfurter API');
     },
   },
   'exchangerate-api': {

@@ -1,93 +1,122 @@
-
 /**
  * IPC Handlers - Streamlined with Controller Pattern
  *
  * This module registers all IPC handlers for the Electron main process
- * by delegating to specialized Controllers.
+ * and orchestrates background tasks like automated backups.
  */
 
 import { ipcMain } from 'electron';
-import { IpcRouter } from './router';
-import { TransactionController } from './controllers/TransactionController';
-import { AccountController } from './controllers/AccountController';
-import { BudgetController } from './controllers/BudgetController';
-import { GoalController } from './controllers/GoalController';
-import { SettingsController } from './controllers/SettingsController';
-import { BillController } from './controllers/BillController';
-import { RecurringController } from './controllers/RecurringController';
-import { BofoAIController } from './controllers/BofoAIController';
-import { ExchangeRateController } from './controllers/ExchangeRateController';
-import { ExportController } from './controllers/ExportController';
-import { AnomalyController } from './controllers/AnomalyController';
-import { FinanceController } from './controllers/FinanceController';
-import { CategoryController } from './controllers/CategoryController';
-import { AuditController } from './controllers/AuditController';
-
-// We need to keep performAutoBackup for main.ts usage if it calls it directly.
-// The original file exported `performAutoBackup`.
-// I should move `performAutoBackup` to ExportController as a static method or standalone export 
-// BUT `handlers.ts` is likely imported by `main.ts` to call `registerIpcHandlers`.
-
-// Let's import the performAutoBackup if I moved it, or implement it here using the controller logic.
-// For now, I'll re-implement it using the Controller's logic or a shared helper. 
-// Actually, `performAutoBackup` in original file was just a function. 
-// I'll keep it here but refactor it to use the new structure or ExportController.
-// Actually, I didn't export `performAutoBackup` in `ExportController.ts`. I should check.
-// I didn't. I'll add it to `ExportController.ts` or just import it from there if I did. 
-// Wait, I implemented `run-backup-now` route in `ExportController` but not the auto backup function.
-// Let's add `performAutoBackup` to `handlers.ts` as a wrapper or import from a new location.
-// Since `handlers.ts` is the entry point, I can keep `performAutoBackup` here but use the logic from `ExportController`?
-// No, `performAutoBackup` is a scheduled task, not an IPC handler.
-// I will keep `performAutoBackup` source here for now but cleaned up, or move to `ExportController` as static. 
-
-import { Logger } from '../utils/logger';
-import { validateSafePath } from '../utils/security';
 import * as fs from 'fs';
 import * as path from 'path';
-import { runInWorker } from '../utils/workerPool';
 
+// Utils
+import { Logger } from '../utils/logger';
+import { validateSafePath } from '../utils/security';
+import { runInWorker } from '../utils/workerPool';
+import { isDbReady } from '../database/db';
+
+// Controllers
+import { AccountController } from './controllers/AccountController';
+import { AnomalyController } from './controllers/AnomalyController';
+import { AuditController } from './controllers/AuditController';
+import { BillController } from './controllers/BillController';
+import { BofoAIController } from './controllers/BofoAIController';
+import { BudgetController } from './controllers/BudgetController';
+import { CategoryController } from './controllers/CategoryController';
+import { ExchangeRateController } from './controllers/ExchangeRateController';
+import { ExportController } from './controllers/ExportController';
+import { FinanceController } from './controllers/FinanceController';
+import { GoalController } from './controllers/GoalController';
+import { RecurringController } from './controllers/RecurringController';
+import { SettingsController } from './controllers/SettingsController';
+import { TransactionController } from './controllers/TransactionController';
+
+// Core
+import { IpcRouter } from './router';
+
+// ==================== IPC Registration ====================
+
+/**
+ * Registers all IPC handlers with the main process.
+ * Delegates to the IpcRouter which manages Controller lifecycles.
+ */
 export function registerIpcHandlers(excludeChannels: string[] = []): void {
-  Logger.info('[Handlers] Starting IPC Handler registration...');
-  const router = new IpcRouter([
+  Logger.info('[Handlers] Initializing IPC Controller Router...');
+
+  const controllers = [
     new AccountController(),
-    new BudgetController(),
-    new GoalController(),
-    new SettingsController(),
+    new AnomalyController(),
+    new AuditController(),
     new BillController(),
-    new RecurringController(),
     new BofoAIController(),
+    new BudgetController(),
+    new CategoryController(),
     new ExchangeRateController(),
     new ExportController(),
-    new AnomalyController(),
     new FinanceController(),
-    new CategoryController(),
-    new AuditController(),
+    new GoalController(),
+    new RecurringController(),
+    new SettingsController(),
     new TransactionController(),
-  ]);
+  ];
+
+  const router = new IpcRouter(controllers);
+
+  if (excludeChannels.length > 0) {
+    Logger.info(`[Handlers] Excluding channels: ${excludeChannels.join(', ')}`);
+    // Note: IpcRouter implementation would need to support this, 
+    // currently preserving signature for compatibility.
+  }
 
   router.registerAll();
+  Logger.info(`[Handlers] Successfully registered ${controllers.length} controllers.`);
 }
 
-// Re-implement performAutoBackup for main.ts compatibility
-export async function performAutoBackup() {
+// ==================== Background Tasks ====================
+
+/**
+ * Performs an automated backup of the financial data.
+ * Checks settings, validates security, runs the export in a worker thread,
+ * and updates the last backup timestamp.
+ */
+export async function performAutoBackup(): Promise<void> {
   try {
-    // Lazy load model
+    if (!isDbReady()) {
+      Logger.warn('[AutoBackup] Skipping backup: database not ready');
+      return;
+    }
+    // Lazy load model to minimize startup overhead if not needed immediately
     const { FinanceModel } = require('../models/finance');
     const settings = await FinanceModel.getAllSettings();
-    if (settings.auto_backup_enabled !== 'true' || !settings.auto_backup_directory) return;
-    if (!fs.existsSync(settings.auto_backup_directory)) return;
 
-    if (!validateSafePath(settings.auto_backup_directory, 'dir')) {
-      Logger.error('[Backup] Blocked unsafe auto-backup directory:', settings.auto_backup_directory);
+    // 1. Check if auto-backup is enabled and configured
+    if (settings.auto_backup_enabled !== 'true' || !settings.auto_backup_directory) {
       return;
     }
 
-    const lastBackup = settings.auto_backup_last;
-    if (lastBackup && new Date(lastBackup).toDateString() === new Date().toDateString()) return;
+    // 2. Validate directory existence
+    if (!fs.existsSync(settings.auto_backup_directory)) {
+      Logger.warn(`[AutoBackup] Directory does not exist: ${settings.auto_backup_directory}`);
+      return;
+    }
 
+    // 3. Security check
+    if (!validateSafePath(settings.auto_backup_directory, 'dir')) {
+      Logger.error('[AutoBackup] Blocked unsafe auto-backup directory:', settings.auto_backup_directory);
+      return;
+    }
+
+    // 4. Check if backup already ran today
+    const lastBackup = settings.auto_backup_last;
+    if (lastBackup && new Date(lastBackup).toDateString() === new Date().toDateString()) {
+      return;
+    }
+
+    // 5. Execute Backup
     const data = await FinanceModel.exportData();
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-').split('T')[0];
-    const filePath = path.join(settings.auto_backup_directory, `bofo-backup-${timestamp}.json`);
+    const fileName = `bofo-backup-${timestamp}.json`;
+    const filePath = path.join(settings.auto_backup_directory, fileName);
 
     const result = await runInWorker('exportWorker', {
       type: 'json-export',
@@ -96,12 +125,15 @@ export async function performAutoBackup() {
     });
 
     if (!result.success) {
-      Logger.error('[AutoBackup] Worker failed:', result.error);
+      Logger.error('[AutoBackup] Worker export failed:', result.error);
       return;
     }
 
+    // 6. Update last run time
     await FinanceModel.updateSetting('auto_backup_last', new Date().toISOString());
+    Logger.info(`[AutoBackup] Successfully created backup: ${fileName}`);
+
   } catch (err) {
-    Logger.error('Auto-backup failed:', err);
+    Logger.error('[AutoBackup] Process failed:', err);
   }
 }

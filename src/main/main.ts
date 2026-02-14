@@ -10,8 +10,8 @@ import {
 import * as path from 'path';
 import { Logger } from './utils/logger';
 import { registerIpcHandlers, performAutoBackup } from './ipc/handlers';
-import { startWebServer, restartWebServer } from './webServer';
-import { dbInitialized } from './database/db';
+import { startWebServer, restartWebServer, stopWebServer } from './webServer';
+import { dbInitialized, closeDatabase } from './database/db';
 
 // Single instance lock
 const gotTheLock = app.requestSingleInstanceLock();
@@ -238,8 +238,37 @@ async function performStartupRateSync(): Promise<void> {
   }
 }
 
+let isShuttingDown = false;
+
+app.on('before-quit', async (event) => {
+  if (isShuttingDown) return;
+  isShuttingDown = true;
+
+  // Prevent default quit to allow graceful shutdown
+  event.preventDefault();
+
+  try {
+    stopWebServer();
+  } catch (e) {
+    Logger.warn('[Main] Failed to stop web server:', (e as Error).message);
+  }
+
+  try {
+    await performAutoBackup();
+  } catch (e) {
+    Logger.warn('[Main] Auto-backup failed during shutdown:', (e as Error).message);
+  }
+
+  try {
+    await closeDatabase();
+  } catch (e) {
+    Logger.warn('[Main] Failed to close database:', (e as Error).message);
+  }
+
+  app.quit();
+});
+
 app.on('window-all-closed', async () => {
-  await performAutoBackup();
   if (process.platform !== 'darwin') {
     app.quit();
   }

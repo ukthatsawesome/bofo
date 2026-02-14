@@ -1,6 +1,13 @@
 import { useState, useEffect, useMemo, useRef } from 'preact/hooks';
 import { financeStore } from '@/core/financeStore';
+import { api } from '@/core/lib/api';
 import { deepEqual } from '@/utils/deepEqual';
+
+// ==================== CONSTANTS ====================
+
+const DEBOUNCE_MS_PRESET = 200; // Fast response for UI toggles
+const DEBOUNCE_MS_CUSTOM = 800; // Slower response for date typing
+const DEFAULT_LOW_BALANCE_THRESHOLD = 500;
 
 // ==================== TYPES ====================
 
@@ -34,6 +41,13 @@ interface ForecastData {
     insights: ForecastInsight[];
 }
 
+interface ForecastPayload {
+    transactions: any[];
+    accounts: any[];
+    recurringCharges: any[];
+    months: number;
+}
+
 // ==================== UTILITIES ====================
 
 /**
@@ -59,19 +73,16 @@ const getMonthDifference = (startStr: string, endStr: string): number => {
 export function useForecast() {
     const { transactions, accounts, recurringCharges } = financeStore;
 
-    // State
+    // --- State ---
     const [range, setRange] = useState<number | 'custom'>(6);
     const [viewMode, setViewMode] = useState<'chart' | 'calendar'>('chart');
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [forecastData, setForecastData] = useState<ForecastData | null>(null);
 
-    // Race condition handling
-    const activeRequest = useRef<number>(0);
-
     const [customRange, setCustomRange] = useState({
-        start: getOffsetDate(-3), // 3 months ago
-        end: getOffsetDate(6)     // 6 months ahead
+        start: getOffsetDate(-3),
+        end: getOffsetDate(6)
     });
 
     const [calendarDate, setCalendarDate] = useState({
@@ -79,9 +90,12 @@ export function useForecast() {
         year: new Date().getFullYear()
     });
 
-    // ==================== LOGIC ====================
+    // --- Refs ---
+    const abortControllerRef = useRef<AbortController | null>(null);
+    const lastInputsRef = useRef<any>(null); // Stores the lightweight signature for comparison
+    const lastFetchInputs = useRef<ForecastPayload | null>(null); // Stores the full payload for refresh
 
-    // ==================== LOGIC ====================
+    // --- Logic ---
 
     const getMonthCount = (): number => {
         if (range === 'custom') {
@@ -91,10 +105,7 @@ export function useForecast() {
         return typeof range === 'number' ? range : 12;
     };
 
-    // Keep track of the active controller to abort previous requests
-    const abortControllerRef = useRef<AbortController | null>(null);
-
-    const fetchForecast = async (inputData: any) => {
+    const fetchForecast = async (payload: ForecastPayload) => {
         setIsLoading(true);
         setError(null);
 
@@ -103,153 +114,123 @@ export function useForecast() {
             abortControllerRef.current.abort();
         }
 
-        // Create new controller
+        // Create new controller for this request
         const controller = new AbortController();
         abortControllerRef.current = controller;
 
         try {
-            // Safety check for API
-            if (!window.api?.calculateForecast) {
+            if (!api?.calculateForecast) {
                 throw new Error("Forecast API not available");
             }
 
-            // Wrap the API call to support cancellation via racing
-            const apiCall = window.api.calculateForecast({
-                transactions: inputData.transactions,
-                accounts: inputData.accounts,
-                recurringCharges: inputData.recurringCharges,
-                months: inputData.months
-            });
+            const apiCall = api.calculateForecast(payload);
 
-            // Race against the abort signal
-            // We use a new Promise that rejects if/when the signal aborts
+            // Create a promise that rejects on abort
             const abortPromise = new Promise((_, reject) => {
-                if (controller.signal.aborted) return reject(new Error('Aborted'));
-                controller.signal.addEventListener('abort', () => reject(new Error('Aborted')));
+                if (controller.signal.aborted) return reject(new DOMException('Aborted', 'AbortError'));
+                controller.signal.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')), { once: true });
             });
 
-            const data = await Promise.race([apiCall, abortPromise]);
+            // Race the API call against the abort signal
+            const data = await Promise.race([apiCall, abortPromise]) as ForecastData;
 
+            // Only update state if this request wasn't aborted
             if (!controller.signal.aborted) {
-                setForecastData(data as any); // Cast because Promise.race type inference might be mixed
-                setIsLoading(false);
+                setForecastData(data);
             }
         } catch (err: any) {
-            // Ignore abort errors
-            if (err.message !== 'Aborted' && !controller.signal.aborted) {
+            // Only handle errors if this wasn't an intentional abort
+            if (err.name !== 'AbortError' && !controller.signal.aborted) {
                 console.error("Failed to calculate forecast:", err);
                 setError(err.message || "Failed to calculate forecast");
+            }
+        } finally {
+            // Only clear loading state if this is still the active controller
+            if (abortControllerRef.current === controller) {
                 setIsLoading(false);
             }
         }
     };
 
-    // ==================== REACTIVE HELPERS ====================
-
-    // Store the last processed inputs to prevent redundant fetches
-    const lastInputsRef = useRef<any>(null);
+    // --- Reactive Effects ---
 
     useEffect(() => {
-        // Prevent fetch if date range is invalid
+        // 1. Validation: Prevent fetch if date range is invalid
         if (range === 'custom') {
             const start = new Date(customRange.start);
             const end = new Date(customRange.end);
             if (start.getTime() > end.getTime()) return;
         }
 
-        // Gather current inputs
-        // explicit typing helps typescript check properties
-        const currentInputs = {
+        // 2. Construct the full payload for the API
+        const currentPayload: ForecastPayload = {
             transactions: transactions.value,
             accounts: accounts.value,
             recurringCharges: recurringCharges.value,
             months: getMonthCount(),
-            // We include range/customRange context for the signature effectively by including 'months' 
-            // but also need to ensure we re-run if dates change even if month count is same (e.g. sliding window)
-            // So we add the raw bounds if custom
-            customBounds: range === 'custom' ? { ...customRange } : null
         };
 
-        // Deep Equality Check
-        // If inputs haven't changed meaningfully, skip
-        if (lastInputsRef.current && deepEqual(currentInputs, lastInputsRef.current)) {
+        // 3. Construct a lightweight signature for deep equality comparison
+        // We use dataVersion to skip deep checking arrays, relying on the store to update the version
+        const dependencySignature = {
+            dataVersion: financeStore.dataVersion.value,
+            months: getMonthCount(),
+            customBounds: range === 'custom' ? { ...customRange } : null,
+            rangeMode: range
+        };
+
+        // 4. Check if inputs have actually changed
+        if (lastInputsRef.current && deepEqual(dependencySignature, lastInputsRef.current)) {
             return;
         }
 
-        // Logic for Debounce Time
-        // If switching presets (range is number), instant (0ms or small buffer)
-        // If Custom Range (typing dates), use 800ms
-        // If data changes (transactions update), usage 800ms to avoid flicker during bulk updates? 
-        // Or maybe 300ms. Let's stick to User Request: "Debounce text inputs, trigger immediate for preset"
-        // If the SOURCE of change is just the Range preset, go fast.
-
-        let debounceMs = 500; // Default for data changes
-
-        // Refine debounce based on what likely changed
-        // We can't easily know WHAT changed without comparing, but we can check range type
-        if (range !== 'custom') {
-            // If we are in preset mode, we generally want fast updates
-            // But if transactions update rapidly, we still want some debounce.
-            // However, "Click interaction... feels laggy" -> implied 800ms is too long for UI toggle.
-            debounceMs = 200;
-        } else {
-            debounceMs = 800; // Typing dates
-        }
+        // 5. Determine debounce duration
+        const debounceMs = range === 'custom' ? DEBOUNCE_MS_CUSTOM : DEBOUNCE_MS_PRESET;
 
         const timer = setTimeout(() => {
-            lastInputsRef.current = currentInputs; // Commit usage
-            fetchForecast(currentInputs);
+            lastInputsRef.current = dependencySignature;
+            lastFetchInputs.current = currentPayload;
+            fetchForecast(currentPayload);
         }, debounceMs);
 
         return () => clearTimeout(timer);
 
     }, [
-        // Dependencies that trigger the check
-        transactions.value,
-        accounts.value,
-        recurringCharges.value,
+        financeStore.dataVersion.value,
         range,
-        customRange
+        customRange.start,
+        customRange.end
     ]);
 
-    // ==================== DERIVED STATE ====================
+    // --- Derived State ---
 
     const filteredTimeline = useMemo(() => {
         if (!forecastData) return [];
-
-        // If not custom range, return full timeline
         if (range !== 'custom') return forecastData.timeline;
 
-        // Filter for custom range
         return forecastData.timeline.filter(item =>
             item.date >= customRange.start && item.date <= customRange.end
         );
     }, [forecastData, range, customRange]);
 
     const lowBalanceThreshold = useMemo(() => {
-        if (!forecastData?.summary) return 500;
+        if (!forecastData?.summary) return DEFAULT_LOW_BALANCE_THRESHOLD;
 
         const months = getMonthCount();
-        if (months <= 0) return 500;
+        if (months <= 0) return DEFAULT_LOW_BALANCE_THRESHOLD;
 
         const monthlyBurn = forecastData.summary.totalExpense / months;
         // 10% of monthly burn, rounded to nearest 10
         const threshold = Math.round((monthlyBurn * 0.1) / 10) * 10;
-
-        return threshold || 500;
+        return threshold || DEFAULT_LOW_BALANCE_THRESHOLD;
     }, [forecastData, range, customRange]);
 
-    // ==================== HANDLERS ====================
-
-    // ==================== HANDLERS ====================
+    // --- Handlers ---
 
     const changeMonth = (offset: number) => {
         setCalendarDate(prev => {
             const date = new Date(prev.year, prev.month + offset);
-            return {
-                month: date.getMonth(),
-                year: date.getFullYear()
-            };
+            return { month: date.getMonth(), year: date.getFullYear() };
         });
     };
 
@@ -259,7 +240,7 @@ export function useForecast() {
         viewMode,
         setViewMode,
         isLoading,
-        error, // <--- New return
+        error,
         summary: forecastData?.summary || null,
         timeline: filteredTimeline,
         insights: forecastData?.insights || [],
@@ -268,7 +249,11 @@ export function useForecast() {
         calendarDate,
         nextMonth: () => changeMonth(1),
         prevMonth: () => changeMonth(-1),
-        refresh: fetchForecast,
+        refresh: () => {
+            if (lastFetchInputs.current) {
+                fetchForecast(lastFetchInputs.current);
+            }
+        },
         recurringCharges: recurringCharges.value,
         lowBalanceThreshold
     };

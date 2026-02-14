@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect } from 'preact/hooks';
 import { financeStore } from '@/core/financeStore';
+import { api } from '@/core/lib/api';
 import { Transaction } from '../../../../shared/types';
 
 export const useTransactions = () => {
@@ -12,6 +13,16 @@ export const useTransactions = () => {
     const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
     const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
 
+    // Server-side Stats State
+    const [stats, setStats] = useState({
+        income: 0,
+        expense: 0,
+        transfers: 0,
+        count: 0,
+        netFlow: 0,
+        savingsRate: 0
+    });
+
     // Access Global Store
     const allTransactions = financeStore.transactions.value || [];
     const totalTransactions = financeStore.totalTransactions.value || 0;
@@ -19,27 +30,59 @@ export const useTransactions = () => {
 
     // Derived: Initial Load
     useEffect(() => {
-        if (allTransactions.length === 0 && !isLoading) {
+        if ((!financeStore.transactions.value || financeStore.transactions.value.length === 0) && !financeStore.isLoading.value) {
             financeStore.loadAll();
         }
     }, []);
 
-    // Derived: Filtering
+    // Effect: Fetch Stats from Server
+    useEffect(() => {
+        const fetchStats = async () => {
+            try {
+                const filters: any = {};
+                if (filterType !== 'all') filters.type = filterType;
+                if (filterMonth) {
+                    const [year, month] = filterMonth.split('-');
+                    const start = new Date(parseInt(year), parseInt(month) - 1, 1);
+                    const end = new Date(parseInt(year), parseInt(month), 0);
+                    filters.startDate = start.toISOString().split('T')[0];
+                    filters.endDate = end.toISOString().split('T')[0];
+                }
+
+                const data = await api.getTransactionStats(filters);
+
+                const netFlow = data.income - data.expense;
+                const savingsRate = data.income > 0 ? ((netFlow / data.income) * 100) : 0;
+
+                setStats({
+                    ...data,
+                    netFlow,
+                    savingsRate
+                });
+            } catch (e) {
+                console.error("Failed to fetch transaction stats", e);
+            }
+        };
+
+        fetchStats();
+    }, [filterType, filterMonth, totalTransactions]); // Re-fetch when filters or data changes
+
+    // Derived: Filtering (Still needed for table list view)
     const filteredTransactions = useMemo(() => {
-        if (!Array.isArray(allTransactions)) return [];
-        return allTransactions.filter(t => {
+        const txns = financeStore.transactions.value || [];
+        if (!Array.isArray(txns)) return [];
+        return txns.filter(t => {
             // Type Filter
             if (filterType !== 'all' && t.type !== filterType) return false;
 
             // Month Filter
             if (filterMonth) {
-                // Assuming start_date is YYYY-MM-DD
                 if (!t.start_date.startsWith(filterMonth)) return false;
             }
 
             return true;
         });
-    }, [allTransactions, filterType, filterMonth]);
+    }, [financeStore.transactions.value, filterType, filterMonth]);
 
     // Derived: Sorting
     const sortedTransactions = useMemo(() => {
@@ -60,22 +103,7 @@ export const useTransactions = () => {
         return sortedTransactions.slice(start, start + pageSize);
     }, [sortedTransactions, page, pageSize]);
 
-    const totalPages = Math.ceil((filterType === 'all' && !filterMonth ? totalTransactions : filteredTransactions.length) / pageSize);
-
-    // Derived: Stats (Calculated from filtered view)
-    const stats = useMemo(() => {
-        const initial = { income: 0, expense: 0, transfers: 0, count: 0 };
-        return filteredTransactions.reduce((acc, t) => {
-            acc.count++;
-            if (t.type === 'income') acc.income += t.amount;
-            else if (t.type === 'expense') acc.expense += t.amount;
-            else if (t.type === 'transfer') acc.transfers += t.amount;
-            return acc;
-        }, initial);
-    }, [filteredTransactions]);
-
-    const netFlow = stats.income - stats.expense;
-    const savingsRate = stats.income > 0 ? ((netFlow / stats.income) * 100) : 0;
+    const totalPages = Math.ceil((filterType === 'all' && !filterMonth ? (financeStore.totalTransactions.value || 0) : filteredTransactions.length) / pageSize);
 
     // Actions
     const deleteTransaction = async (id: number) => {
@@ -87,8 +115,8 @@ export const useTransactions = () => {
         // Data
         transactions: paginatedTransactions,
         allTransactions: sortedTransactions, // For export or charts if needed
-        stats: { ...stats, netFlow, savingsRate },
-        isLoading,
+        stats,
+        isLoading: financeStore.isLoading.value,
 
         // Pagination
         page,

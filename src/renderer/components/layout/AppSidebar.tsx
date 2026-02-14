@@ -15,6 +15,7 @@ import {
     LogOut,
     User
 } from 'lucide-preact';
+import { SidebarInsight } from './SidebarInsight';
 
 interface AppSidebarProps {
     aiStatus: 'online' | 'offline' | 'checking' | 'disabled';
@@ -62,8 +63,24 @@ export const AppSidebar = ({ aiStatus }: AppSidebarProps) => {
         <nav className="w-64 bg-surface-panel/90 backdrop-blur-xl border-r border-border/50 flex flex-col h-full z-20 transition-all duration-300">
             {/* Brand Header */}
             <div className="p-6 flex items-center gap-3">
-                <div className="w-10 h-10 bg-gradient-to-br from-brand-primary to-brand-secondary rounded-xl flex items-center justify-center shadow-lg shadow-brand-primary/20 text-white font-bold text-xl">
+                <div className="relative w-10 h-10 bg-gradient-to-br from-brand-primary to-brand-secondary rounded-xl flex items-center justify-center shadow-lg shadow-brand-primary/20 text-white font-bold text-xl group cursor-help">
                     B
+                    {/* AI Status Indicator on Logo */}
+                    {aiStatus !== 'disabled' && (
+                        <div className="absolute -top-1 -right-1 flex h-3 w-3">
+                            <span className={clsx(
+                                "animate-ping absolute inline-flex h-full w-full rounded-full opacity-75",
+                                aiStatus === 'online' ? "bg-emerald-400" :
+                                    aiStatus === 'checking' ? "bg-amber-400" : "hidden"
+                            )}></span>
+                            <span className={clsx(
+                                "relative inline-flex rounded-full h-3 w-3 border-2 border-surface-panel",
+                                aiStatus === 'online' ? "bg-emerald-500" :
+                                    aiStatus === 'offline' ? "bg-rose-500" :
+                                        aiStatus === 'checking' ? "bg-amber-500" : "bg-text-muted"
+                            )}></span>
+                        </div>
+                    )}
                 </div>
                 <div>
                     <h1 className="font-display font-bold text-xl text-text-primary tracking-tight leading-none">Bofo</h1>
@@ -87,9 +104,12 @@ export const AppSidebar = ({ aiStatus }: AppSidebarProps) => {
                     <NavItem to="/recurring" icon={Repeat} label="Recurring" />
                     <NavItem to="/bills" icon={Receipt} label="Bills" />
                     <NavItem to="/sandbox" icon={Sparkles} label="Sandbox" />
-                    <NavItem to="/ai-settings" icon={Bot} label="AI Assistant" statusDot={aiStatus} />
+                    {/* AI Assistant moved to Settings per user request */}
                 </ul>
             </div>
+
+            {/* AI Insight Widget */}
+            <SidebarInsight />
 
             {/* User Footer */}
             <div className="p-4 border-t border-border/50 bg-surface-base/50">

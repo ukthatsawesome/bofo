@@ -130,6 +130,7 @@ if (needsMigration) {
 // Promise for database initialization
 let dbResolve: () => void;
 let dbReject: (error: Error) => void;
+let dbReady = false;
 const dbInitialized = new Promise<void>((resolve, reject) => {
   dbResolve = resolve;
   dbReject = reject;
@@ -152,9 +153,11 @@ export const dbInstance = new sqlite3.Database(dbPath, async (err: Error | null)
     }
     await bootstrapDb();
     log('[DB] Initialization complete');
+    dbReady = true;
     dbResolve();
   } catch (error) {
     log(`[DB] Initialization FAILED: ${(error as Error).message}`);
+    dbReady = false;
     dbReject(error as Error);
   }
 });
@@ -1516,6 +1519,27 @@ async function seedSettings(): Promise<void> {
 // =============================================================================
 // EXPORTS
 // =============================================================================
+
+/**
+ * Gracefully close the database connection.
+ * Safe to call multiple times.
+ */
+export function closeDatabase(): Promise<void> {
+  return new Promise((resolve, reject) => {
+    try {
+      dbInstance.close((err: Error | null) => {
+        if (err) reject(err);
+        else resolve();
+      });
+    } catch (e) {
+      reject(e as Error);
+    }
+  });
+}
+
+export function isDbReady(): boolean {
+  return dbReady;
+}
 
 export default dbInstance;
 export { dbInstance as db, dbInitialized, run, get, all };

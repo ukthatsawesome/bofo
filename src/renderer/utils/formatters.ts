@@ -1,11 +1,7 @@
-export const formatCurrency = (amount: number, currency: string = 'USD', compact: boolean = false): string => {
-    return new Intl.NumberFormat('en-US', {
-        style: 'currency',
-        currency: currency,
-        minimumFractionDigits: compact ? 0 : 2,
-        maximumFractionDigits: compact ? 0 : 2,
-        notation: compact ? 'compact' : 'standard'
-    }).format(amount);
+import { formatCurrency as formatCurrencyBase } from './format';
+
+export const formatCurrency = (amount: number, currency?: string, compact: boolean = false): string => {
+    return formatCurrencyBase(amount, currency, compact);
 };
 
 export const formatPercent = (value: number): string => {

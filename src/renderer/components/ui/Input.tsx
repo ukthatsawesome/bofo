@@ -34,7 +34,7 @@ export const Input = ({
                 <input
                     disabled={disabled}
                     className={twMerge(clsx(
-                        "flex h-10 w-full rounded-xl border border-input bg-surface-input px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-text-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary/20 focus-visible:border-brand-primary disabled:cursor-not-allowed disabled:opacity-50 transition-all",
+                        "h-10 w-full rounded-xl border border-input bg-surface-input px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-text-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary/20 focus-visible:border-brand-primary disabled:cursor-not-allowed disabled:opacity-50 transition-all",
                         Icon && "pl-10",
                         error && "border-danger focus-visible:ring-danger/20",
                         className

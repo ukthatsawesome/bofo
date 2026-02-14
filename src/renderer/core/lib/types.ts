@@ -13,6 +13,10 @@ import type {
   GoalContribution,
   PaginatedResponse,
   TransactionWithCategory,
+  CategorySpending,
+  DashboardData,
+  SummaryStats,
+  AuditLog,
 } from '../../../shared/types';
 
 
@@ -115,7 +119,7 @@ export interface API {
   parseTransactionAI: (text: string) => Promise<any>;
   getAIInsight: (summary: any) => Promise<string>;
   chatSandbox: (text: string, context: any) => Promise<string>;
-  onChatSandboxChunk: (callback: (chunk: any) => void) => void;
+  onChatSandboxChunk: (callback: (chunk: any) => void) => () => void;
 
   // Bills
   getBillTypes: () => Promise<(BillType & { account_name?: string })[]>;
@@ -168,32 +172,19 @@ export interface API {
   }) => Promise<{ success: boolean; message: string }>;
   getCurrencyProviders: () => Promise<any[]>;
 
+
   // Remote Access
   getHostInfo: () => Promise<any>;
   restartWebServer: () => void;
-  onNativeThemeChanged: (callback: (isDark: boolean) => void) => void;
-  onDbStatus: (callback: (status: string, message?: string) => void) => void;
+  onNativeThemeChanged: (callback: (isDark: boolean) => void) => () => void;
+  onDbStatus: (callback: (status: string, message?: string) => void) => () => void;
   getDbStatus: () => Promise<string>;
   version: string;
 
   // Analytics
-  getSummaryStats: (baseCurrency?: string) => Promise<{
-    netWorth: number;
-    totalBalance: number;
-    monthIncome: number;
-    monthExpense: number;
-    savingsRate: number;
-  }>;
-  getDashboardData: (months?: number) => Promise<{
-    labels: string[];
-    income: number[];
-    expenses: number[];
-    netWorth: number[];
-  }>;
-  getCategorySpending: (startDate: string, endDate: string) => Promise<{
-    category: string;
-    amount: number;
-  }[]>;
+  getSummaryStats: (baseCurrency?: string) => Promise<SummaryStats>;
+  getDashboardData: (months?: number) => Promise<DashboardData>;
+  getCategorySpending: (startDate: string, endDate: string) => Promise<CategorySpending[]>;
   getTransactionStats: (options: any) => Promise<{
     income: number;
     expense: number;
@@ -204,7 +195,7 @@ export interface API {
   getBudgetSummary: () => Promise<{ totalAmount: number; usedAmount: number }>;
 
   // Audit
-  getAuditLogs: (options?: any) => Promise<any[]>;
+  getAuditLogs: (options?: any) => Promise<PaginatedResponse<AuditLog>>;
 
   // Anomaly Detection
   detectAnomalies: (data: { transaction: any }) => Promise<any>;

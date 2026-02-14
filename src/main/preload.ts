@@ -6,15 +6,28 @@ import {
 } from '../shared/types';
 
 const invokeWithTimeout = async (channel: string, args: any[] = [], timeoutMs: number = 5000) => {
+  let timeoutId: any;
+
   const timeoutPromise = new Promise((_, reject) => {
-    setTimeout(() => reject(new Error('Request Timed Out')), timeoutMs);
+    timeoutId = setTimeout(() => reject(new Error(`Request Timed Out for channel: ${channel}`)), timeoutMs);
   });
 
-  // Race the invoke against the timeout
-  return Promise.race([
-    ipcRenderer.invoke(channel, ...args),
-    timeoutPromise
-  ]);
+  try {
+    const result = await Promise.race([
+      ipcRenderer.invoke(channel, ...args),
+      timeoutPromise
+    ]);
+
+    if (result && typeof result === 'object' && result.error === true) {
+      const error = new Error(result.message || 'Unknown IPC Error');
+      (error as any).code = result.code;
+      throw error;
+    }
+
+    return result;
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId);
+  }
 };
 
 contextBridge.exposeInMainWorld('api', {
@@ -121,7 +134,9 @@ contextBridge.exposeInMainWorld('api', {
   chatSandbox: (text: string, context: any) =>
     invokeWithTimeout('chat-sandbox', [{ text, context }], 120000),
   onChatSandboxChunk: (callback: (chunk: any) => void) => {
-    ipcRenderer.on('chat-sandbox-chunk', (_event: IpcRendererEvent, chunk: any) => callback(chunk));
+    const listener = (_event: IpcRendererEvent, chunk: any) => callback(chunk);
+    ipcRenderer.on('chat-sandbox-chunk', listener);
+    return () => ipcRenderer.removeListener('chat-sandbox-chunk', listener);
   },
 
   // Bills
@@ -168,10 +183,14 @@ contextBridge.exposeInMainWorld('api', {
   getCategorySpending: (startDate: string, endDate: string) =>
     invokeWithTimeout('get-category-spending', [{ startDate, endDate }]),
   onNativeThemeChanged: (callback: (isDark: boolean) => void) => {
-    ipcRenderer.on('native-theme-changed', (_event, isDark: boolean) => callback(isDark));
+    const listener = (_event: IpcRendererEvent, isDark: boolean) => callback(isDark);
+    ipcRenderer.on('native-theme-changed', listener);
+    return () => ipcRenderer.removeListener('native-theme-changed', listener);
   },
   onDbStatus: (callback: (status: string, message?: string) => void) => {
-    ipcRenderer.on('app:db-status', (_event, status: string, message?: string) => callback(status, message));
+    const listener = (_event: IpcRendererEvent, status: string, message?: string) => callback(status, message);
+    ipcRenderer.on('app:db-status', listener);
+    return () => ipcRenderer.removeListener('app:db-status', listener);
   },
   getDbStatus: () => invokeWithTimeout('get-db-status'),
 

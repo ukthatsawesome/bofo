@@ -12,6 +12,7 @@ import { PiggyBank, ShoppingCart, AlertCircle, CheckCircle, Plus, Edit3, Trash2 
 import { clsx } from 'clsx';
 import { BudgetCard } from './components/BudgetCard';
 import { ViewLayout } from '@/components/layout/ViewLayout';
+import { ToggleButtonGroup } from '@/components/ui/ToggleButtonGroup';
 
 // Date Helpers
 const formatDate = (date: Date) => {
@@ -112,26 +113,17 @@ export const BudgetPage = () => {
                     className="bg-surface-base border border-border rounded-lg px-3 py-2 text-sm"
                 />
             )}
-            <div className="flex bg-surface-card border border-border rounded-lg p-1">
-                <button
-                    onClick={() => setFilter('active')}
-                    className={clsx(
-                        "px-3 py-1.5 text-xs font-semibold rounded-md transition-colors",
-                        filter === 'active' ? "bg-brand-primary text-white" : "text-text-muted hover:text-text-primary"
-                    )}
-                >
-                    Active
-                </button>
-                <button
-                    onClick={() => setFilter('past')}
-                    className={clsx(
-                        "px-3 py-1.5 text-xs font-semibold rounded-md transition-colors",
-                        filter === 'past' ? "bg-brand-primary text-white" : "text-text-muted hover:text-text-primary"
-                    )}
-                >
-                    History
-                </button>
-            </div>
+            {/* <ToggleButtonGroup imported above> */}
+            <ToggleButtonGroup
+                options={[
+                    { value: 'active', label: 'Active' },
+                    { value: 'past', label: 'History' }
+                ]}
+                value={filter}
+                onChange={(v) => setFilter(v as any)}
+                variant="primary"
+                className="bg-surface-card border border-border" // Match existing container style but use standard component
+            />
             <UiButton icon={<Plus size={18} />} onClick={handleNew}>New Budget</UiButton>
         </div>
     );

@@ -48,12 +48,17 @@ export const TransactionsPage = () => {
     };
 
     const handleSave = async (data: any) => {
-        if (editingTx?.id) {
-            financeStore.updateTransaction(editingTx.id, data);
-        } else {
-            financeStore.addTransaction(data);
+        try {
+            if (editingTx?.id) {
+                await financeStore.updateTransaction(editingTx.id, data);
+            } else {
+                await financeStore.addTransaction(data);
+            }
+            setIsModalOpen(false);
+        } catch (error) {
+            console.error("Failed to save transaction:", error);
+            // Optional: keep modal open or show error within modal
         }
-        setIsModalOpen(false);
     };
 
     const columns: Column<Transaction>[] = [
@@ -80,9 +85,10 @@ export const TransactionsPage = () => {
                     if (type === 'transfer') return 'info';
                     return 'neutral';
                 };
+
                 return (
                     <StatusBadge status={mapType(t.type) as any} variant="soft">
-                        {t.category_name || t.category || 'Uncategorized'}
+                        {t.category_name}
                     </StatusBadge>
                 );
             }
@@ -120,7 +126,7 @@ export const TransactionsPage = () => {
                 value={filterMonth}
                 onInput={(e) => setFilterMonth((e.target as HTMLInputElement).value)}
             />
-            <UiButton variant="primary" icon={Plus} onClick={handleAdd}>Add Transaction</UiButton>
+            <UiButton variant="primary" icon={<Plus size={18} />} onClick={handleAdd} className="whitespace-nowrap">Add Transaction</UiButton>
         </div>
     );
 

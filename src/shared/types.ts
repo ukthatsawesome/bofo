@@ -317,3 +317,41 @@ export interface AppSettings {
   forecast_include_recurring?: string;
   [key: string]: string | undefined;
 }
+
+export interface CategorySpending {
+  category: string;
+  amount: number;
+  color?: string;
+  icon?: string;
+  percent?: number;
+}
+
+export interface DashboardData {
+  labels: string[];
+  income: number[];
+  expenses: number[];
+  netWorth: number[];
+  summary: {
+    totalIncome: number;
+    totalExpense: number;
+  };
+}
+
+export interface SummaryStats {
+  netWorth: number;
+  totalBalance: number;
+  monthIncome: number;
+  monthExpense: number;
+  savingsRate: number;
+}
+
+export interface AuditLog {
+  id: number;
+  entity_type: string;
+  entity_id: number;
+  action: string;
+  source: string;
+  changes: any;
+  metadata: any;
+  created_at: string;
+}

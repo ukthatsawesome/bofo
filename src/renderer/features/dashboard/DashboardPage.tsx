@@ -18,7 +18,7 @@ import { TransactionForm } from '@/features/transactions/components/TransactionF
 import { financeStore } from '@/core/financeStore';
 
 export const DashboardPage = () => {
-    const { summaryStats, chartData, accounts, transactions, isLoading } = useDashboard();
+    const { summaryStats, chartData, accounts, transactions, isLoading, insight } = useDashboard();
     const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
 
     const handleTransferSave = async (data: any) => {
@@ -27,20 +27,21 @@ export const DashboardPage = () => {
     };
 
     const Actions = (
-        <UiButton variant="primary" icon={Plus} onClick={() => setIsTransferModalOpen(true)}>New Transfer</UiButton>
+        <UiButton variant="primary" icon={<Plus size={18} />} onClick={() => setIsTransferModalOpen(true)}>New Transfer</UiButton>
     );
 
     // Memoize chart data to prevent unnecessary chart updates/animations
     const chartConfig = useMemo(() => {
-        if (!chartData) return { labels: [], datasets: [] };
+        const cd = chartData.value;
+        if (!cd) return { labels: [], datasets: [] };
         return {
-            labels: chartData.labels,
+            labels: cd.labels,
             datasets: [
                 {
                     type: 'line' as const,
                     label: 'Net Worth',
-                    data: chartData.netWorth,
-                    borderColor: '#10b981', // Emerald 500
+                    data: cd.netWorth,
+                    borderColor: '#10b981',
                     backgroundColor: 'rgba(16, 185, 129, 0.1)',
                     borderWidth: 3,
                     fill: true,
@@ -50,36 +51,37 @@ export const DashboardPage = () => {
                 {
                     type: 'bar' as const,
                     label: 'Income',
-                    data: chartData.income,
-                    backgroundColor: '#10b981', // Emerald 500
+                    data: cd.income,
+                    backgroundColor: '#10b981',
                     borderRadius: 4,
                     yAxisID: 'y1'
                 },
                 {
                     type: 'bar' as const,
                     label: 'Expenses',
-                    data: chartData.expenses,
-                    backgroundColor: '#ef4444', // Red 500
+                    data: cd.expenses,
+                    backgroundColor: '#ef4444',
                     borderRadius: 4,
                     yAxisID: 'y1'
                 }
             ]
         };
-    }, [chartData]);
+    }, [chartData.value]);
 
     // Compute Top Categories
     const categoryChartConfig = useMemo(() => {
-        if (!transactions || transactions.length === 0) return null;
+        const txns = transactions.value;
+        if (!txns || txns.length === 0) return null;
 
-        const expenses = transactions.filter(t => t.type === 'expense');
+        const expenses = txns.filter(t => t.type === 'expense');
         const categoryMap = new Map<string, number>();
 
         expenses.forEach(t => {
-            const current = categoryMap.get(t.category) || 0;
-            categoryMap.set(t.category, current + Math.abs(t.amount));
+            const catName = (t as any).category_name || t.category || 'Uncategorized';
+            const current = categoryMap.get(catName) || 0;
+            categoryMap.set(catName, current + Math.abs(t.amount));
         });
 
-        // Sort by amount desc
         const sortedCategories = Array.from(categoryMap.entries())
             .sort((a, b) => b[1] - a[1])
             .slice(0, 5);
@@ -92,22 +94,23 @@ export const DashboardPage = () => {
             datasets: [{
                 data: sortedCategories.map(([, amount]) => amount) as any,
                 backgroundColor: [
-                    '#ef4444', // Red
-                    '#f97316', // Orange
-                    '#f59e0b', // Amber
-                    '#84cc16', // Lime
-                    '#10b981', // Emerald
+                    '#ef4444',
+                    '#f97316',
+                    '#f59e0b',
+                    '#84cc16',
+                    '#10b981',
                 ],
                 borderWidth: 1,
             }]
         };
         return config;
-    }, [transactions]);
+    }, [transactions.value]);
 
     // Compute Budget Status (Expenses vs Income Ratio)
     const budgetStatus = useMemo(() => {
-        if (!summaryStats) return { percent: 0, color: 'bg-slate-200', value: '0' };
-        const { monthIncome, monthExpense } = summaryStats;
+        const stats = summaryStats.value;
+        if (!stats) return { percent: 0, color: 'bg-slate-200', value: '0' };
+        const { monthIncome, monthExpense } = stats;
         if (monthIncome === 0) return { percent: 0, color: 'bg-slate-200', value: '0' };
 
         const percent = Math.min((monthExpense / monthIncome) * 100, 100);
@@ -117,7 +120,7 @@ export const DashboardPage = () => {
         if (percent > 95) color = 'bg-danger';
 
         return { percent, color, value: percent.toFixed(0) };
-    }, [summaryStats]);
+    }, [summaryStats.value]);
 
     const getGreeting = () => {
         const hour = new Date().getHours();
@@ -129,8 +132,8 @@ export const DashboardPage = () => {
     return (
         <ViewLayout
             title={`${getGreeting()}, User`}
-            actions={Actions}
-            isLoading={isLoading && !summaryStats}
+            // actions={Actions} // Removed as per user request to avoid duplication with Quick Widget
+            isLoading={isLoading.value && !summaryStats.value}
         >
             <div className="space-y-6">
 
@@ -138,7 +141,7 @@ export const DashboardPage = () => {
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                     <UiStatCard
                         label="Total Balance"
-                        value={formatCurrency(summaryStats.totalBalance)}
+                        value={formatCurrency(summaryStats.value?.totalBalance ?? 0)}
                         icon={Landmark}
                         color="primary"
                         trend="up"
@@ -146,7 +149,7 @@ export const DashboardPage = () => {
                     />
                     <UiStatCard
                         label="Net Worth"
-                        value={formatCurrency(summaryStats.netWorth)}
+                        value={formatCurrency(summaryStats.value?.netWorth ?? 0)}
                         icon={Gem}
                         color="info"
                         trend="up"
@@ -154,17 +157,17 @@ export const DashboardPage = () => {
                     />
                     <UiStatCard
                         label="Monthly Income"
-                        value={formatCurrency(summaryStats.monthIncome)}
+                        value={formatCurrency(summaryStats.value?.monthIncome ?? 0)}
                         icon={Wallet}
                         color="success"
                     />
                     <UiStatCard
                         label="Monthly Expenses"
-                        value={formatCurrency(summaryStats.monthExpense)}
+                        value={formatCurrency(summaryStats.value?.monthExpense ?? 0)}
                         icon={TrendingDown}
                         color="danger"
-                        trend={summaryStats.savingsRate >= 0 ? "up" : "down"}
-                        trendValue={`${summaryStats.savingsRate.toFixed(1)}% Saved`}
+                        trend={(summaryStats.value?.savingsRate ?? 0) >= 0 ? "up" : "down"}
+                        trendValue={`${(summaryStats.value?.savingsRate ?? 0).toFixed(1)}% Saved`}
                     />
                 </div>
 
@@ -181,20 +184,24 @@ export const DashboardPage = () => {
                             variant="default"
                             icon={TrendingUp}
                         >
-                            <div className="h-96 w-full">
-                                {chartData && chartConfig.labels.length > 0 ? (
+                            <div className="h-[340px] w-full">
+                                {chartData.value && chartConfig.labels.length > 0 ? (
                                     <UiChart
                                         type="bar"
-                                        height={380}
+                                        height={340}
                                         data={chartConfig}
                                         options={{
                                             responsive: true,
                                             maintainAspectRatio: false,
-                                            interaction: {
-                                                mode: 'index',
-                                                intersect: false,
-                                            },
                                             scales: {
+                                                x: {
+                                                    grid: { display: false },
+                                                    ticks: {
+                                                        maxRotation: 0,
+                                                        autoSkip: true,
+                                                        maxTicksLimit: 6,
+                                                    }
+                                                },
                                                 y: {
                                                     type: 'linear',
                                                     display: false,
@@ -204,10 +211,49 @@ export const DashboardPage = () => {
                                                     type: 'linear',
                                                     display: true,
                                                     position: 'right',
+                                                    beginAtZero: true,
+                                                    suggestedMax: 1000,
                                                     grid: {
-                                                        drawOnChartArea: false,
+                                                        drawOnChartArea: true,
+                                                        color: 'rgba(0, 0, 0, 0.05)',
                                                     },
+                                                    border: { display: false },
+                                                    ticks: {
+                                                        callback: (value: any) => formatCurrency(Number(value), undefined, true),
+                                                        maxTicksLimit: 6,
+                                                    }
                                                 },
+                                            },
+                                            plugins: {
+                                                legend: {
+                                                    position: 'bottom',
+                                                    labels: {
+                                                        padding: 20,
+                                                        usePointStyle: true,
+                                                    }
+                                                },
+                                                tooltip: {
+                                                    callbacks: {
+                                                        label: (context: any) => {
+                                                            let label = context.dataset.label || '';
+                                                            if (label) {
+                                                                label += ': ';
+                                                            }
+                                                            if (context.parsed.y !== null) {
+                                                                label += formatCurrency(context.parsed.y);
+                                                            }
+                                                            return label;
+                                                        }
+                                                    }
+                                                }
+                                            },
+                                            layout: {
+                                                padding: {
+                                                    top: 10,
+                                                    bottom: 10,
+                                                    left: 10,
+                                                    right: 10
+                                                }
                                             }
                                         }}
                                     />
@@ -225,7 +271,7 @@ export const DashboardPage = () => {
 
                     {/* Row 2: Categories + Budget Status + My Accounts */}
                     <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8">
-                        <UiCard title="Top Categories" icon={PieChart} variant="flat">
+                        <UiCard title="Top Categories" icon={PieChart}>
                             <div className="h-48 flex items-center justify-center">
                                 {categoryChartConfig ? (
                                     <div className="w-full h-full p-2">
@@ -240,7 +286,7 @@ export const DashboardPage = () => {
                                 )}
                             </div>
                         </UiCard>
-                        <UiCard title="Budget Status" icon={Target} variant="flat">
+                        <UiCard title="Budget Status" icon={Target}>
                             <div className="h-48 flex flex-col justify-center px-4 space-y-4">
                                 <div className="flex justify-between items-end">
                                     <div>
@@ -248,7 +294,7 @@ export const DashboardPage = () => {
                                         <div className="text-xs text-text-muted">of Monthly Income Spent</div>
                                     </div>
                                     <div className="text-right">
-                                        <div className="text-sm font-semibold text-text-primary">{formatCurrency(summaryStats.monthExpense)}</div>
+                                        <div className="text-sm font-semibold text-text-primary">{formatCurrency(summaryStats.value?.monthExpense ?? 0)}</div>
                                         <div className="text-xs text-text-muted">Total Expenses</div>
                                     </div>
                                 </div>
@@ -270,7 +316,7 @@ export const DashboardPage = () => {
                         {/* My Accounts Widget */}
                         <UiCard title="My Accounts" variant="default" icon={Wallet}>
                             <div className="space-y-2">
-                                {accounts.slice(0, 4).map(acc => (
+                                {(accounts.value || []).slice(0, 4).map(acc => (
                                     <div key={acc.id} className="flex justify-between items-center p-3 bg-surface-hover rounded-xl border border-border/50 hover:border-brand-primary/30 transition-all cursor-pointer group">
                                         <div>
                                             <div className="font-semibold text-sm text-text-primary group-hover:text-brand-primary transition-colors">{acc.name}</div>
@@ -279,12 +325,14 @@ export const DashboardPage = () => {
                                         <div className={clsx("font-mono font-medium text-sm", acc.balance >= 0 ? "text-success" : "text-danger")}>{formatCurrency(acc.balance)}</div>
                                     </div>
                                 ))}
-                                {accounts.length > 4 && (
-                                    <UiButton variant="ghost" fullWidth className="mt-2">View All {accounts.length} Accounts</UiButton>
+                                {(accounts.value || []).length > 4 && (
+                                    <UiButton variant="ghost" fullWidth className="mt-2">View All {accounts.value!.length} Accounts</UiButton>
                                 )}
                             </div>
                         </UiCard>
                     </div>
+
+
 
                 </div>
 

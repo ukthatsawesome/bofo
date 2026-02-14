@@ -10,6 +10,7 @@ export interface Column<T> {
     className?: string; // Class for the cell
     headerClassName?: string;
     sortable?: boolean;
+    sortKey?: keyof T | string; // Key to sort by if accessor is a function
 }
 
 interface DataTableProps<T> {
@@ -22,6 +23,9 @@ interface DataTableProps<T> {
     onSelectionChange?: (ids: Set<number | string>) => void;
     selectable?: boolean;
     emptyMessage?: string;
+    sortColumn?: keyof T | string;
+    sortDirection?: 'asc' | 'desc';
+    onSort?: (column: keyof T | string) => void;
 }
 
 export const DataTable = <T,>({
@@ -33,7 +37,10 @@ export const DataTable = <T,>({
     selectedIds,
     onSelectionChange,
     selectable = false,
-    emptyMessage = "No data available"
+    emptyMessage = "No data available",
+    sortColumn,
+    sortDirection,
+    onSort
 }: DataTableProps<T>) => {
 
     if (isLoading) {
@@ -52,23 +59,51 @@ export const DataTable = <T,>({
         );
     }
 
+    const handleHeaderClick = (col: Column<T>) => {
+        if (col.sortable && onSort) {
+            // Prioritize sortKey if provided, otherwise use accessor if it's a string/key
+            const key = col.sortKey || (typeof col.accessor === 'string' ? col.accessor : null);
+
+            if (key) {
+                onSort(key as string);
+            } else {
+                console.warn('DataTable: Sortable column missing sortKey or string accessor', col);
+            }
+        }
+    };
+
     return (
         <div className="w-full overflow-hidden rounded-xl border border-border bg-surface-card shadow-sm">
             <div className="overflow-x-auto">
                 <table className="w-full">
                     <thead>
                         <tr className="bg-surface-hover border-b border-border">
-                            {columns.map((col, idx) => (
-                                <th
-                                    key={idx}
-                                    className={clsx(
-                                        "px-6 py-3 text-left text-xs font-semibold text-text-muted uppercase tracking-wider whitespace-nowrap",
-                                        col.className
-                                    )}
-                                >
-                                    {col.header}
-                                </th>
-                            ))}
+                            {columns.map((col, idx) => {
+                                const sortIdentifier = col.sortKey || (typeof col.accessor === 'string' ? col.accessor : undefined);
+                                const isSorted = sortColumn === sortIdentifier;
+                                return (
+                                    <th
+                                        key={idx}
+                                        onClick={() => handleHeaderClick(col)}
+                                        className={clsx(
+                                            "px-6 py-3 text-left text-xs font-semibold text-text-muted uppercase tracking-wider whitespace-nowrap transition-colors",
+                                            col.sortable && "cursor-pointer hover:bg-surface-active hover:text-text-primary select-none",
+                                            col.className
+                                        )}
+                                    >
+                                        <div className="flex items-center gap-1">
+                                            {col.header}
+                                            {col.sortable && (
+                                                <div className="flex flex-col">
+                                                    {isSorted && sortDirection === 'asc' && <ChevronUp size={14} className="text-brand-primary" />}
+                                                    {isSorted && sortDirection === 'desc' && <ChevronDown size={14} className="text-brand-primary" />}
+                                                    {!isSorted && <div className="w-3.5 h-3.5" />} {/* Placeholder */}
+                                                </div>
+                                            )}
+                                        </div>
+                                    </th>
+                                );
+                            })}
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-border">

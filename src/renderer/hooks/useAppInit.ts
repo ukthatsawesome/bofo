@@ -1,20 +1,28 @@
-
 import { useEffect, useState } from 'preact/hooks';
 import { signal } from '@preact/signals';
-import { FinanceService } from '../core/lib/api/FinanceService'; // We'll need to strictly type this service next
 import { financeStore } from '../core/financeStore';
+import { api } from '../core/lib/api';
 
 // Global app initialization state
-export const appState = signal({
+interface AppState {
+    isDBReady: boolean;
+    isThemeReady: boolean;
+    isDataLoaded: boolean;
+    error: string | null;
+}
+
+export const appState = signal<AppState>({
     isDBReady: false,
     isThemeReady: false,
     isDataLoaded: false,
-    error: null as string | null,
+    error: null,
 });
 
 export const useAppInit = () => {
     useEffect(() => {
         let mounted = true;
+        let unsubscribeDbStatus: (() => void) | null = null;
+        let unsubscribeTheme: (() => void) | null = null;
 
         const init = async () => {
             try {
@@ -23,13 +31,13 @@ export const useAppInit = () => {
                 // We should move this to a request-response or keep the listener.
                 // For now, we'll optimistically assume we can start listening.
 
-                window.api.onDbStatus((status: string, message?: string) => {
+                unsubscribeDbStatus = api.onDbStatus((status: string, message?: string) => {
                     if (!mounted) return;
                     handleStatus(status, message);
                 });
 
                 // Check status immediately in case we missed the event
-                const status = await window.api.getDbStatus();
+                const status = await api.getDbStatus();
                 handleStatus(status);
 
                 function handleStatus(status: string, message?: string) {
@@ -49,14 +57,39 @@ export const useAppInit = () => {
                 }
 
                 // 2. Setup Theme
-                // Request initial theme
-                const currentTheme = await window.api.getSettings().then(s => s.theme || 'system').catch(() => 'system');
-                // Apply theme logic (refactored from legacy)
-                applyTheme(currentTheme);
+                const initTheme = async () => {
+                    const settings = await api.getSettings();
+                    const theme = settings.theme || 'system';
+                    applyTheme(theme);
 
-                // Listen for system changes if 'system' is selected
-                // functionality needs to be ported here or handled by the store
+                    // Listen for system theme changes
+                    if (api.onNativeThemeChanged) {
+                        const unsubscribeTheme = api.onNativeThemeChanged((isDark: boolean) => {
+                            if (theme === 'system') {
+                                document.documentElement.classList.toggle('dark', isDark);
+                            }
+                        });
+                        // We need to store this unsubscribe to clean it up
+                        // But useAppInit is a one-time setup usually.
+                        // Ideally we add it to the cleanup list.
+                        // However, strictly speaking, useAppInit's effect cleanup handles unmounting.
+                        // Let's create a local var for it to add to cleanup.
+                        return unsubscribeTheme;
+                    }
+                    return null;
+                };
+
+                const themeUnsub = await initTheme();
+
                 appState.value = { ...appState.value, isThemeReady: true };
+
+                // Add to cleanup
+                if (themeUnsub) {
+                    // We need to modify the cleanup function return... 
+                    // But we are inside async init(). 
+                    // We should store it in a mutable var accessible by cleanup.
+                    unsubscribeTheme = themeUnsub;
+                }
 
             } catch (e: any) {
                 if (mounted) {
@@ -69,6 +102,8 @@ export const useAppInit = () => {
 
         return () => {
             mounted = false;
+            if (unsubscribeDbStatus) unsubscribeDbStatus();
+            if (unsubscribeTheme) unsubscribeTheme();
         };
     }, []);
 

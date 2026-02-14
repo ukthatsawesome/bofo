@@ -1,5 +1,6 @@
 
 import { AiAnalysisResponseSchema, type AiAnalysisResponse, type AiInsight } from '../../shared/schemas';
+import { api } from '../core/lib/api';
 import { FallbackGenerator } from '../core/lib/ai/FallbackGenerator';
 import { aiInsightCache } from '../core/lib/ai/InsightCache';
 
@@ -22,7 +23,7 @@ export const AiService = {
             const fullPrompt = `${prompt}\n\nContext: ${contextJson}`;
 
             // Call IPC
-            const responseJson = await window.api.aiChat(fullPrompt);
+            const responseJson = await api.aiChat(fullPrompt);
 
             // Parse response
             try {

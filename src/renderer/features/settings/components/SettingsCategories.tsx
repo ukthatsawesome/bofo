@@ -11,10 +11,16 @@ import { IconButton } from '@/components/ui/IconButton';
 import { Category } from '../../../../shared/types';
 import { clsx } from 'clsx';
 import { SectionTitle, Caption } from '@/components/ui/Typography';
+import { useSortedData } from '@/hooks/useSortedData';
 
 export const SettingsCategories = () => {
     const categories = financeStore.categories.value;
     const isLoading = financeStore.isLoading.value;
+
+    const { sortedData, sortColumn, sortDirection, handleSort } = useSortedData({
+        data: categories,
+        initialSortColumn: 'name'
+    });
 
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingCategory, setEditingCategory] = useState<Partial<Category> | undefined>(undefined);
@@ -74,9 +80,9 @@ export const SettingsCategories = () => {
     const columns: Column<Category>[] = [
         {
             header: 'Name',
-            accessor: (c) => (
-                <div className="font-medium text-text-primary">{c.name}</div>
-            )
+            accessor: 'name',
+            sortable: true,
+            className: 'font-medium text-text-primary'
         },
         {
             header: 'Type',
@@ -89,7 +95,9 @@ export const SettingsCategories = () => {
                 )}>
                     {c.type}
                 </span>
-            )
+            ),
+            sortable: true,
+            sortKey: 'type'
         },
         {
             header: 'Actions',
@@ -126,10 +134,13 @@ export const SettingsCategories = () => {
             </div>
 
             <DataTable
-                data={categories}
+                data={sortedData}
                 columns={columns}
                 keyField="id"
                 isLoading={isLoading}
+                sortColumn={sortColumn}
+                sortDirection={sortDirection}
+                onSort={handleSort}
             />
 
             {/* @ts-ignore */}

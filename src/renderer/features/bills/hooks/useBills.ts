@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'preact/hooks';
 import { billReadings, billTypes, isLoading, actions } from '@/core/financeStore';
+import { api } from '@/core/lib/api';
 import { formatCurrency } from '@/utils/format';
 
 // This hook bridges the Global Signal Store with local view requirements
@@ -15,8 +16,8 @@ export const useBills = () => {
         try {
             // Using the global window.api for now (Service Layer to come next)
             const [types, readings] = await Promise.all([
-                (window as any).api.getBillTypes(),
-                (window as any).api.getBillReadings({ year: new Date().getFullYear(), month: 0 })
+                api.getBillTypes(),
+                api.getBillReadings({ year: new Date().getFullYear(), month: 0 })
             ]);
 
             actions.setBillTypes(types || []);
@@ -37,7 +38,7 @@ export const useBills = () => {
     const deleteReading = async (id: number) => {
         if (!confirm('Are you sure?')) return;
         try {
-            await (window as any).api.deleteBillReading(id);
+            await api.deleteBillReading(id);
             await refreshData();
         } catch (err) {
             console.error(err);
@@ -66,7 +67,7 @@ export const useBills = () => {
 
     const addReading = async (data: any) => {
         try {
-            await (window as any).api.addBillReading(data);
+            await api.addBillReading(data);
             await refreshData();
         } catch (err) {
             console.error('Failed to add reading:', err);
@@ -75,7 +76,7 @@ export const useBills = () => {
 
     const updateReading = async (id: number, data: any) => {
         try {
-            await (window as any).api.updateBillReading(id, data);
+            await api.updateBillReading(id, data);
             await refreshData();
         } catch (err) {
             console.error('Failed to update reading:', err);

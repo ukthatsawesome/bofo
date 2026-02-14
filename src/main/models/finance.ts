@@ -98,6 +98,7 @@ interface EntitySchema<T> {
   defaults?: Partial<T>;
   orderBy?: string;
   checkInUse?: (id: number) => Promise<boolean>;
+  beforeWrite?: (data: T, isCreate: boolean) => Promise<T>;
   afterWrite?: (data: T & { id?: number }) => Promise<void>;
   afterDelete?: (data: T) => Promise<void>;
 }
@@ -111,13 +112,119 @@ const ENTITY_SCHEMAS: Record<EntityType, EntitySchema<any>> = {
       'end_date', 'currency', 'exchange_rate', 'to_amount', 'base_currency',
       'base_amount', 'tags', 'is_active',
     ],
-    defaults: { currency: 'USD', frequency: 'once', is_active: 1, tags: '', exchange_rate: 1 },
+    defaults: { frequency: 'once', is_active: 1, tags: '', exchange_rate: 1 },
     orderBy: 'start_date DESC',
+    beforeWrite: async (data: Transaction, isCreate: boolean) => {
+      // Fetch user's preference for base currency from settings
+      const setting = await get<{ value: string }>('SELECT value FROM settings WHERE key = ?', ['base_currency']);
+      const BASE_CURRENCY = setting?.value || 'USD';
+
+      // 1. Handle Transfer Category
+      if (data.type === 'transfer') {
+        let transferCat = await get<Category>(`SELECT * FROM categories WHERE type = 'transfer' AND name = 'Transfer' LIMIT 1`);
+        if (!transferCat) {
+          const result = await run(`INSERT INTO categories (type, name, status, color, icon) VALUES ('transfer', 'Transfer', 'active', '#2563eb', 'arrow-right-left')`);
+          transferCat = { id: result.id, name: 'Transfer', type: 'transfer' } as Category;
+        }
+        data.category = transferCat.name;
+        data.category_id = transferCat.id;
+      }
+
+      // 2. Handle Currency Conversion & Exchange Rates
+      if (data.account_id) {
+        // Fetch source account
+        const sourceAcc = await get<Account>('SELECT currency FROM accounts WHERE id = ?', [data.account_id]);
+
+        if (sourceAcc) {
+          // Set transaction currency to account currency if not provided (best practice)
+          // But usually transaction currency matches account currency unless it's a foreign transaction on the account?
+          // For simplicity in V1, let's assume transaction currency = account currency.
+          // Set transaction currency to account currency if available, else fallback to user's base currency
+          data.currency = sourceAcc.currency || BASE_CURRENCY;
+
+          // If Transfer, check destination account
+          if (data.type === 'transfer' && data.to_account_id) {
+            const destAcc = await get<Account>('SELECT currency FROM accounts WHERE id = ?', [data.to_account_id]);
+            if (destAcc) {
+              if (destAcc.currency !== sourceAcc.currency) {
+                // Currency Mismatch: We need an exchange rate
+                // Try to find one
+                const rateRecord = await get<ExchangeRate>(
+                  'SELECT rate FROM exchange_rates WHERE from_currency = ? AND to_currency = ? ORDER BY updated_at DESC LIMIT 1',
+                  [sourceAcc.currency, destAcc.currency]
+                );
+
+                const rate = rateRecord ? rateRecord.rate : 1; // Default to 1 if not found (or should we throw?)
+                // If user provided a specific rate for this transaction, use it, otherwise use DB rate
+                // data.exchange_rate might be 1 by default from UI, so we trust DB rate if available and rate is 1
+                if (!data.exchange_rate || data.exchange_rate === 1) {
+                  data.exchange_rate = rate;
+                }
+
+                // Calculate to_amount
+                data.to_amount = Math.round(data.amount * data.exchange_rate * 100) / 100;
+              } else {
+                // Same currency
+                data.exchange_rate = 1;
+                data.to_amount = data.amount;
+              }
+            }
+          } else {
+            // Not a transfer, or no dest account
+            data.to_amount = null; // Ensure null if not transfer
+          }
+
+          // 3. Base Currency Normalization (for aggregation)
+          if (data.currency === BASE_CURRENCY) {
+            data.base_amount = data.amount;
+            data.base_currency = BASE_CURRENCY;
+          } else {
+            // Try to convert to USD
+            const toBaseRate = await get<ExchangeRate>(
+              'SELECT rate FROM exchange_rates WHERE from_currency = ? AND to_currency = ? ORDER BY updated_at DESC LIMIT 1',
+              [data.currency, BASE_CURRENCY]
+            );
+            if (toBaseRate) {
+              data.base_amount = Math.round(data.amount * toBaseRate.rate * 100) / 100;
+            } else {
+              // Fallback: If no rate found, keep as is (imperfect, but better than 0)
+              data.base_amount = data.amount;
+            }
+            data.base_currency = BASE_CURRENCY;
+          }
+        }
+      }
+
+      return data;
+    },
+    afterWrite: async (data: Transaction) => {
+      if (data.account_id) {
+        await FinanceModel.syncAccountBalance(data.account_id);
+      }
+      if (data.to_account_id) {
+        await FinanceModel.syncAccountBalance(data.to_account_id);
+      }
+    },
+    afterDelete: async (data: Transaction) => {
+      if (data.account_id) {
+        await FinanceModel.syncAccountBalance(data.account_id);
+      }
+      if (data.to_account_id) {
+        await FinanceModel.syncAccountBalance(data.to_account_id);
+      }
+    }
   },
   account: {
     table: 'accounts',
     fields: ['name', 'type', 'balance', 'initial_balance', 'currency', 'status'],
-    defaults: { currency: 'USD', status: 'active', balance: 0 },
+    defaults: { status: 'active', balance: 0 },
+    beforeWrite: async (data: Account) => {
+      if (!data.currency) {
+        const setting = await get<{ value: string }>('SELECT value FROM settings WHERE key = ?', ['base_currency']);
+        data.currency = setting?.value || 'USD';
+      }
+      return data;
+    },
     orderBy: 'type, name',
     checkInUse: async (id: number) => {
       const row = await get<{ count: number }>(
@@ -145,7 +252,14 @@ const ENTITY_SCHEMAS: Record<EntityType, EntitySchema<any>> = {
   budget: {
     table: 'budgets',
     fields: ['category', 'category_id', 'amount', 'period', 'start_date', 'end_date', 'currency'],
-    defaults: { period: 'monthly', currency: 'USD' },
+    defaults: { period: 'monthly' },
+    beforeWrite: async (data: Budget) => {
+      if (!data.currency) {
+        const setting = await get<{ value: string }>('SELECT value FROM settings WHERE key = ?', ['base_currency']);
+        data.currency = setting?.value || 'USD';
+      }
+      return data;
+    },
     orderBy: 'start_date DESC',
   },
   goal: {
@@ -156,7 +270,14 @@ const ENTITY_SCHEMAS: Record<EntityType, EntitySchema<any>> = {
     ],
     defaults: {
       current_amount: 0, monthly_contribution: 0, icon: 'target', color: '#a29bfe',
-      priority: 1, status: 'active', auto_contribute: 0, currency: 'USD',
+      priority: 1, status: 'active', auto_contribute: 0,
+    },
+    beforeWrite: async (data: Goal) => {
+      if (!data.currency) {
+        const setting = await get<{ value: string }>('SELECT value FROM settings WHERE key = ?', ['base_currency']);
+        data.currency = setting?.value || 'USD';
+      }
+      return data;
     },
     orderBy: 'priority ASC, created_at DESC',
   },
@@ -166,7 +287,14 @@ const ENTITY_SCHEMAS: Record<EntityType, EntitySchema<any>> = {
       'category', 'category_id', 'name', 'amount', 'frequency', 'due_day',
       'next_due_date', 'is_active', 'notes', 'currency',
     ],
-    defaults: { frequency: 'monthly', due_day: 1, is_active: 1, currency: 'USD' },
+    defaults: { frequency: 'monthly', due_day: 1, is_active: 1 },
+    beforeWrite: async (data: RecurringCharge) => {
+      if (!data.currency) {
+        const setting = await get<{ value: string }>('SELECT value FROM settings WHERE key = ?', ['base_currency']);
+        data.currency = setting?.value || 'USD';
+      }
+      return data;
+    },
     orderBy: 'category, name',
   },
   billType: {
@@ -177,7 +305,14 @@ const ENTITY_SCHEMAS: Record<EntityType, EntitySchema<any>> = {
     ],
     defaults: {
       unit_name: 'Units', cost_per_unit: 0, auto_transaction: 0,
-      icon: 'file-text', color: '#7c3aed', currency: 'USD',
+      icon: 'file-text', color: '#7c3aed',
+    },
+    beforeWrite: async (data: BillType) => {
+      if (!data.currency) {
+        const setting = await get<{ value: string }>('SELECT value FROM settings WHERE key = ?', ['base_currency']);
+        data.currency = setting?.value || 'USD';
+      }
+      return data;
     },
     orderBy: 'name ASC',
   },
@@ -250,7 +385,21 @@ export const FinanceModel = {
     const validator = (EntityValidators as any)[entityType];
     if (validator) data = validator(data, true);
 
+    if (schema.beforeWrite) {
+      data = await schema.beforeWrite(data, true);
+    }
+
+
+
+    // Resolve category name from category_id for transactions
+    if (entityType === 'transaction' && data.category_id && (!data.category || data.category === 'Uncategorized')) {
+      const cat = await get<{ name: string }>('SELECT name FROM categories WHERE id = ?', [data.category_id]);
+      if (cat) data.category = cat.name;
+    }
+
     const finalData = { ...schema.defaults, ...sanitizeData(data, schema.fields) };
+
+
     const fields = Object.keys(finalData);
     const placeholders = fields.map(() => '?').join(', ');
     const values = fields.map((f) => finalData[f]);
@@ -627,7 +776,10 @@ export const FinanceModel = {
         t.start_date, 
         t.amount, 
         t.description, 
-        COALESCE(t.category, 'Uncategorized') as category_name, 
+        CASE 
+          WHEN t.type = 'transfer' THEN 'Transfer'
+          ELSE COALESCE(c.name, t.category, 'Uncategorized')
+        END as category_name, 
         t.type,
         CASE 
           WHEN t.type = 'transfer' THEN COALESCE(a.name, 'Unknown') || ' → ' || COALESCE(to_a.name, 'Unknown')
@@ -636,12 +788,43 @@ export const FinanceModel = {
        FROM transactions t
        LEFT JOIN accounts a ON t.account_id = a.id
        LEFT JOIN accounts to_a ON t.to_account_id = to_a.id
+       LEFT JOIN categories c ON t.category_id = c.id
        ${whereClause} 
        ORDER BY ${sortBy} ${sortOrder} LIMIT ? OFFSET ?`,
       [...params, limit, offset]
     );
 
     return { data, total, limit, offset, hasMore: offset + data.length < total };
+  },
+
+  /**
+   * Get single transaction with full details (joins)
+   */
+  getTransactionById: async (id: number): Promise<TransactionListDTO | null> => {
+    const rows = await all<TransactionListDTO>(
+      `SELECT 
+        t.id, 
+        t.account_id,
+        t.start_date, 
+        t.amount, 
+        t.description, 
+        CASE 
+          WHEN t.type = 'transfer' THEN 'Transfer'
+          ELSE COALESCE(c.name, t.category, 'Uncategorized')
+        END as category_name, 
+        t.type,
+        CASE 
+          WHEN t.type = 'transfer' THEN COALESCE(a.name, 'Unknown') || ' → ' || COALESCE(to_a.name, 'Unknown')
+          ELSE COALESCE(a.name, 'Unknown Account')
+        END as account_name
+       FROM transactions t
+       LEFT JOIN accounts a ON t.account_id = a.id
+       LEFT JOIN accounts to_a ON t.to_account_id = to_a.id
+       LEFT JOIN categories c ON t.category_id = c.id
+       WHERE t.id = ?`,
+      [id]
+    );
+    return rows.length > 0 ? rows[0] : null;
   },
 
   getTransactionStats: async (options: any = {}) => {
@@ -684,10 +867,19 @@ export const FinanceModel = {
       byCurrency: {} as Record<string, { income: number; expense: number; transfers: number }>
     };
 
+    const baseCurrency = await getBaseCurrency();
+    const rateMap = await getExchangeRateMap();
+
     for (const r of rows) {
-      totalStats.income += r.income;
-      totalStats.expense += r.expense;
-      totalStats.transfers += r.transfers;
+      const rate = r.currency === baseCurrency ? 1 : (rateMap[`${r.currency}-${baseCurrency}`] || 1);
+
+      const convIncome = r.income * rate;
+      const convExpense = r.expense * rate;
+      const convTransfers = r.transfers * rate;
+
+      totalStats.income += convIncome;
+      totalStats.expense += convExpense;
+      totalStats.transfers += convTransfers;
       totalStats.count += r.count;
 
       totalStats.byCurrency[r.currency] = {
@@ -697,16 +889,59 @@ export const FinanceModel = {
       };
     }
 
-    return totalStats;
+    // Top Categories (Calculated in base currency)
+    const catRows = await all<{ category: string; amount: number; currency: string }>(`
+      SELECT 
+        COALESCE(c.name, t.category) as category,
+        t.amount,
+        COALESCE(t.currency, 'USD') as currency
+      FROM transactions t
+      LEFT JOIN categories c ON t.category_id = c.id
+      ${whereClause} AND t.type = 'expense'
+    `, params);
+
+    const catStats: Record<string, number> = {};
+    for (const row of catRows) {
+      const rate = row.currency === baseCurrency ? 1 : (rateMap[`${row.currency}-${baseCurrency}`] || 1);
+      const convAmount = row.amount * rate;
+      catStats[row.category] = (catStats[row.category] || 0) + convAmount;
+    }
+
+    const topCategories = Object.entries(catStats)
+      .map(([category, amount]) => ({
+        category,
+        amount,
+        percent: totalStats.expense > 0 ? ((amount / totalStats.expense) * 100).toFixed(1) : '0'
+      }))
+      .sort((a, b) => b.amount - a.amount)
+      .slice(0, 5);
+
+    return { ...totalStats, topCategories };
   },
 
   getBudgetSummary: async () => {
     const budgets = await FinanceModel.getAll<Budget>('budget');
-    return budgets.map(b => ({
-      ...b,
-      spent: 0,
-      remaining: b.amount
-    }));
+    const baseCurrency = await getBaseCurrency();
+    const rateMap = await getExchangeRateMap();
+
+    const results = [];
+    for (const b of budgets) {
+      const rows = await all<{ amount: number; currency: string }>(`
+        SELECT t.amount, COALESCE(t.currency, ?) as currency
+        FROM transactions t
+        LEFT JOIN categories c ON t.category_id = c.id
+        WHERE t.type = 'expense' AND t.is_active = 1 AND t.deleted_at IS NULL
+          AND COALESCE(c.name, t.category) = ?
+          AND t.start_date BETWEEN ? AND ?
+      `, [baseCurrency, b.category, b.start_date, b.end_date]);
+
+      let spent = 0;
+      for (const r of rows) {
+        spent += await convertToBase(r.amount, r.currency, baseCurrency, rateMap);
+      }
+      results.push({ ...b, spent, remaining: b.amount - spent });
+    }
+    return results;
   },
 
   getMonthlyTotals: async (startDate: string, endDate: string, baseCurrency?: string) => {
@@ -1101,7 +1336,7 @@ export const FinanceModel = {
 
     for (const acc of accounts) {
       const rate = rateMap[`${acc.currency || 'USD'}-${baseCurrency}`];
-      const convertedBalance = rate ? (acc.balance || 0) * rate : (acc.currency === baseCurrency ? acc.balance : null);
+      const convertedBalance = rate ? (acc.balance || 0) * rate : (acc.balance || 0);
 
       result.push({ ...acc, converted_balance: convertedBalance });
     }
@@ -1258,11 +1493,19 @@ export const FinanceModel = {
   },
 
   getCategorySpending: async (startDate: string, endDate: string) => {
-    return all<{ category: string; amount: number; color: string; icon: string }>(`
+    const baseCurrency = await getBaseCurrency();
+    const rows = await all<{
+      category: string;
+      amount: number;
+      color: string;
+      icon: string;
+      currency: string;
+    }>(`
       SELECT 
         COALESCE(c.name, t.category) as category,
         c.color,
         c.icon,
+        COALESCE(t.currency, ?) as currency,
         SUM(t.amount) as amount
       FROM transactions t
       LEFT JOIN categories c ON t.category_id = c.id
@@ -1270,9 +1513,29 @@ export const FinanceModel = {
         AND t.deleted_at IS NULL
         AND t.start_date BETWEEN ? AND ?
         AND t.is_active = 1
-      GROUP BY COALESCE(c.name, t.category)
+      GROUP BY COALESCE(c.name, t.category), COALESCE(t.currency, ?)
       ORDER BY amount DESC
-    `, [startDate, endDate]);
+    `, [baseCurrency, startDate, endDate, baseCurrency]);
+
+    const rateMap = await getExchangeRateMap();
+    const categoryMap = new Map<string, { category: string; amount: number; color: string; icon: string }>();
+
+    for (const row of rows) {
+      const convertedAmount = await convertToBase(row.amount, row.currency, baseCurrency, rateMap);
+      const existing = categoryMap.get(row.category);
+      if (existing) {
+        existing.amount += convertedAmount;
+      } else {
+        categoryMap.set(row.category, {
+          category: row.category,
+          amount: convertedAmount,
+          color: row.color,
+          icon: row.icon
+        });
+      }
+    }
+
+    return Array.from(categoryMap.values()).sort((a, b) => b.amount - a.amount);
   },
 
   exportData: async () => {
