@@ -15,51 +15,7 @@ import * as crypto from 'crypto';
 import * as fs from 'fs';
 import * as path from 'path';
 import { app } from 'electron';
-import { TransactionController } from './ipc/controllers/TransactionController';
-import { AccountController } from './ipc/controllers/AccountController';
-import { FinanceController } from './ipc/controllers/FinanceController';
-import { SettingsController } from './ipc/controllers/SettingsController';
-import { GoalController } from './ipc/controllers/GoalController';
-import { BudgetController } from './ipc/controllers/BudgetController';
-import { RecurringController } from './ipc/controllers/RecurringController';
-import { BillController } from './ipc/controllers/BillController';
-import { AnomalyController } from './ipc/controllers/AnomalyController';
-import { BofoAIController } from './ipc/controllers/BofoAIController';
-import { CategoryController } from './ipc/controllers/CategoryController';
-import { AuditController } from './ipc/controllers/AuditController';
-import { SETTING_KEYS } from '../shared/settings/keys';
 import { RemoteConfigService } from './config/RemoteConfig';
-
-// Build a map of allowed web routes from Controllers
-const controllers = [
-  new TransactionController(),
-  new AccountController(),
-  new FinanceController(),
-  new SettingsController(),
-  new GoalController(),
-  new BudgetController(),
-  new RecurringController(),
-  new BillController(),
-  new AnomalyController(),
-  new BofoAIController(),
-  new CategoryController(),
-  new AuditController()
-];
-
-const WEB_ROUTES: Record<string, Function> = {};
-
-// Flatten controller routes into a single map
-// Note: We skip 'export' related routes safely as they might depend on Electron dialogs which don't work in headless web request context
-// unless we handle them carefully. For now, we include most CRUD.
-for (const controller of controllers) {
-  const routes = controller.registerRoutes();
-  for (const [channel, route] of Object.entries(routes)) {
-    if (!route) continue;
-    // Modern route object vs legacy function
-    const handler = (typeof route === 'object' && 'handler' in route) ? route.handler : route;
-    WEB_ROUTES[channel] = handler as Function;
-  }
-}
 
 function getFinanceModel() {
   // Legacy helper removal or keep if needed elsewhere
@@ -67,6 +23,50 @@ function getFinanceModel() {
 }
 
 let server: http.Server | null = null;
+
+function buildWebRoutes(): Record<string, Function> {
+  // Lazy-load controllers to avoid module initialization ordering issues.
+  const {
+    TransactionController,
+  } = require('./ipc/controllers/TransactionController');
+  const { AccountController } = require('./ipc/controllers/AccountController');
+  const { FinanceController } = require('./ipc/controllers/FinanceController');
+  const { SettingsController } = require('./ipc/controllers/SettingsController');
+  const { GoalController } = require('./ipc/controllers/GoalController');
+  const { BudgetController } = require('./ipc/controllers/BudgetController');
+  const { RecurringController } = require('./ipc/controllers/RecurringController');
+  const { BillController } = require('./ipc/controllers/BillController');
+  const { AnomalyController } = require('./ipc/controllers/AnomalyController');
+  const { BofoAIController } = require('./ipc/controllers/BofoAIController');
+  const { CategoryController } = require('./ipc/controllers/CategoryController');
+  const { AuditController } = require('./ipc/controllers/AuditController');
+
+  const controllers = [
+    new TransactionController(),
+    new AccountController(),
+    new FinanceController(),
+    new SettingsController(),
+    new GoalController(),
+    new BudgetController(),
+    new RecurringController(),
+    new BillController(),
+    new AnomalyController(),
+    new BofoAIController(),
+    new CategoryController(),
+    new AuditController(),
+  ];
+
+  const routes: Record<string, Function> = {};
+  for (const controller of controllers) {
+    const controllerRoutes = controller.registerRoutes();
+    for (const [channel, route] of Object.entries(controllerRoutes)) {
+      if (!route) continue;
+      const handler = (typeof route === 'object' && 'handler' in route) ? route.handler : route;
+      routes[channel] = handler as Function;
+    }
+  }
+  return routes;
+}
 
 // =============================================================================
 // SECURITY CONFIGURATION
@@ -234,6 +234,7 @@ export async function startWebServer(): Promise<void> {
   if (server) return;
 
   try {
+    const WEB_ROUTES = buildWebRoutes();
     const isDev = !app.isPackaged;
     const config = await RemoteConfigService.getEffectiveConfig();
     const { enabled, port, apiKey, allowedOrigins, external } = config;

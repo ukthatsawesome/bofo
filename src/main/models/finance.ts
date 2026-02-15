@@ -120,7 +120,7 @@ const ENTITY_SCHEMAS: Record<EntityType, EntitySchema<any>> = {
     beforeWrite: async (data: Transaction, isCreate: boolean) => {
       // Fetch user's preference for base currency from settings
       const setting = await get<{ value: string }>('SELECT value FROM settings WHERE key = ?', [SETTING_KEYS.CURRENCY.BASE]);
-      const BASE_CURRENCY = setting?.value || 'USD';
+      const BASE_CURRENCY = setting?.value || DEFAULT_CURRENCY;
 
       // 1. Handle Transfer Category
       if (data.type === 'transfer') {
@@ -212,7 +212,7 @@ const ENTITY_SCHEMAS: Record<EntityType, EntitySchema<any>> = {
     beforeWrite: async (data: Account) => {
       if (!data.currency) {
         const setting = await get<{ value: string }>('SELECT value FROM settings WHERE key = ?', [SETTING_KEYS.CURRENCY.BASE]);
-        data.currency = setting?.value || 'USD';
+        data.currency = setting?.value || DEFAULT_CURRENCY;
       }
       // If initial_balance is not set but balance is provided, use balance as initial
       if (data.initial_balance === undefined && data.balance !== undefined) {
@@ -251,7 +251,7 @@ const ENTITY_SCHEMAS: Record<EntityType, EntitySchema<any>> = {
     beforeWrite: async (data: Budget) => {
       if (!data.currency) {
         const setting = await get<{ value: string }>('SELECT value FROM settings WHERE key = ?', [SETTING_KEYS.CURRENCY.BASE]);
-        data.currency = setting?.value || 'USD';
+        data.currency = setting?.value || DEFAULT_CURRENCY;
       }
       return data;
     },
@@ -270,7 +270,7 @@ const ENTITY_SCHEMAS: Record<EntityType, EntitySchema<any>> = {
     beforeWrite: async (data: Goal) => {
       if (!data.currency) {
         const setting = await get<{ value: string }>('SELECT value FROM settings WHERE key = ?', [SETTING_KEYS.CURRENCY.BASE]);
-        data.currency = setting?.value || 'USD';
+        data.currency = setting?.value || DEFAULT_CURRENCY;
       }
       return data;
     },
@@ -286,7 +286,7 @@ const ENTITY_SCHEMAS: Record<EntityType, EntitySchema<any>> = {
     beforeWrite: async (data: RecurringCharge) => {
       if (!data.currency) {
         const setting = await get<{ value: string }>('SELECT value FROM settings WHERE key = ?', [SETTING_KEYS.CURRENCY.BASE]);
-        data.currency = setting?.value || 'USD';
+        data.currency = setting?.value || DEFAULT_CURRENCY;
       }
       return data;
     },
@@ -305,7 +305,7 @@ const ENTITY_SCHEMAS: Record<EntityType, EntitySchema<any>> = {
     beforeWrite: async (data: BillType) => {
       if (!data.currency) {
         const setting = await get<{ value: string }>('SELECT value FROM settings WHERE key = ?', [SETTING_KEYS.CURRENCY.BASE]);
-        data.currency = setting?.value || 'USD';
+        data.currency = setting?.value || DEFAULT_CURRENCY;
       }
       return data;
     },
@@ -886,7 +886,7 @@ export const FinanceModel = {
 
     const rows = await all<{ currency: string; income: number; expense: number; transfers: number; count: number }>(`
       SELECT 
-        COALESCE(a.currency, 'USD') as currency,
+        COALESCE(a.currency, '${DEFAULT_CURRENCY}') as currency,
         COALESCE(SUM(CASE WHEN t.type = 'income' THEN t.amount ELSE 0 END), 0) as income,
         COALESCE(SUM(CASE WHEN t.type = 'expense' THEN t.amount ELSE 0 END), 0) as expense,
         COALESCE(SUM(CASE WHEN t.type = 'transfer' THEN t.amount ELSE 0 END), 0) as transfers,
@@ -894,7 +894,7 @@ export const FinanceModel = {
       FROM transactions t
       LEFT JOIN accounts a ON t.account_id = a.id
       ${whereClause}
-      GROUP BY COALESCE(a.currency, 'USD')
+      GROUP BY COALESCE(a.currency, '${DEFAULT_CURRENCY}')
     `, params);
 
     const totalStats = {
@@ -932,7 +932,7 @@ export const FinanceModel = {
       SELECT 
         COALESCE(c.name, t.category) as category,
         t.amount,
-        COALESCE(t.currency, 'USD') as currency
+        COALESCE(t.currency, '${DEFAULT_CURRENCY}') as currency
       FROM transactions t
       LEFT JOIN categories c ON t.category_id = c.id
       ${whereClause} AND t.type = 'expense'
@@ -1192,11 +1192,11 @@ export const FinanceModel = {
 
     const incomeByCurrency = await all<{ currency: string; total: number }>(
       `SELECT 
-        COALESCE(currency, 'USD') as currency, 
+        COALESCE(currency, '${DEFAULT_CURRENCY}') as currency, 
         COALESCE(SUM(amount), 0) as total 
       FROM transactions 
       WHERE type = 'income' AND start_date >= ? AND is_active = 1
-      GROUP BY COALESCE(currency, 'USD')`,
+      GROUP BY COALESCE(currency, '${DEFAULT_CURRENCY}')`,
       [startDate]
     );
 
@@ -1381,7 +1381,7 @@ export const FinanceModel = {
       SELECT DISTINCT currency FROM transactions WHERE deleted_at IS NULL
     `);
     const valid = currencies.map(c => c.currency).filter(Boolean);
-    return valid.length > 0 ? valid : ['USD'];
+    return valid.length > 0 ? valid : [DEFAULT_CURRENCY];
   },
 
   getAccountsWithConvertedBalances: async (baseCurrency: string) => {
@@ -1496,7 +1496,7 @@ export const FinanceModel = {
     const accounts = await FinanceModel.getAllAccounts();
     let initialAccountBalance = 0;
     for (const a of accounts) {
-      const rate = rateMap[`${a.currency || 'USD'}-${baseCurrency}`] || 0;
+      const rate = rateMap[`${a.currency || DEFAULT_CURRENCY}-${baseCurrency}`] || 0;
       initialAccountBalance += (a.initial_balance || 0) * rate;
     }
 
@@ -1706,7 +1706,7 @@ export const FinanceModel = {
       t.start_date,
       `"${(t.category || '').replace(/"/g, '""')}"`,
       `"${(t.account_name || '').replace(/"/g, '""')}"`,
-      t.currency || 'USD'
+      t.currency || DEFAULT_CURRENCY
     ].join(','));
 
     return [headers.join(','), ...rows].join('\n');

@@ -5,6 +5,7 @@ import { FinanceModel } from '../../models/finance';
 import { ForecastEngine } from '../../utils/forecast';
 import { DateUtils } from '../../../shared/utils/dateUtils';
 import { SETTING_KEYS } from '../../../shared/settings/keys';
+import { DEFAULT_CURRENCY } from '../../../shared/settings/defaults';
 
 export class FinanceController implements IController {
 
@@ -47,7 +48,7 @@ export class FinanceController implements IController {
   async getSummaryStats(event: IpcMainInvokeEvent) {
     try {
       const settings = await FinanceModel.getAllSettings();
-      const baseCurrency = settings[SETTING_KEYS.CURRENCY.BASE] || 'USD';
+      const baseCurrency = settings[SETTING_KEYS.CURRENCY.BASE] || DEFAULT_CURRENCY;
 
       // 1. Get Accounts for Net Worth (Assets - Liabilities)
       const accounts = await FinanceModel.getAccountsWithConvertedBalances(baseCurrency);
@@ -88,7 +89,7 @@ export class FinanceController implements IController {
     try {
       // Get base currency from settings
       const settings = await FinanceModel.getAllSettings();
-      const baseCurrency = settings[SETTING_KEYS.CURRENCY.BASE] || 'USD';
+      const baseCurrency = settings[SETTING_KEYS.CURRENCY.BASE] || DEFAULT_CURRENCY;
 
       // Use provided data or fetch from DB
       const transactions = data.transactions || await FinanceModel.getAll('transaction', { orderBy: 'start_date DESC' });
@@ -131,7 +132,7 @@ export class FinanceController implements IController {
       // Convert transaction amounts to base currency for accurate forecasting
       const normalizedTransactions = [];
       for (const tx of transactions as any[]) {
-        const txCurrency = tx.currency || 'USD';
+        const txCurrency = tx.currency || DEFAULT_CURRENCY;
         let convertedAmount = tx.amount;
         if (txCurrency !== baseCurrency) {
           const rate = await FinanceModel.getExchangeRate(txCurrency, baseCurrency);

@@ -1,6 +1,13 @@
 import { z } from 'zod';
 import { SETTING_KEYS } from './keys';
-import { DEFAULTS, DEFAULT_CURRENCY, DEFAULT_AI_URL, DEFAULT_AI_MODEL } from './defaults';
+import {
+    DEFAULTS,
+    DEFAULT_CURRENCY,
+    DEFAULT_CURRENCY_PROVIDER,
+    DEFAULT_AI_URL,
+    DEFAULT_AI_MODEL,
+    DEFAULT_REMOTE_PORT,
+} from './defaults';
 
 // Core settings schema - Using centralized defaults
 export const SettingsSchema = z.object({
@@ -19,7 +26,7 @@ export const SettingsSchema = z.object({
     [SETTING_KEYS.CURRENCY.BASE]: z.string().default(DEFAULT_CURRENCY),
     [SETTING_KEYS.CURRENCY.PRECISION]: z.string().regex(/^\d+$/).default(DEFAULTS.CURRENCY.PRECISION),
     [SETTING_KEYS.CURRENCY.SYMBOL_PLACEMENT]: z.enum(['before', 'after']).default(DEFAULTS.CURRENCY.SYMBOL_PLACEMENT),
-    [SETTING_KEYS.CURRENCY.API_PROVIDER]: z.string().default('frankfurter'),
+    [SETTING_KEYS.CURRENCY.API_PROVIDER]: z.string().default(DEFAULT_CURRENCY_PROVIDER),
     [SETTING_KEYS.CURRENCY.CUSTOM_URL]: z.string().optional().default(''),
     [SETTING_KEYS.CURRENCY.AUTO_SYNC]: z.enum(['true', 'false']).default('false'),
     [SETTING_KEYS.CURRENCY.LAST_SYNC]: z.string().optional().default(''),
@@ -36,7 +43,7 @@ export const SettingsSchema = z.object({
 
     // Remote
     [SETTING_KEYS.REMOTE.ENABLED]: z.enum(['true', 'false']).default('false'),
-    [SETTING_KEYS.REMOTE.PORT]: z.string().regex(/^\d+$/).default('5174'),
+    [SETTING_KEYS.REMOTE.PORT]: z.string().regex(/^\d+$/).default(DEFAULT_REMOTE_PORT),
     [SETTING_KEYS.REMOTE.KEY]: z.string().optional().default(''),
     [SETTING_KEYS.REMOTE.ORIGINS]: z.string().optional().default(''),
     [SETTING_KEYS.REMOTE.EXTERNAL]: z.enum(['true', 'false']).default('true'),

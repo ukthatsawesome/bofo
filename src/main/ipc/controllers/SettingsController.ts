@@ -4,6 +4,7 @@ import { validateSetting } from '../../../shared/settings/schema';
 import { AIConfigService } from '../../config/AIConfig';
 import { CurrencyConfigService } from '../../config/CurrencyConfig';
 import { RemoteConfigService } from '../../config/RemoteConfig';
+import * as crypto from 'crypto';
 
 export class SettingsController extends BaseController {
   registerRoutes(): Record<string, Route> {
@@ -22,6 +23,11 @@ export class SettingsController extends BaseController {
           validateSetting(key, value);
         }
         return this.getFinanceModel().saveSettings(settings);
+      },
+
+      // Generate secure API key (replaces insecure Math.random in renderer)
+      'generate-secure-key': () => {
+        return crypto.randomUUID();
       },
 
       'get-effective-config': async () => {

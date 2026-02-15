@@ -7,10 +7,11 @@ import { Wifi, Save, Key, RefreshCcw } from 'lucide-preact';
 import { clsx } from 'clsx';
 import { SectionTitle, Caption } from '@/components/ui/Typography';
 import { SETTING_KEYS } from '../../../../shared/settings/keys';
+import { DEFAULT_REMOTE_PORT } from '../../../../shared/settings/defaults';
 
 export const SettingsRemote = () => {
     const [enabled, setEnabled] = useState(false);
-    const [port, setPort] = useState('5174');
+    const [port, setPort] = useState<string>(DEFAULT_REMOTE_PORT);
     const [key, setKey] = useState('');
     const [hostInfo, setHostInfo] = useState<string[]>([]);
 
@@ -18,9 +19,28 @@ export const SettingsRemote = () => {
 
     useEffect(() => {
         const load = async () => {
+            try {
+                // Try to use effective config first (includes secure defaults)
+                const config = await (window as any).api.getEffectiveConfig();
+                if (config?.remote) {
+                    setEnabled(config.remote.enabled);
+                    setPort(String(config.remote.port));
+                    setKey(config.remote.apiKey || '');
+
+                    if (config.remote.enabled) {
+                        const info = await (window as any).api.getHostInfo();
+                        setHostInfo(info.ips || []);
+                    }
+                    return;
+                }
+            } catch (e) {
+                console.warn('Failed to load effective config, falling back to settings');
+            }
+
+            // Fallback to basic settings
             const settings = await (window as any).api.getSettings();
             setEnabled(settings[SETTING_KEYS.REMOTE.ENABLED] === 'true');
-            setPort(settings[SETTING_KEYS.REMOTE.PORT] || '5174');
+            setPort(settings[SETTING_KEYS.REMOTE.PORT] || DEFAULT_REMOTE_PORT);
             setKey(settings[SETTING_KEYS.REMOTE.KEY] || '');
 
             if (settings[SETTING_KEYS.REMOTE.ENABLED] === 'true') {
@@ -35,9 +55,10 @@ export const SettingsRemote = () => {
         load();
     }, []);
 
-    const generateKey = () => {
-        const randomKey = Math.random().toString(36).substring(2, 10) + Math.random().toString(36).substring(2, 10);
-        setKey(randomKey);
+    const generateKey = async () => {
+        // Use secure IPC call instead of Math.random()
+        const secureKey = await (window as any).api.generateSecureKey();
+        setKey(secureKey);
     };
 
     const handleSave = async () => {

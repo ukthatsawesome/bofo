@@ -40,6 +40,8 @@ interface DefaultPrompts {
 import { DateUtils } from '../../shared/utils/dateUtils';
 import { Logger } from '../utils/logger';
 import { AI_DEFAULTS, AIConfigService } from '../config/AIConfig';
+import { DEFAULT_AI_TIMEOUT } from '../../shared/settings/defaults';
+
 class AIService {
   private baseUrl: string;
   private model: string;
@@ -50,7 +52,7 @@ class AIService {
   public promptChat: string | null;
 
   private config = {
-    timeout: 30000,
+    timeout: DEFAULT_AI_TIMEOUT,
     maxRetries: 2,
     retryDelay: 1000,
     retryBackoff: 2,
@@ -237,7 +239,7 @@ OR
   private async _fetchWithTimeout(
     url: string,
     options: RequestInit,
-    timeout = this.config.timeout
+    timeout: number = this.config.timeout
   ): Promise<Response> {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), timeout);

@@ -14,6 +14,7 @@ export interface DefaultSetting {
 export const DEFAULTS = {
     CURRENCY: {
         BASE: 'USD',
+        API_PROVIDER: 'frankfurter',
         PRECISION: '2',
         SYMBOL_PLACEMENT: 'before',
     },
@@ -40,14 +41,20 @@ export const DEFAULTS = {
         BACKUP_ON_CLOSE: 'true' as const,
         AUTO_BACKUP: 'false' as const,
     },
+    REMOTE: {
+        PORT: '5174',
+    },
 } as const;
 
 // Re-export individual defaults for convenience
 export const DEFAULT_CURRENCY = DEFAULTS.CURRENCY.BASE;
+export const DEFAULT_CURRENCY_PROVIDER = DEFAULTS.CURRENCY.API_PROVIDER;
 export const DEFAULT_AI_URL = DEFAULTS.AI.URL;
 export const DEFAULT_AI_MODEL = DEFAULTS.AI.MODEL;
+export const DEFAULT_AI_TIMEOUT = DEFAULTS.AI.TIMEOUT_MS;
 export const DEFAULT_COLOR = DEFAULTS.COLORS.PRIMARY;
 export const TRANSFER_COLOR = DEFAULTS.COLORS.TRANSFER;
+export const DEFAULT_REMOTE_PORT = DEFAULTS.REMOTE.PORT;
 
 export const DEFAULT_SETTINGS: DefaultSetting[] = [
     // Budget
@@ -65,7 +72,7 @@ export const DEFAULT_SETTINGS: DefaultSetting[] = [
     { key: SETTING_KEYS.CURRENCY.BASE, value: DEFAULTS.CURRENCY.BASE, category: SETTING_CATEGORIES.CURRENCY },
     { key: SETTING_KEYS.CURRENCY.PRECISION, value: DEFAULTS.CURRENCY.PRECISION, category: SETTING_CATEGORIES.CURRENCY },
     { key: SETTING_KEYS.CURRENCY.SYMBOL_PLACEMENT, value: DEFAULTS.CURRENCY.SYMBOL_PLACEMENT, category: SETTING_CATEGORIES.CURRENCY },
-    { key: SETTING_KEYS.CURRENCY.API_PROVIDER, value: 'frankfurter', category: SETTING_CATEGORIES.CURRENCY },
+    { key: SETTING_KEYS.CURRENCY.API_PROVIDER, value: DEFAULTS.CURRENCY.API_PROVIDER, category: SETTING_CATEGORIES.CURRENCY },
     { key: SETTING_KEYS.CURRENCY.CUSTOM_URL, value: '', category: SETTING_CATEGORIES.CURRENCY },
     { key: SETTING_KEYS.CURRENCY.AUTO_SYNC, value: 'false', category: SETTING_CATEGORIES.CURRENCY },
     { key: SETTING_KEYS.CURRENCY.LAST_SYNC, value: '', category: SETTING_CATEGORIES.CURRENCY },
@@ -81,7 +88,7 @@ export const DEFAULT_SETTINGS: DefaultSetting[] = [
 
     // Remote
     { key: SETTING_KEYS.REMOTE.ENABLED, value: 'false', category: SETTING_CATEGORIES.REMOTE },
-    { key: SETTING_KEYS.REMOTE.PORT, value: '5174', category: SETTING_CATEGORIES.REMOTE },
+    { key: SETTING_KEYS.REMOTE.PORT, value: DEFAULTS.REMOTE.PORT, category: SETTING_CATEGORIES.REMOTE },
     { key: SETTING_KEYS.REMOTE.KEY, value: '', category: SETTING_CATEGORIES.REMOTE },
     { key: SETTING_KEYS.REMOTE.ORIGINS, value: '', category: SETTING_CATEGORIES.REMOTE },
     { key: SETTING_KEYS.REMOTE.EXTERNAL, value: 'true', category: SETTING_CATEGORIES.REMOTE },

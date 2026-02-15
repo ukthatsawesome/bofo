@@ -14,11 +14,12 @@ import { SectionTitle, Caption } from '@/components/ui/Typography';
 import { CURRENCY_API_PROVIDERS } from '../../../../shared/currencies';
 import { useSortedData } from '@/hooks/useSortedData';
 import { SETTING_KEYS } from '../../../../shared/settings/keys';
+import { DEFAULT_CURRENCY, DEFAULT_CURRENCY_PROVIDER } from '../../../../shared/settings/defaults';
 
 export const SettingsExchangeRates = () => {
     const [rates, setRates] = useState<ExchangeRate[]>([]);
-    const [baseCurrency, setBaseCurrency] = useState('USD');
-    const [provider, setProvider] = useState('frankfurter');
+    const [baseCurrency, setBaseCurrency] = useState<string>(DEFAULT_CURRENCY);
+    const [provider, setProvider] = useState<string>(DEFAULT_CURRENCY_PROVIDER);
     const [customUrl, setCustomUrl] = useState('');
     const [autoSync, setAutoSync] = useState(false);
     const [lastSync, setLastSync] = useState<any>(null);
@@ -43,8 +44,8 @@ export const SettingsExchangeRates = () => {
         const syncStatus = await (window as any).api.getRateSyncStatus();
 
         setRates(r || []);
-        setBaseCurrency(settings[SETTING_KEYS.CURRENCY.BASE] || 'USD');
-        setProvider(settings[SETTING_KEYS.CURRENCY.API_PROVIDER] || 'frankfurter');
+        setBaseCurrency(settings[SETTING_KEYS.CURRENCY.BASE] || DEFAULT_CURRENCY);
+        setProvider(settings[SETTING_KEYS.CURRENCY.API_PROVIDER] || DEFAULT_CURRENCY_PROVIDER);
         setCustomUrl(settings[SETTING_KEYS.CURRENCY.CUSTOM_URL] || '');
         setAutoSync(settings[SETTING_KEYS.CURRENCY.AUTO_SYNC] === 'true');
         setLastSync(syncStatus);

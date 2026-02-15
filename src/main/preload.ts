@@ -66,6 +66,8 @@ contextBridge.exposeInMainWorld('api', {
   getSettings: () => invokeWithTimeout('get-settings'),
   updateSetting: (data: { key: string; value: string }) => invokeWithTimeout('update-setting', [data]),
   saveSettings: (settings: AppSettings) => invokeWithTimeout('save-settings', [settings]),
+  getEffectiveConfig: () => invokeWithTimeout('get-effective-config'),
+  generateSecureKey: () => invokeWithTimeout('generate-secure-key'),
 
   // Budgets
   getBudgets: () => invokeWithTimeout('get-budgets'),
