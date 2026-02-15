@@ -4,7 +4,7 @@ import { AISettings } from '../../../../shared/types';
 export function useAISettings() {
     const [settings, setSettings] = useState<AISettings>({
         enabled: false,
-        url: 'http://127.0.0.1:11434',
+        url: '', // Will be populated by backend defaults
         model: '',
         promptTx: '',
         promptInsight: '',

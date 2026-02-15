@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/Input';
 import { Download, Upload, FileText, Sheet, FolderOpen, Database, RefreshCw } from 'lucide-preact';
 import { clsx } from 'clsx';
 import { SectionTitle, Caption } from '@/components/ui/Typography';
+import { SETTING_KEYS } from '../../../../shared/settings/keys';
 
 export const SettingsBackup = () => {
     // Auto backup state
@@ -17,9 +18,9 @@ export const SettingsBackup = () => {
     useEffect(() => {
         const load = async () => {
             const settings = await (window as any).api.getSettings();
-            setAutoBackupEnabled(settings.auto_backup_enabled === '1');
-            setBackupDir(settings.auto_backup_directory || '');
-            setLastBackup(settings.last_backup_time || null);
+            setAutoBackupEnabled(settings[SETTING_KEYS.SAFETY.AUTO_BACKUP_ENABLED] === 'true');
+            setBackupDir(settings[SETTING_KEYS.SAFETY.AUTO_BACKUP_DIRECTORY] || '');
+            setLastBackup(settings[SETTING_KEYS.SAFETY.LAST_BACKUP] || null);
         };
         load();
     }, []);
@@ -50,7 +51,10 @@ export const SettingsBackup = () => {
 
     const toggleAutoBackup = async (checked: boolean) => {
         setAutoBackupEnabled(checked);
-        await (window as any).api.updateSetting({ key: 'auto_backup_enabled', value: checked ? '1' : '0' });
+        await (window as any).api.updateSetting({
+            key: SETTING_KEYS.SAFETY.AUTO_BACKUP_ENABLED,
+            value: checked ? 'true' : 'false'
+        });
     };
 
     const pickBackupDir = async () => {
@@ -58,7 +62,10 @@ export const SettingsBackup = () => {
             const result = await (window as any).api.pickBackupDirectory();
             if (result) {
                 setBackupDir(result);
-                await (window as any).api.updateSetting({ key: 'auto_backup_directory', value: result });
+                await (window as any).api.updateSetting({
+                    key: SETTING_KEYS.SAFETY.AUTO_BACKUP_DIRECTORY,
+                    value: result
+                });
             }
         } catch (err) {
             console.error(err);
@@ -72,7 +79,13 @@ export const SettingsBackup = () => {
             await (window as any).api.runBackupNow(backupDir);
             const now = new Date().toISOString();
             setLastBackup(now);
-            await (window as any).api.updateSetting({ key: 'last_backup_time', value: now });
+            // handlers.ts updates LAST_BACKUP, so strictly we don't need to manually set it here?
+            // But for UI responsiveness we can. API doesn't return the new time?
+            // Actually handlers.ts *does* update it. We can re-fetch or just set local state.
+            // Let's assume the runBackupNow call was successful.
+            // Note: runBackupNow handler updates the setting in DB.
+            // We'll update UI state, but won't manually call updateSetting again to avoid race/redundancy.
+            // await (window as any).api.updateSetting({ key: 'last_backup_time', value: now });
             alert('Backup created successfully');
         } catch (error: any) {
             alert(error.message);

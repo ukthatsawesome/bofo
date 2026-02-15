@@ -8,6 +8,7 @@ import { runInWorker } from '../../utils/workerPool';
 import { validateSafePath } from '../../utils/security';
 import * as fs from 'fs';
 import * as path from 'path';
+import { SETTING_KEYS } from '../../../shared/settings/keys';
 
 export class ExportController extends BaseController {
 
@@ -148,7 +149,7 @@ export class ExportController extends BaseController {
                 try {
                     const model = this.getFinanceModel();
                     const settings = await model.getAllSettings();
-                    const backupDir = settings.auto_backup_directory;
+                    const backupDir = settings[SETTING_KEYS.SAFETY.AUTO_BACKUP_DIRECTORY];
                     if (!backupDir || !fs.existsSync(backupDir))
                         return { success: false, message: 'Invalid backup directory' };
 
@@ -172,7 +173,7 @@ export class ExportController extends BaseController {
                         return { success: false, message: result.error || 'Backup failed' };
                     }
 
-                    await model.updateSetting('auto_backup_last', new Date().toISOString());
+                    await model.updateSetting(SETTING_KEYS.SAFETY.LAST_BACKUP, new Date().toISOString());
                     return { success: true, message: 'Backup saved' };
                 } catch (err: any) {
                     return { success: false, message: err.message };

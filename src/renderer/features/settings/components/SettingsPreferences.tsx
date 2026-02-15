@@ -7,6 +7,7 @@ import { Moon, Sun, Globe } from 'lucide-preact';
 import { SectionTitle, Caption } from '@/components/ui/Typography';
 import { api } from '@/core/lib/api';
 import { CURRENCIES } from '../../../../shared/currencies';
+import { SETTING_KEYS } from '../../../../shared/settings/keys';
 
 export const SettingsPreferences = () => {
     // We can assume financeStore.settings has been loaded by App init, 
@@ -21,8 +22,8 @@ export const SettingsPreferences = () => {
     useEffect(() => {
         const load = async () => {
             const settings = await api.getSettings();
-            setTheme(settings.theme || 'system');
-            setCurrency(settings.currency_base || 'USD');
+            setTheme(settings[SETTING_KEYS.APPEARANCE.THEME] || 'system');
+            setCurrency(settings[SETTING_KEYS.CURRENCY.BASE] || 'USD');
         };
         load();
     }, []);
@@ -30,7 +31,7 @@ export const SettingsPreferences = () => {
     const handleThemeChange = async (newTheme: string) => {
         setLoading(true);
         try {
-            await api.updateSetting({ key: 'theme', value: newTheme });
+            await api.updateSetting({ key: SETTING_KEYS.APPEARANCE.THEME, value: newTheme });
             setTheme(newTheme);
             (window as any).location.reload(); // Simple reload to apply theme for now
         } finally {
@@ -41,7 +42,7 @@ export const SettingsPreferences = () => {
     const handleCurrencyChange = async (newCurrency: string) => {
         setLoading(true);
         try {
-            await api.updateSetting({ key: 'currency_base', value: newCurrency });
+            await api.updateSetting({ key: SETTING_KEYS.CURRENCY.BASE, value: newCurrency });
             setCurrency(newCurrency);
             // Ideally trigger a store refresh
         } finally {

@@ -5,6 +5,7 @@
  */
 
 import { DateUtils } from '../../shared/utils/dateUtils';
+import { SETTING_KEYS } from '../../shared/settings/keys';
 
 export interface Transaction {
   id?: number;
@@ -27,11 +28,9 @@ export interface Account {
 }
 
 export interface ForecastSettings {
-  forecast_horizon?: string | number;
-  forecast_inflation_enabled?: string;
-  forecast_inflation_rate?: string | number;
   [key: string]: unknown;
 }
+
 
 export interface TimelinePoint {
   date: string;
@@ -124,9 +123,9 @@ export class ForecastEngine {
 
   public generateForecast(months: number | null = null): ForecastResult {
     // 1. Settings & Constants
-    const horizonMonths = months ?? Number(this.settings.forecast_horizon ?? 6);
-    const inflationEnabled = this.settings.forecast_inflation_enabled === 'true';
-    const annualInflationRate = Number(this.settings.forecast_inflation_rate ?? 2.5) / 100;
+    const horizonMonths = months ?? Number(this.settings[SETTING_KEYS.FORECAST.HORIZON] ?? 6);
+    const inflationEnabled = this.settings[SETTING_KEYS.FORECAST.INFLATION_ENABLED] === 'true';
+    const annualInflationRate = Number(this.settings[SETTING_KEYS.FORECAST.INFLATION_RATE] ?? 2.5) / 100;
     // Daily rate factor: (1 + rate)^(1/365)
     const dailyInflationMultiplier = Math.pow(1 + annualInflationRate, 1 / 365);
 

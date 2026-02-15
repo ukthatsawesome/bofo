@@ -27,6 +27,8 @@ import { AnomalyController } from './ipc/controllers/AnomalyController';
 import { BofoAIController } from './ipc/controllers/BofoAIController';
 import { CategoryController } from './ipc/controllers/CategoryController';
 import { AuditController } from './ipc/controllers/AuditController';
+import { SETTING_KEYS } from '../shared/settings/keys';
+import { RemoteConfigService } from './config/RemoteConfig';
 
 // Build a map of allowed web routes from Controllers
 const controllers = [
@@ -232,29 +234,11 @@ export async function startWebServer(): Promise<void> {
   if (server) return;
 
   try {
-    const settings = await getFinanceModel().getAllSettings();
     const isDev = !app.isPackaged;
-    const enabled = settings.remote_access_enabled === 'true' || isDev;
+    const config = await RemoteConfigService.getEffectiveConfig();
+    const { enabled, port, apiKey, allowedOrigins, external } = config;
 
-    const port = parseInt(settings.remote_access_port as string) || 5174;
-    const apiKey = (settings.remote_access_key as string) || 'bofo-default-key';
-
-    // Parse allowed origins from settings (comma-separated)
-    const originsStr = (settings.remote_access_origins as string) || '';
-    allowedOrigins = new Set(
-      originsStr
-        .split(',')
-        .map((o) => o.trim())
-        .filter(Boolean)
-    );
-
-    // Always allow Vite dev server in dev mode
-    if (isDev) {
-      allowedOrigins.add('http://localhost:5173');
-      allowedOrigins.add('http://127.0.0.1:5173');
-    }
-
-    Logger.info(`[Web Server] Config: Port=${port}, Enabled=${enabled} (Dev=${isDev})`);
+    Logger.info(`[Web Server] Config: Port=${port}, Enabled=${enabled} (External=${external})`);
     const originsList = [...allowedOrigins].join(', ') || '(dev mode: localhost)';
     Logger.info(`[Web Server] Allowed origins: ${originsList}`);
 
@@ -411,7 +395,7 @@ export async function startWebServer(): Promise<void> {
     });
 
     // Check if external access is explicitly enabled
-    const bindAddress = settings.remote_access_external === 'true' ? '0.0.0.0' : '127.0.0.1';
+    const bindAddress = external ? '0.0.0.0' : '127.0.0.1';
 
     server.listen(port, bindAddress, () => {
       Logger.info(`[Web Server] Remote access enabled on ${bindAddress}:${port}`);

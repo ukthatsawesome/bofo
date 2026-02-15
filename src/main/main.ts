@@ -11,7 +11,9 @@ import * as path from 'path';
 import { Logger } from './utils/logger';
 import { registerIpcHandlers, performAutoBackup } from './ipc/handlers';
 import { startWebServer, restartWebServer, stopWebServer } from './webServer';
+import { RemoteConfigService } from './config/RemoteConfig';
 import { dbInitialized, closeDatabase } from './database/db';
+import { SETTING_KEYS } from '../shared/settings/keys';
 
 // Single instance lock
 const gotTheLock = app.requestSingleInstanceLock();
@@ -173,6 +175,13 @@ app.whenReady().then(async () => {
     restartWebServer();
   });
 
+  // Initialize Remote Config (generates secure key if needed)
+  const isDev = !app.isPackaged;
+  await RemoteConfigService.getEffectiveConfig();
+
+  // In dev, we might want to start it too, or handled by settings
+  // startWebServer logic handles the check.
+
   nativeTheme.on('updated', () => {
     const isDark = nativeTheme.shouldUseDarkColors;
     BrowserWindow.getAllWindows().forEach((win) => {
@@ -206,7 +215,7 @@ async function performStartupRateSync(): Promise<void> {
 
     // Check if auto-sync on startup is enabled (opt-in)
     // Note: settings values are strings in the DB
-    if (settings.exchange_rate_sync_on_startup !== 'true') {
+    if (settings[SETTING_KEYS.CURRENCY.AUTO_SYNC] !== 'true') {
       return;
     }
 
@@ -220,9 +229,12 @@ async function performStartupRateSync(): Promise<void> {
     Logger.info('[Main] Exchange rates are stale, performing startup sync...');
 
     const { CurrencyService } = await import('./services/currencyService');
-    const provider = settings.currency_api_provider || 'frankfurter';
-    const baseCurrency = settings.currency_base || 'USD';
-    const customUrl = settings.currency_custom_url || null;
+    const { CurrencyConfigService } = await import('./config/CurrencyConfig');
+
+    const config = await CurrencyConfigService.getEffectiveConfig();
+    const provider = config.provider;
+    const baseCurrency = config.base;
+    const customUrl = config.customUrl || null;
 
     const rates = await CurrencyService.fetchRates(provider, baseCurrency, customUrl, false);
     const usedCurrencies = await FinanceModel.getUsedCurrencies();
@@ -230,7 +242,7 @@ async function performStartupRateSync(): Promise<void> {
 
     const relevantRates = CurrencyService.filterRelevantRates(rates, usedCurrencies);
     await FinanceModel.setExchangeRatesBulk(relevantRates, 'api');
-    await FinanceModel.updateSetting('currency_last_sync', new Date().toISOString());
+    await FinanceModel.updateSetting(SETTING_KEYS.CURRENCY.LAST_SYNC, new Date().toISOString());
 
     Logger.info(`[Main] Synced ${relevantRates.length} exchange rates on startup`);
   } catch (err) {

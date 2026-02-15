@@ -24,6 +24,9 @@ import type {
   GoalContribution,
 } from '../database/types';
 import { TransactionListDTO } from '../../shared/types';
+import { SETTING_KEYS, SETTING_CATEGORIES } from '../../shared/settings/keys';
+import { AI_DEFAULTS } from '../config/AIConfig';
+import { DEFAULT_SETTINGS, DEFAULT_CURRENCY } from '../../shared/settings/defaults';
 
 import { Mutex } from '../utils/mutex';
 
@@ -63,7 +66,7 @@ const getExchangeRateMap = async (): Promise<RateMap> => {
  */
 const getBaseCurrency = async (): Promise<string> => {
   const settings = await FinanceModel.getAllSettings();
-  return settings.currency_base || 'USD';
+  return settings[SETTING_KEYS.CURRENCY.BASE] || DEFAULT_CURRENCY;
 };
 
 /**
@@ -116,7 +119,7 @@ const ENTITY_SCHEMAS: Record<EntityType, EntitySchema<any>> = {
     orderBy: 'start_date DESC',
     beforeWrite: async (data: Transaction, isCreate: boolean) => {
       // Fetch user's preference for base currency from settings
-      const setting = await get<{ value: string }>('SELECT value FROM settings WHERE key = ?', ['currency_base']);
+      const setting = await get<{ value: string }>('SELECT value FROM settings WHERE key = ?', [SETTING_KEYS.CURRENCY.BASE]);
       const BASE_CURRENCY = setting?.value || 'USD';
 
       // 1. Handle Transfer Category
@@ -184,6 +187,7 @@ const ENTITY_SCHEMAS: Record<EntityType, EntitySchema<any>> = {
       return data;
     },
     afterWrite: async (data: Transaction) => {
+      // Balance sync handled by application code (after Migration 25 removed triggers)
       if (data.account_id) {
         await FinanceModel.syncAccountBalance(data.account_id);
       }
@@ -192,6 +196,7 @@ const ENTITY_SCHEMAS: Record<EntityType, EntitySchema<any>> = {
       }
     },
     afterDelete: async (data: Transaction) => {
+      // Balance sync handled by application code (after Migration 25 removed triggers)
       if (data.account_id) {
         await FinanceModel.syncAccountBalance(data.account_id);
       }
@@ -206,8 +211,12 @@ const ENTITY_SCHEMAS: Record<EntityType, EntitySchema<any>> = {
     defaults: { status: 'active', balance: 0 },
     beforeWrite: async (data: Account) => {
       if (!data.currency) {
-        const setting = await get<{ value: string }>('SELECT value FROM settings WHERE key = ?', ['currency_base']);
+        const setting = await get<{ value: string }>('SELECT value FROM settings WHERE key = ?', [SETTING_KEYS.CURRENCY.BASE]);
         data.currency = setting?.value || 'USD';
+      }
+      // If initial_balance is not set but balance is provided, use balance as initial
+      if (data.initial_balance === undefined && data.balance !== undefined) {
+        data.initial_balance = data.balance;
       }
       return data;
     },
@@ -241,7 +250,7 @@ const ENTITY_SCHEMAS: Record<EntityType, EntitySchema<any>> = {
     defaults: { period: 'monthly' },
     beforeWrite: async (data: Budget) => {
       if (!data.currency) {
-        const setting = await get<{ value: string }>('SELECT value FROM settings WHERE key = ?', ['currency_base']);
+        const setting = await get<{ value: string }>('SELECT value FROM settings WHERE key = ?', [SETTING_KEYS.CURRENCY.BASE]);
         data.currency = setting?.value || 'USD';
       }
       return data;
@@ -260,7 +269,7 @@ const ENTITY_SCHEMAS: Record<EntityType, EntitySchema<any>> = {
     },
     beforeWrite: async (data: Goal) => {
       if (!data.currency) {
-        const setting = await get<{ value: string }>('SELECT value FROM settings WHERE key = ?', ['currency_base']);
+        const setting = await get<{ value: string }>('SELECT value FROM settings WHERE key = ?', [SETTING_KEYS.CURRENCY.BASE]);
         data.currency = setting?.value || 'USD';
       }
       return data;
@@ -276,7 +285,7 @@ const ENTITY_SCHEMAS: Record<EntityType, EntitySchema<any>> = {
     defaults: { frequency: 'monthly', due_day: 1, is_active: 1 },
     beforeWrite: async (data: RecurringCharge) => {
       if (!data.currency) {
-        const setting = await get<{ value: string }>('SELECT value FROM settings WHERE key = ?', ['currency_base']);
+        const setting = await get<{ value: string }>('SELECT value FROM settings WHERE key = ?', [SETTING_KEYS.CURRENCY.BASE]);
         data.currency = setting?.value || 'USD';
       }
       return data;
@@ -295,7 +304,7 @@ const ENTITY_SCHEMAS: Record<EntityType, EntitySchema<any>> = {
     },
     beforeWrite: async (data: BillType) => {
       if (!data.currency) {
-        const setting = await get<{ value: string }>('SELECT value FROM settings WHERE key = ?', ['currency_base']);
+        const setting = await get<{ value: string }>('SELECT value FROM settings WHERE key = ?', [SETTING_KEYS.CURRENCY.BASE]);
         data.currency = setting?.value || 'USD';
       }
       return data;
@@ -697,6 +706,35 @@ export const FinanceModel = {
     return await run(`UPDATE accounts SET balance = ? WHERE id = ?`, [balance, accountId]);
   },
 
+  /**
+   * Recalculate balances for ALL accounts.
+   * Use this to fix balances after removing triggers or correcting duplicate calculations.
+   */
+  recalculateAllBalances: async () => {
+    await dbInitialized;
+    const accounts = await FinanceModel.getAllAccounts();
+    const results: Array<{ accountId: number; oldBalance: number; newBalance: number }> = [];
+
+    for (const account of accounts) {
+      const oldBalance = account.balance;
+
+      // Recalculate this account's balance
+      await FinanceModel.syncAccountBalance(account.id);
+
+      // Fetch the new balance
+      const updated = await get<Account>(`SELECT balance FROM accounts WHERE id = ?`, [account.id]);
+      const newBalance = updated?.balance || 0;
+
+      results.push({
+        accountId: account.id,
+        oldBalance: oldBalance || 0,
+        newBalance
+      });
+    }
+
+    return results;
+  },
+
   getTransactionsPaginated: async (
     options: {
       limit?: number;
@@ -805,6 +843,8 @@ export const FinanceModel = {
         t.to_amount,
         t.exchange_rate,
         t.currency,
+        t.base_currency,
+        t.base_amount,
         t.description, 
         CASE 
           WHEN t.type = 'transfer' THEN 'Transfer'
@@ -1019,10 +1059,13 @@ export const FinanceModel = {
   },
 
   updateSetting: async (key: string, value: string) => {
+    const defaultSetting = DEFAULT_SETTINGS.find(s => s.key === key);
+    const category = defaultSetting?.category || 'general';
+
     return await run(
-      `INSERT INTO settings (key, value, category) VALUES (?, ?, 'general') 
+      `INSERT INTO settings (key, value, category) VALUES (?, ?, ?) 
        ON CONFLICT(key) DO UPDATE SET value = ?, updated_at = CURRENT_TIMESTAMP`,
-      [key, value, value]
+      [key, value, category, value]
     );
   },
 
@@ -1036,23 +1079,23 @@ export const FinanceModel = {
   getAISettings: async () => {
     const settings = await FinanceModel.getAllSettings();
     return {
-      enabled: settings['ai_enabled'] === 'true',
-      url: settings['ai_url'] || 'http://127.0.0.1:11434',
-      model: settings['ai_model'] || 'gemma3:4b',
-      promptTx: settings['ai_prompt_tx'],
-      promptInsight: settings['ai_prompt_insight'],
-      promptChat: settings['ai_prompt_chat'],
+      enabled: settings[SETTING_KEYS.AI.ENABLED] === 'true',
+      url: settings[SETTING_KEYS.AI.URL] || AI_DEFAULTS.URL,
+      model: settings[SETTING_KEYS.AI.MODEL] || AI_DEFAULTS.MODEL,
+      promptTx: settings[SETTING_KEYS.AI.PROMPT_TX],
+      promptInsight: settings[SETTING_KEYS.AI.PROMPT_INSIGHT],
+      promptChat: settings[SETTING_KEYS.AI.PROMPT_CHAT],
     };
   },
 
   saveAISettings: async (settings: any) => {
     const dbSettings: any = {};
-    if (settings.url) dbSettings.ai_url = settings.url;
-    if (settings.model) dbSettings.ai_model = settings.model;
-    if (settings.enabled !== undefined) dbSettings.ai_enabled = String(settings.enabled);
-    if (settings.promptTx) dbSettings.ai_prompt_tx = settings.promptTx;
-    if (settings.promptInsight) dbSettings.ai_prompt_insight = settings.promptInsight;
-    if (settings.promptChat) dbSettings.ai_prompt_chat = settings.promptChat;
+    if (settings.url) dbSettings[SETTING_KEYS.AI.URL] = settings.url;
+    if (settings.model) dbSettings[SETTING_KEYS.AI.MODEL] = settings.model;
+    if (settings.enabled !== undefined) dbSettings[SETTING_KEYS.AI.ENABLED] = String(settings.enabled);
+    if (settings.promptTx) dbSettings[SETTING_KEYS.AI.PROMPT_TX] = settings.promptTx;
+    if (settings.promptInsight) dbSettings[SETTING_KEYS.AI.PROMPT_INSIGHT] = settings.promptInsight;
+    if (settings.promptChat) dbSettings[SETTING_KEYS.AI.PROMPT_CHAT] = settings.promptChat;
     return await FinanceModel.saveSettings(dbSettings);
   },
 
@@ -1361,8 +1404,8 @@ export const FinanceModel = {
 
   getRateSyncStatus: async () => {
     const settings = await FinanceModel.getAllSettings();
-    const lastSync = settings.currency_last_sync || null;
-    const autoSync = settings.currency_auto_sync === 'true';
+    const lastSync = settings[SETTING_KEYS.CURRENCY.LAST_SYNC] || null;
+    const autoSync = settings[SETTING_KEYS.CURRENCY.AUTO_SYNC] === 'true';
     const rateCount = await get<{ count: number }>(`SELECT COUNT(*) as count FROM exchange_rates`);
 
     let hoursSinceSync = 0;

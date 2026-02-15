@@ -2,11 +2,12 @@
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import * as fs from 'fs';
 import * as path from 'path';
+import { SETTING_KEYS } from '../shared/settings/keys';
 
 // Force Dev Mode
 process.env.NODE_ENV = 'development';
 const dbPath = path.join(__dirname, 'test_transfer_exchange.db');
-process.env.TEST_DB_PATH = dbPath;
+process.env.DATABASE_PATH = dbPath;
 
 // Mock Electron
 vi.mock('electron', () => ({
@@ -23,6 +24,7 @@ describe('Transfer with Exchange Rate (Cross-Currency)', () => {
     let run: any;
     let get: any;
     let all: any;
+    let closeDatabase: any;
 
     let sgdAccountId: number;
     let usdAccountId: number;
@@ -37,6 +39,7 @@ describe('Transfer with Exchange Rate (Cross-Currency)', () => {
         run = dbModule.run;
         get = dbModule.get;
         all = dbModule.all;
+        closeDatabase = dbModule.closeDatabase;
         await dbModule.dbInitialized;
 
         // Load FinanceModel
@@ -44,10 +47,10 @@ describe('Transfer with Exchange Rate (Cross-Currency)', () => {
         FinanceModel = financeModule.FinanceModel;
 
         // Set base currency to NPR
-        await run(`INSERT OR REPLACE INTO settings (key, value, category) VALUES ('currency_base', 'NPR', 'currency')`);
+        await run(`INSERT OR REPLACE INTO settings (key, value, category) VALUES (?, 'NPR', 'currency')`, [SETTING_KEYS.CURRENCY.BASE]);
 
         // Verify setting was stored
-        const setting = await get('SELECT value FROM settings WHERE key = ?', ['currency_base']);
+        const setting = await get('SELECT value FROM settings WHERE key = ?', [SETTING_KEYS.CURRENCY.BASE]);
         console.log('[SETUP] currency_base setting:', setting);
 
         // Create SGD account with explicit currency
@@ -94,7 +97,10 @@ describe('Transfer with Exchange Rate (Cross-Currency)', () => {
         await run(`INSERT OR IGNORE INTO categories (type, name, status, color, icon) VALUES ('transfer', 'Transfer', 'active', '#2563eb', 'arrow-right-left')`);
     });
 
-    afterAll(() => {
+    afterAll(async () => {
+        if (closeDatabase) await closeDatabase();
+        // Give a small delay for file handle release if necessary (Windows specific)
+        await new Promise(resolve => setTimeout(resolve, 100));
         if (fs.existsSync(dbPath)) fs.unlinkSync(dbPath);
     });
 

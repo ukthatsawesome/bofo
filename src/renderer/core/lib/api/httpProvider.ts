@@ -30,7 +30,7 @@ export class HttpApiProvider {
     }
 
     this.host = localStorage.getItem('bofo_remote_host') || defaultHost;
-    this.key = localStorage.getItem('bofo_remote_key') || 'bofo-default-key';
+    this.key = localStorage.getItem('bofo_remote_key') || '';
 
     // Proxy to handle all methods dynamically
     return new Proxy(this, {
@@ -123,7 +123,7 @@ export class HttpApiProvider {
   }
 
   validConfig(): boolean {
-    return !!(this.host && this.key && this.key !== 'bofo-default-key');
+    return !!(this.host && this.key);
   }
 
   /**
@@ -244,6 +244,6 @@ export class HttpApiProvider {
   // Stubs for listeners (not supported over simple HTTP yet)
   onChatSandboxChunk(): () => void {
     console.warn('[HttpApi] Streaming is not supported in Web mode yet.');
-    return () => {};
+    return () => { };
   }
 }

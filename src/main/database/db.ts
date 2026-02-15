@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Database Connection & Migration System
  *
  * This module uses SQLCipher for AES-256 encryption at rest.
@@ -37,7 +37,9 @@ import {
   getColumnNames,
 } from './migrations/utils';
 import { DEFAULT_CATEGORIES } from '../../shared/categories';
-import { DEFAULT_SETTINGS } from '../../shared/defaultSettings';
+import { DEFAULT_SETTINGS } from '../../shared/settings/defaults';
+import { SETTING_KEYS } from '../../shared/settings/keys';
+
 
 // =============================================================================
 // TYPES & INTERFACES
@@ -352,7 +354,7 @@ CREATE TABLE IF NOT EXISTS categories (
     name TEXT NOT NULL,
     is_default INTEGER DEFAULT 0,
     color TEXT DEFAULT '#7b68ee',
-    icon TEXT DEFAULT '📂',
+    icon TEXT DEFAULT 'ðŸ“‚',
     status TEXT DEFAULT 'active' CHECK(status IN ('active', 'archived')),
     deleted_at DATETIME,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -680,9 +682,12 @@ const MIGRATIONS: Migration[] = [
         'to_currency',
       ]);
 
-      const currencySettings = DEFAULT_SETTINGS.filter(s => s.category === 'currency' && ![
-        'currency_base', 'currency_precision', 'currency_symbol_placement'
-      ].includes(s.key));
+      const excludedKeys: string[] = [
+        SETTING_KEYS.CURRENCY.BASE,
+        SETTING_KEYS.CURRENCY.PRECISION,
+        SETTING_KEYS.CURRENCY.SYMBOL_PLACEMENT
+      ];
+      const currencySettings = DEFAULT_SETTINGS.filter(s => s.category === 'currency' && !excludedKeys.includes(s.key));
 
       for (const setting of currencySettings) {
         await run(`INSERT OR IGNORE INTO settings (key, value, category) VALUES (?, ?, ?)`, [
@@ -1350,6 +1355,97 @@ const MIGRATIONS: Migration[] = [
       `);
 
       log('[Migration 23] Optimized incremental triggers created.');
+    },
+  },
+  {
+    id: 24,
+    name: 'Normalize Settings Keys',
+    up: async () => {
+      log('[Migration 24] Normalizing settings keys...');
+
+      const mappings: Record<string, string> = {
+        'budget_period': 'budget.period',
+        'budget_rollover': 'budget.rollover',
+        'forecast_horizon': 'forecast.horizon',
+        'forecast_uncertain_income': 'forecast.uncertain_income',
+        'forecast_inflation_enabled': 'forecast.inflation_enabled',
+        'forecast_inflation_rate': 'forecast.inflation_rate',
+        'forecast_include_recurring': 'forecast.include_recurring',
+        'currency_base': 'currency.base',
+        'currency_precision': 'currency.precision',
+        'currency_symbol_placement': 'currency.symbol_placement',
+        'currency_api_provider': 'currency.api_provider',
+        'currency_api_url': 'currency.custom_url',
+        'currency_custom_url': 'currency.custom_url',
+        'currency_auto_sync': 'currency.auto_sync_on_startup',
+        'exchange_rate_sync_on_startup': 'currency.auto_sync_on_startup',
+        'currency_last_sync': 'currency.last_sync',
+        'theme': 'appearance.theme',
+        'landing_view': 'appearance.landing_view',
+        'backup_on_close': 'safety.backup_on_close',
+        'remote_access_enabled': 'remote.enabled',
+        'remote_access_port': 'remote.port',
+        'remote_access_key': 'remote.key',
+        'ai_enabled': 'ai.enabled',
+        'ai_url': 'ai.url',
+        'ai_model': 'ai.model',
+        'ai_prompt_tx': 'ai.prompt.tx',
+        'ai_prompt_insight': 'ai.prompt.insight',
+        'ai_prompt_chat': 'ai.prompt.chat',
+        'remote_access_origins': 'remote.origins',
+        'remote_access_external': 'remote.external',
+        'auto_backup_last': 'safety.last_backup_run',
+        'auto_backup_enabled': 'safety.auto_backup_enabled',
+        'auto_backup_directory': 'safety.auto_backup_directory'
+      };
+
+      for (const [oldKey, newKey] of Object.entries(mappings)) {
+        const oldRow = await get<{ value: string; category: string; updated_at: string }>(
+          'SELECT value, category, updated_at FROM settings WHERE key = ?',
+          [oldKey]
+        );
+
+        if (oldRow) {
+          await run(
+            'INSERT OR REPLACE INTO settings (key, value, category, updated_at) VALUES (?, ?, ?, ?)',
+            [newKey, oldRow.value, oldRow.category, oldRow.updated_at]
+          );
+
+          if (oldKey !== newKey) {
+            await run('DELETE FROM settings WHERE key = ?', [oldKey]);
+          }
+        }
+      }
+      log('[Migration 24] Settings keys normalized.');
+    },
+  },
+  {
+    id: 25,
+    name: 'Remove Balance Triggers - Use Application Code',
+    up: async () => {
+      log('[Migration 25] Removing balance triggers - using application code instead...');
+
+      // Drop the incremental balance triggers
+      const triggersToDrop = [
+        'trg_balance_inc_insert',
+        'trg_balance_inc_delete',
+        'trg_balance_inc_update'
+      ];
+      for (const t of triggersToDrop) {
+        await run(`DROP TRIGGER IF EXISTS ${t}`);
+      }
+
+      // Also drop the old recalculation triggers from migration 9 and 22
+      const oldTriggers = [
+        'trg_balance_after_insert',
+        'trg_balance_after_update',
+        'trg_balance_after_delete'
+      ];
+      for (const t of oldTriggers) {
+        await run(`DROP TRIGGER IF EXISTS ${t}`);
+      }
+
+      log('[Migration 25] All balance triggers removed. Application will handle balance sync.');
     },
   }
 ];

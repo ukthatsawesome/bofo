@@ -1,6 +1,8 @@
 
 import { BaseController } from './BaseController';
 import { Route } from '../router';
+import { SETTING_KEYS } from '../../../shared/settings/keys';
+import { CurrencyConfigService } from '../../config/CurrencyConfig';
 
 export class ExchangeRateController extends BaseController {
 
@@ -36,13 +38,20 @@ export class ExchangeRateController extends BaseController {
                     const model = this.getFinanceModel();
                     const CurrencyService = this.getCurrencyService();
 
-                    const rates = await CurrencyService.fetchRates(provider, baseCurrency, customUrl);
+                    const config = await CurrencyConfigService.getEffectiveConfig();
+
+                    // Use arguments or fallback to config
+                    const p = provider || config.provider;
+                    const b = baseCurrency || config.base;
+                    const u = customUrl || config.customUrl;
+
+                    const rates = await CurrencyService.fetchRates(p, b, u);
                     const usedCurrencies = await model.getUsedCurrencies();
-                    usedCurrencies.push(baseCurrency);
+                    usedCurrencies.push(b); // Use resolved base currency 'b'
                     const relevantRates = CurrencyService.filterRelevantRates(rates, usedCurrencies);
 
                     await model.setExchangeRatesBulk(relevantRates, 'api');
-                    await model.updateSetting('currency_last_sync', new Date().toISOString());
+                    await model.updateSetting(SETTING_KEYS.CURRENCY.LAST_SYNC, new Date().toISOString());
 
                     return {
                         success: true,
@@ -56,7 +65,12 @@ export class ExchangeRateController extends BaseController {
 
             'test-currency-api': async (_, { provider, baseCurrency, customUrl }) => {
                 try {
-                    return await this.getCurrencyService().testConnection(provider, baseCurrency, customUrl);
+                    const config = await CurrencyConfigService.getEffectiveConfig();
+                    const p = provider || config.provider;
+                    const b = baseCurrency || config.base;
+                    const u = customUrl || config.customUrl;
+
+                    return await this.getCurrencyService().testConnection(p, b, u);
                 } catch (err: any) {
                     return { success: false, message: err.message };
                 }

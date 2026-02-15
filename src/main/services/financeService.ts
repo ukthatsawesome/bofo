@@ -2,6 +2,8 @@ import { FinanceModel } from '../models/finance';
 import { ForecastEngine } from '../utils/forecast';
 import { aiService, SandboxContext, ChunkCallback } from './aiService';
 import type { Transaction, Account, RecurringCharge } from '../database/types';
+import { SETTING_KEYS } from '../../shared/settings/keys';
+import { AIConfigService } from '../config/AIConfig';
 
 class FinanceService {
   /**
@@ -14,16 +16,12 @@ class FinanceService {
 
   /**
    * Add a new transaction and auto-sync account balances.
+   * Note: Balance sync is handled automatically by FinanceModel.create's afterWrite hook.
    * @param transaction Partial transaction data (amount, type, etc.)
    * @returns Promise resolving to the new transaction ID.
    */
   async addTransaction(transaction: Partial<Transaction>) {
     const result = await FinanceModel.create('transaction', transaction);
-
-    // Auto-sync account balances after transaction
-    if (transaction.account_id) await FinanceModel.syncAccountBalance(transaction.account_id);
-    if (transaction.to_account_id) await FinanceModel.syncAccountBalance(transaction.to_account_id);
-
     return result.id;
   }
 
@@ -154,9 +152,9 @@ class FinanceService {
     // Pass only the properties ForecastEngine expects for settings
     const dbSettings = await FinanceModel.getAllSettings();
     const forecastSettings = {
-      forecast_horizon: dbSettings['forecast_horizon'],
-      forecast_inflation_enabled: dbSettings['forecast_inflation_enabled'],
-      forecast_inflation_rate: dbSettings['forecast_inflation_rate'],
+      [SETTING_KEYS.FORECAST.HORIZON]: dbSettings[SETTING_KEYS.FORECAST.HORIZON],
+      [SETTING_KEYS.FORECAST.INFLATION_ENABLED]: dbSettings[SETTING_KEYS.FORECAST.INFLATION_ENABLED],
+      [SETTING_KEYS.FORECAST.INFLATION_RATE]: dbSettings[SETTING_KEYS.FORECAST.INFLATION_RATE],
     };
 
     // Map DB types to Forecast types
@@ -234,7 +232,16 @@ class FinanceService {
   // =========================================================================
 
   async getAISettings() {
-    return await FinanceModel.getAISettings();
+    // Return flat structure for compatibility
+    const config = await AIConfigService.getEffectiveConfig();
+    return {
+      enabled: config.enabled,
+      url: config.url,
+      model: config.model,
+      promptTx: config.prompts.tx,
+      promptInsight: config.prompts.insight,
+      promptChat: config.prompts.chat
+    };
   }
 
   async saveAISettings(

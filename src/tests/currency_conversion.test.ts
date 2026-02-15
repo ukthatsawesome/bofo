@@ -2,6 +2,7 @@
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import * as fs from 'fs';
 import * as path from 'path';
+import { SETTING_KEYS } from '../shared/settings/keys';
 
 // Force Dev Mode
 process.env.NODE_ENV = 'development';
@@ -56,7 +57,7 @@ describe('Currency Conversion Logic', () => {
             // Setup: Create Accounts
             const acc1 = await FinanceModel.create('account', {
                 name: 'Test USD Account',
-                type: 'checking',
+                type: 'bank',
                 balance: 1000,
                 currency: 'USD',
                 is_active: 1
@@ -65,20 +66,24 @@ describe('Currency Conversion Logic', () => {
 
             const acc2 = await FinanceModel.create('account', {
                 name: 'Test EUR Account',
-                type: 'checking',
+                type: 'bank',
                 balance: 0,
                 currency: 'EUR',
                 is_active: 1
             });
             eurAccountId = acc2.id;
 
-            // Setup: Seed Exchange Rate
+            // Setup: Set base currency to USD
+            await run(`INSERT OR REPLACE INTO settings (key, value, category) VALUES (?, 'USD', 'currency')`,
+                [SETTING_KEYS.CURRENCY.BASE]);
+
+            // Setup: Seed Exchange Rate (use INSERT OR REPLACE to handle existing data)
             // USD -> EUR = 0.85
-            await run(`INSERT INTO exchange_rates (from_currency, to_currency, rate, source) VALUES (?, ?, ?, ?)`,
+            await run(`INSERT OR REPLACE INTO exchange_rates (from_currency, to_currency, rate, source) VALUES (?, ?, ?, ?)`,
                 ['USD', 'EUR', 0.85, 'manual']);
 
             // EUR -> USD = 1.18
-            await run(`INSERT INTO exchange_rates (from_currency, to_currency, rate, source) VALUES (?, ?, ?, ?)`,
+            await run(`INSERT OR REPLACE INTO exchange_rates (from_currency, to_currency, rate, source) VALUES (?, ?, ?, ?)`,
                 ['EUR', 'USD', 1.18, 'manual']);
         } catch (e) {
             console.error("BEFORE ALL ERROR:", e);
@@ -94,14 +99,17 @@ describe('Currency Conversion Logic', () => {
         const transferAmount = 100;
         // Expected EUR amount = 100 * 0.85 = 85
 
-        const tx = await FinanceModel.create('transaction', {
+        const result = await FinanceModel.create('transaction', {
             type: 'transfer',
             account_id: usdAccountId,
             to_account_id: eurAccountId,
             amount: transferAmount,
-            start_date: new Date().toISOString(),
+            start_date: new Date().toISOString().split('T')[0],
             description: 'Test Transfer USD to EUR'
         });
+
+        // Fetch the created transaction to verify values
+        const tx = await FinanceModel.getTransactionById(result.id);
 
         // 1. Verify Transaction Record
         expect(tx.currency).toBe('USD');
@@ -109,8 +117,6 @@ describe('Currency Conversion Logic', () => {
         expect(tx.to_amount).toBe(85);
 
         // 2. Verify Account Balances
-        // Use FinanceModel.getAccount to get fresh state (logic relies on syncAccountBalance inside create)
-        // Wait a small tick? syncAccountBalance is awaited in afterWrite, create should await it.
         const usdAcc = await get('SELECT balance FROM accounts WHERE id = ?', [usdAccountId]);
         // 1000 - 100 = 900
         expect(usdAcc.balance).toBe(900);
@@ -121,25 +127,22 @@ describe('Currency Conversion Logic', () => {
     });
 
     it('should calculate base_amount (USD) correctly for EUR expense', async () => {
-        // Need to capture groceriesId from beforeAll scope? 
-        // Or just query it.
         const cat = await get('SELECT id FROM categories WHERE name = ?', ['Groceries']);
         const expenseAmountEUR = 100;
         // Expected USD base amount = 100 * 1.18 = 118
 
-        const tx = await FinanceModel.create('transaction', {
+        const result = await FinanceModel.create('transaction', {
             type: 'expense',
             account_id: eurAccountId, // EUR Account
             amount: expenseAmountEUR,
             category: 'Groceries',
             category_id: cat.id,
-            start_date: new Date().toISOString(),
+            start_date: new Date().toISOString().split('T')[0],
             description: 'Test EUR Expense'
         });
 
-        // Wait, validateRequired checks 'category'. createInternal checks if cat exists? 
-        // No, it just takes string. But beforeWrite resolves category_id for transaction if string provided. 
-        // We provided neither validly maybe?
+        // Fetch the created transaction to verify values
+        const tx = await FinanceModel.getTransactionById(result.id);
 
         expect(tx.currency).toBe('EUR');
         expect(tx.base_currency).toBe('USD');

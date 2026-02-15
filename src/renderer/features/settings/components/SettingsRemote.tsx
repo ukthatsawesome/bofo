@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/Input';
 import { Wifi, Save, Key, RefreshCcw } from 'lucide-preact';
 import { clsx } from 'clsx';
 import { SectionTitle, Caption } from '@/components/ui/Typography';
+import { SETTING_KEYS } from '../../../../shared/settings/keys';
 
 export const SettingsRemote = () => {
     const [enabled, setEnabled] = useState(false);
@@ -18,11 +19,11 @@ export const SettingsRemote = () => {
     useEffect(() => {
         const load = async () => {
             const settings = await (window as any).api.getSettings();
-            setEnabled(settings.remote_access_enabled === 'true');
-            setPort(settings.remote_access_port || '5174');
-            setKey(settings.remote_access_key || '');
+            setEnabled(settings[SETTING_KEYS.REMOTE.ENABLED] === 'true');
+            setPort(settings[SETTING_KEYS.REMOTE.PORT] || '5174');
+            setKey(settings[SETTING_KEYS.REMOTE.KEY] || '');
 
-            if (settings.remote_access_enabled === 'true') {
+            if (settings[SETTING_KEYS.REMOTE.ENABLED] === 'true') {
                 try {
                     const info = await (window as any).api.getHostInfo();
                     setHostInfo(info.ips || []);
@@ -45,9 +46,9 @@ export const SettingsRemote = () => {
         setLoading(true);
         try {
             await (window as any).api.saveSettings({
-                remote_access_enabled: enabled.toString(),
-                remote_access_port: port,
-                remote_access_key: key
+                [SETTING_KEYS.REMOTE.ENABLED]: enabled.toString(),
+                [SETTING_KEYS.REMOTE.PORT]: port,
+                [SETTING_KEYS.REMOTE.KEY]: key
             });
 
             await (window as any).api.restartWebServer?.();

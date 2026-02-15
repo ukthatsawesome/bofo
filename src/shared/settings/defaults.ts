@@ -1,0 +1,97 @@
+import { SETTING_KEYS, SETTING_CATEGORIES } from './keys';
+
+export interface DefaultSetting {
+    key: string;
+    value: string;
+    category: string;
+}
+
+// =============================================================================
+// CENTRALIZED DEFAULTS - Single Source of Truth
+// Use these constants throughout the app instead of hardcoding values
+// =============================================================================
+
+export const DEFAULTS = {
+    CURRENCY: {
+        BASE: 'USD',
+        PRECISION: '2',
+        SYMBOL_PLACEMENT: 'before',
+    },
+    AI: {
+        URL: 'http://127.0.0.1:11434',
+        MODEL: 'gemma3:4b',
+        TIMEOUT_MS: 30000,
+    },
+    COLORS: {
+        PRIMARY: '#7b68ee',      // Purple for categories
+        TRANSFER: '#2563eb',     // Blue for transfers
+        SUCCESS: '#10b981',      // Green for income/positive
+        DANGER: '#ef4444',       // Red for expenses/negative
+    },
+    APPEARANCE: {
+        THEME: 'dark',
+        LANDING_VIEW: 'dashboard',
+    },
+    FORECAST: {
+        HORIZON: 6,
+        INFLATION_RATE: 2.5,
+    },
+    SAFETY: {
+        BACKUP_ON_CLOSE: 'true' as const,
+        AUTO_BACKUP: 'false' as const,
+    },
+} as const;
+
+// Re-export individual defaults for convenience
+export const DEFAULT_CURRENCY = DEFAULTS.CURRENCY.BASE;
+export const DEFAULT_AI_URL = DEFAULTS.AI.URL;
+export const DEFAULT_AI_MODEL = DEFAULTS.AI.MODEL;
+export const DEFAULT_COLOR = DEFAULTS.COLORS.PRIMARY;
+export const TRANSFER_COLOR = DEFAULTS.COLORS.TRANSFER;
+
+export const DEFAULT_SETTINGS: DefaultSetting[] = [
+    // Budget
+    { key: SETTING_KEYS.BUDGET.PERIOD, value: 'monthly', category: SETTING_CATEGORIES.BUDGET },
+    { key: SETTING_KEYS.BUDGET.ROLLOVER, value: 'false', category: SETTING_CATEGORIES.BUDGET },
+
+    // Forecast
+    { key: SETTING_KEYS.FORECAST.HORIZON, value: String(DEFAULTS.FORECAST.HORIZON), category: SETTING_CATEGORIES.FORECAST },
+    { key: SETTING_KEYS.FORECAST.UNCERTAIN_INCOME, value: 'ask', category: SETTING_CATEGORIES.FORECAST },
+    { key: SETTING_KEYS.FORECAST.INFLATION_ENABLED, value: 'false', category: SETTING_CATEGORIES.FORECAST },
+    { key: SETTING_KEYS.FORECAST.INFLATION_RATE, value: String(DEFAULTS.FORECAST.INFLATION_RATE), category: SETTING_CATEGORIES.FORECAST },
+    { key: SETTING_KEYS.FORECAST.INCLUDE_RECURRING, value: 'true', category: SETTING_CATEGORIES.FORECAST },
+
+    // Currency - Use centralized defaults
+    { key: SETTING_KEYS.CURRENCY.BASE, value: DEFAULTS.CURRENCY.BASE, category: SETTING_CATEGORIES.CURRENCY },
+    { key: SETTING_KEYS.CURRENCY.PRECISION, value: DEFAULTS.CURRENCY.PRECISION, category: SETTING_CATEGORIES.CURRENCY },
+    { key: SETTING_KEYS.CURRENCY.SYMBOL_PLACEMENT, value: DEFAULTS.CURRENCY.SYMBOL_PLACEMENT, category: SETTING_CATEGORIES.CURRENCY },
+    { key: SETTING_KEYS.CURRENCY.API_PROVIDER, value: 'frankfurter', category: SETTING_CATEGORIES.CURRENCY },
+    { key: SETTING_KEYS.CURRENCY.CUSTOM_URL, value: '', category: SETTING_CATEGORIES.CURRENCY },
+    { key: SETTING_KEYS.CURRENCY.AUTO_SYNC, value: 'false', category: SETTING_CATEGORIES.CURRENCY },
+    { key: SETTING_KEYS.CURRENCY.LAST_SYNC, value: '', category: SETTING_CATEGORIES.CURRENCY },
+
+    // Appearance - Use centralized defaults
+    { key: SETTING_KEYS.APPEARANCE.THEME, value: DEFAULTS.APPEARANCE.THEME, category: SETTING_CATEGORIES.APPEARANCE },
+    { key: SETTING_KEYS.APPEARANCE.LANDING_VIEW, value: DEFAULTS.APPEARANCE.LANDING_VIEW, category: SETTING_CATEGORIES.APPEARANCE },
+
+    // Safety
+    { key: SETTING_KEYS.SAFETY.BACKUP_ON_CLOSE, value: String(DEFAULTS.SAFETY.BACKUP_ON_CLOSE), category: SETTING_CATEGORIES.SAFETY },
+    { key: SETTING_KEYS.SAFETY.AUTO_BACKUP_ENABLED, value: String(DEFAULTS.SAFETY.AUTO_BACKUP), category: SETTING_CATEGORIES.SAFETY },
+    { key: SETTING_KEYS.SAFETY.AUTO_BACKUP_DIRECTORY, value: '', category: SETTING_CATEGORIES.SAFETY },
+
+    // Remote
+    { key: SETTING_KEYS.REMOTE.ENABLED, value: 'false', category: SETTING_CATEGORIES.REMOTE },
+    { key: SETTING_KEYS.REMOTE.PORT, value: '5174', category: SETTING_CATEGORIES.REMOTE },
+    { key: SETTING_KEYS.REMOTE.KEY, value: '', category: SETTING_CATEGORIES.REMOTE },
+    { key: SETTING_KEYS.REMOTE.ORIGINS, value: '', category: SETTING_CATEGORIES.REMOTE },
+    { key: SETTING_KEYS.REMOTE.EXTERNAL, value: 'true', category: SETTING_CATEGORIES.REMOTE },
+
+    // AI - Use centralized defaults
+    { key: SETTING_KEYS.AI.ENABLED, value: 'false', category: SETTING_CATEGORIES.AI },
+    { key: SETTING_KEYS.AI.URL, value: DEFAULTS.AI.URL, category: SETTING_CATEGORIES.AI },
+    { key: SETTING_KEYS.AI.MODEL, value: DEFAULTS.AI.MODEL, category: SETTING_CATEGORIES.AI },
+    { key: SETTING_KEYS.AI.PROMPT_TX, value: '', category: SETTING_CATEGORIES.AI },
+    { key: SETTING_KEYS.AI.PROMPT_INSIGHT, value: '', category: SETTING_CATEGORIES.AI },
+    { key: SETTING_KEYS.AI.PROMPT_CHAT, value: '', category: SETTING_CATEGORIES.AI },
+
+] as const;

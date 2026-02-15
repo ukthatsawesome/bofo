@@ -39,6 +39,7 @@ interface DefaultPrompts {
  */
 import { DateUtils } from '../../shared/utils/dateUtils';
 import { Logger } from '../utils/logger';
+import { AI_DEFAULTS, AIConfigService } from '../config/AIConfig';
 class AIService {
   private baseUrl: string;
   private model: string;
@@ -70,8 +71,9 @@ class AIService {
   };
 
   constructor() {
-    this.baseUrl = 'http://127.0.0.1:11434';
-    this.model = 'gemma3:4b';
+    // Use centralized defaults from AIConfig
+    this.baseUrl = AI_DEFAULTS.URL;
+    this.model = AI_DEFAULTS.MODEL;
 
     this.DEFAULTS = {
       promptTx: `You are a smart financial engine. Parse this input: "{{input}}"
@@ -158,9 +160,31 @@ OR
   }
 
   async setConfig(url: string, model: string): Promise<void> {
-    this.baseUrl = url || 'http://127.0.0.1:11434';
-    this.model = model || 'gemma3:4b';
+    this.baseUrl = url || AI_DEFAULTS.URL;
+    this.model = model || AI_DEFAULTS.MODEL;
     this._resetCircuit();
+  }
+
+  /**
+   * Sync configuration from AIConfigService (centralized settings)
+   * This is the preferred way to load settings - use this instead of setConfig
+   */
+  async syncFromConfig(): Promise<void> {
+    try {
+      const config = await AIConfigService.getEffectiveConfig();
+      this.baseUrl = config.url;
+      this.model = config.model;
+      this.promptTx = config.prompts.tx || null;
+      this.promptInsight = config.prompts.insight || null;
+      this.promptChat = config.prompts.chat || null;
+      this._resetCircuit();
+      Logger.info('[AI] Configuration synced from AIConfigService');
+    } catch (error) {
+      Logger.warn('[AI] Failed to sync config, using defaults:', error);
+      // Fall back to defaults
+      this.baseUrl = AI_DEFAULTS.URL;
+      this.model = AI_DEFAULTS.MODEL;
+    }
   }
 
   setTimeoutConfig(options: Partial<typeof this.config>): void {

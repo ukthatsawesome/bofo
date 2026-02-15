@@ -18,6 +18,7 @@ import { notify } from './lib/notify';
 import { api } from './lib/api';
 import type { AIInsight } from './lib/ai';
 import { aiInsightCache, FallbackGenerator } from './lib/ai';
+import { SETTING_KEYS } from '../../shared/settings/keys';
 
 // --- State Signals (Atomic & Reactive) ---
 
@@ -56,7 +57,7 @@ const incrementVersion = () => dataVersion.value = dataVersion.peek() + 1;
 // Automatically updates when accounts.value changes. No setter needed.
 
 export const netWorth = computed(() => {
-    const base = settings.value?.currency_base || 'USD';
+    const base = settings.value?.[SETTING_KEYS.CURRENCY.BASE] || 'USD';
     const rates = exchangeRates.value || [];
     const rateMap = new Map<string, number>();
 

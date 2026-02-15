@@ -2,6 +2,7 @@
 import { BaseController } from './BaseController';
 import { Route } from '../router';
 import { Logger } from '../../utils/logger';
+import { AI_DEFAULTS } from '../../config/AIConfig';
 
 export class BofoAIController extends BaseController {
 
@@ -12,13 +13,17 @@ export class BofoAIController extends BaseController {
 
     private async syncAIService() {
         const ai = this.getAIService();
-        const settings = await this.getFinanceModel().getAISettings();
-        ai.baseUrl = settings.url;
-        ai.model = settings.model;
-        ai.promptTx = settings.promptTx;
-        ai.promptInsight = settings.promptInsight;
-        ai.promptChat = settings.promptChat;
-        return settings;
+        // Use the centralized sync method from AIService
+        await ai.syncFromConfig();
+
+        return {
+            enabled: true,
+            url: ai.baseUrl,
+            model: ai.model,
+            promptTx: ai.promptTx,
+            promptInsight: ai.promptInsight,
+            promptChat: ai.promptChat,
+        };
     }
 
     registerRoutes(): Record<string, Route> {
@@ -27,7 +32,7 @@ export class BofoAIController extends BaseController {
                 try {
                     return await this.syncAIService();
                 } catch (e) {
-                    return { enabled: false, url: 'http://127.0.0.1:11434', model: 'gemma3:4b' };
+                    return { enabled: false, url: AI_DEFAULTS.URL, model: AI_DEFAULTS.MODEL };
                 }
             },
 

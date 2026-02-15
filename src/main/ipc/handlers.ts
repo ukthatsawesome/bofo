@@ -32,7 +32,9 @@ import { SettingsController } from './controllers/SettingsController';
 import { TransactionController } from './controllers/TransactionController';
 
 // Core
+// Core
 import { IpcRouter } from './router';
+import { SETTING_KEYS } from '../../shared/settings/keys';
 
 // ==================== IPC Registration ====================
 
@@ -90,24 +92,28 @@ export async function performAutoBackup(): Promise<void> {
     const settings = await FinanceModel.getAllSettings();
 
     // 1. Check if auto-backup is enabled and configured
-    if (settings.auto_backup_enabled !== 'true' || !settings.auto_backup_directory) {
+    const enabled = settings[SETTING_KEYS.SAFETY.AUTO_BACKUP_ENABLED];
+    const backupDir = settings[SETTING_KEYS.SAFETY.AUTO_BACKUP_DIRECTORY];
+
+    // Check against canonical 'true' string
+    if (enabled !== 'true' || !backupDir) {
       return;
     }
 
     // 2. Validate directory existence
-    if (!fs.existsSync(settings.auto_backup_directory)) {
-      Logger.warn(`[AutoBackup] Directory does not exist: ${settings.auto_backup_directory}`);
+    if (!fs.existsSync(backupDir)) {
+      Logger.warn(`[AutoBackup] Directory does not exist: ${backupDir}`);
       return;
     }
 
     // 3. Security check
-    if (!validateSafePath(settings.auto_backup_directory, 'dir')) {
-      Logger.error('[AutoBackup] Blocked unsafe auto-backup directory:', settings.auto_backup_directory);
+    if (!validateSafePath(backupDir, 'dir')) {
+      Logger.error('[AutoBackup] Blocked unsafe auto-backup directory:', backupDir);
       return;
     }
 
     // 4. Check if backup already ran today
-    const lastBackup = settings.auto_backup_last;
+    const lastBackup = settings[SETTING_KEYS.SAFETY.LAST_BACKUP];
     if (lastBackup && new Date(lastBackup).toDateString() === new Date().toDateString()) {
       return;
     }
@@ -116,7 +122,7 @@ export async function performAutoBackup(): Promise<void> {
     const data = await FinanceModel.exportData();
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-').split('T')[0];
     const fileName = `bofo-backup-${timestamp}.json`;
-    const filePath = path.join(settings.auto_backup_directory, fileName);
+    const filePath = path.join(backupDir, fileName);
 
     const result = await runInWorker('exportWorker', {
       type: 'json-export',
@@ -130,7 +136,7 @@ export async function performAutoBackup(): Promise<void> {
     }
 
     // 6. Update last run time
-    await FinanceModel.updateSetting('auto_backup_last', new Date().toISOString());
+    await FinanceModel.updateSetting(SETTING_KEYS.SAFETY.LAST_BACKUP, new Date().toISOString());
     Logger.info(`[AutoBackup] Successfully created backup: ${fileName}`);
 
   } catch (err) {

@@ -1,4 +1,5 @@
 import { settings } from '../core/financeStore';
+import { SETTING_KEYS } from '../../shared/settings/keys';
 
 export const formatCurrency = (
     amount: number,
@@ -6,8 +7,8 @@ export const formatCurrency = (
     compact: boolean = false
 ): string => {
     // Default to USD/2 if settings not loaded yet
-    const precision = parseInt(settings.value?.currency_precision || '2');
-    const currency = currencyCode || settings.value?.currency_base || 'USD';
+    const precision = parseInt(settings.value?.[SETTING_KEYS.CURRENCY.PRECISION] || '2');
+    const currency = currencyCode || settings.value?.[SETTING_KEYS.CURRENCY.BASE] || 'USD';
     const fractionDigits = compact ? 0 : precision;
 
     try {
@@ -30,7 +31,7 @@ export const formatNumber = (
     currencyCode?: string,
     compact: boolean = false
 ): string => {
-    const precision = parseInt(settings.value?.currency_precision || '2');
+    const precision = parseInt(settings.value?.[SETTING_KEYS.CURRENCY.PRECISION] || '2');
     const fractionDigits = compact ? 0 : precision;
 
     return new Intl.NumberFormat('en-US', {
@@ -42,7 +43,7 @@ export const formatNumber = (
 
 /** Get the currency code for display */
 export const getCurrencyCode = (currencyCode?: string): string => {
-    return currencyCode || settings.value?.currency_base || 'USD';
+    return currencyCode || settings.value?.[SETTING_KEYS.CURRENCY.BASE] || 'USD';
 };
 
 export const formatDate = (dateStr: string | Date): string => {

@@ -4,6 +4,7 @@ import { IController } from '../router';
 import { FinanceModel } from '../../models/finance';
 import { ForecastEngine } from '../../utils/forecast';
 import { DateUtils } from '../../../shared/utils/dateUtils';
+import { SETTING_KEYS } from '../../../shared/settings/keys';
 
 export class FinanceController implements IController {
 
@@ -13,7 +14,23 @@ export class FinanceController implements IController {
       'get-dashboard-data': this.getDashboardData.bind(this),
       'get-category-spending': this.getCategorySpending.bind(this),
       'calculate-forecast': this.calculateForecast.bind(this),
+      'recalculate-all-balances': this.recalculateAllBalances.bind(this),
     };
+  }
+
+  /**
+   * Recalculate all account balances.
+   * Used to fix balances after removing triggers or correcting duplicate calculations.
+   */
+  async recalculateAllBalances(event: IpcMainInvokeEvent) {
+    try {
+      const results = await FinanceModel.recalculateAllBalances();
+      Logger.info(`[BalanceRecalc] Recalculated ${results.length} accounts`);
+      return { success: true, results };
+    } catch (err: any) {
+      Logger.error('[BalanceRecalc] Failed:', err);
+      return { success: false, error: err.message };
+    }
   }
 
   async getDashboardData(event: IpcMainInvokeEvent, months: number) {
@@ -30,7 +47,7 @@ export class FinanceController implements IController {
   async getSummaryStats(event: IpcMainInvokeEvent) {
     try {
       const settings = await FinanceModel.getAllSettings();
-      const baseCurrency = settings.currency_base || 'USD';
+      const baseCurrency = settings[SETTING_KEYS.CURRENCY.BASE] || 'USD';
 
       // 1. Get Accounts for Net Worth (Assets - Liabilities)
       const accounts = await FinanceModel.getAccountsWithConvertedBalances(baseCurrency);
@@ -71,7 +88,7 @@ export class FinanceController implements IController {
     try {
       // Get base currency from settings
       const settings = await FinanceModel.getAllSettings();
-      const baseCurrency = settings.currency_base || 'USD';
+      const baseCurrency = settings[SETTING_KEYS.CURRENCY.BASE] || 'USD';
 
       // Use provided data or fetch from DB
       const transactions = data.transactions || await FinanceModel.getAll('transaction', { orderBy: 'start_date DESC' });

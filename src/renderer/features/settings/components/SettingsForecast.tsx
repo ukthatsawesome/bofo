@@ -5,6 +5,7 @@ import { UiSelect } from '@/components/ui/UiSelect';
 import { UiButton } from '@/components/ui/UiButton';
 import { TrendingUp, Save } from 'lucide-preact';
 import { SectionTitle, Caption } from '@/components/ui/Typography';
+import { SETTING_KEYS } from '../../../../shared/settings/keys';
 
 export const SettingsForecast = () => {
     const [range, setRange] = useState('12');
@@ -14,8 +15,8 @@ export const SettingsForecast = () => {
     useEffect(() => {
         const load = async () => {
             const settings = await (window as any).api.getSettings();
-            setRange(settings.forecast_range_default || '12');
-            setIncludeRecurring(settings.forecast_include_recurring !== '0');
+            setRange(settings[SETTING_KEYS.FORECAST.HORIZON] || '12');
+            setIncludeRecurring(settings[SETTING_KEYS.FORECAST.INCLUDE_RECURRING] === 'true');
         };
         load();
     }, []);
@@ -23,8 +24,11 @@ export const SettingsForecast = () => {
     const handleSave = async () => {
         setLoading(true);
         try {
-            await (window as any).api.updateSetting({ key: 'forecast_range_default', value: range });
-            await (window as any).api.updateSetting({ key: 'forecast_include_recurring', value: includeRecurring ? '1' : '0' });
+            await (window as any).api.updateSetting({ key: SETTING_KEYS.FORECAST.HORIZON, value: range });
+            await (window as any).api.updateSetting({
+                key: SETTING_KEYS.FORECAST.INCLUDE_RECURRING,
+                value: includeRecurring ? 'true' : 'false'
+            });
 
             // Re-fetch logic if needed, or just toast
             alert('Forecast settings saved');

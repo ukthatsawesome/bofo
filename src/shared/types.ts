@@ -309,14 +309,7 @@ export interface AISettings {
   promptChat?: string;
 }
 
-export interface AppSettings {
-  theme?: string;
-  currency_base?: string;
-  currency_precision?: string;
-  forecast_range_default?: string;
-  forecast_include_recurring?: string;
-  [key: string]: string | undefined;
-}
+export type AppSettings = Record<string, string>;
 
 export interface CategorySpending {
   category: string;

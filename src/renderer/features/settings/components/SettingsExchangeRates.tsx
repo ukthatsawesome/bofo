@@ -13,6 +13,7 @@ import { clsx } from 'clsx';
 import { SectionTitle, Caption } from '@/components/ui/Typography';
 import { CURRENCY_API_PROVIDERS } from '../../../../shared/currencies';
 import { useSortedData } from '@/hooks/useSortedData';
+import { SETTING_KEYS } from '../../../../shared/settings/keys';
 
 export const SettingsExchangeRates = () => {
     const [rates, setRates] = useState<ExchangeRate[]>([]);
@@ -42,19 +43,19 @@ export const SettingsExchangeRates = () => {
         const syncStatus = await (window as any).api.getRateSyncStatus();
 
         setRates(r || []);
-        setBaseCurrency(settings.currency_base || 'USD');
-        setProvider(settings.currency_api_provider || 'frankfurter');
-        setCustomUrl(settings.currency_custom_url || '');
-        setAutoSync(settings.exchange_rate_sync_on_startup === 'true');
+        setBaseCurrency(settings[SETTING_KEYS.CURRENCY.BASE] || 'USD');
+        setProvider(settings[SETTING_KEYS.CURRENCY.API_PROVIDER] || 'frankfurter');
+        setCustomUrl(settings[SETTING_KEYS.CURRENCY.CUSTOM_URL] || '');
+        setAutoSync(settings[SETTING_KEYS.CURRENCY.AUTO_SYNC] === 'true');
         setLastSync(syncStatus);
     };
 
     const handleSync = async () => {
         setLoading(true);
         try {
-            await (window as any).api.updateSetting({ key: 'currency_api_provider', value: provider });
+            await (window as any).api.updateSetting({ key: SETTING_KEYS.CURRENCY.API_PROVIDER, value: provider });
             if (provider === 'custom') {
-                await (window as any).api.updateSetting({ key: 'currency_custom_url', value: customUrl });
+                await (window as any).api.updateSetting({ key: SETTING_KEYS.CURRENCY.CUSTOM_URL, value: customUrl });
             }
 
             const result = await (window as any).api.syncExchangeRates({ provider, baseCurrency, customUrl });
@@ -200,7 +201,7 @@ export const SettingsExchangeRates = () => {
                             onChange={async (e) => {
                                 const val = (e.target as HTMLInputElement).checked;
                                 setAutoSync(val);
-                                await (window as any).api.updateSetting({ key: 'exchange_rate_sync_on_startup', value: val ? 'true' : 'false' });
+                                await (window as any).api.updateSetting({ key: SETTING_KEYS.CURRENCY.AUTO_SYNC, value: val ? 'true' : 'false' });
                             }}
                         />
                         <label htmlFor="er-auto" className="text-sm font-medium cursor-pointer">
