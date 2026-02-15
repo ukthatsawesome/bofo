@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'preact/hooks';
 import { billReadings, billTypes, isLoading, actions } from '@/core/financeStore';
 import { api } from '@/core/lib/api';
 import { formatCurrency } from '@/utils/format';
+import { notify } from '@/core/lib/notify';
 
 // This hook bridges the Global Signal Store with local view requirements
 
@@ -36,12 +37,15 @@ export const useBills = () => {
     }, [refreshData]);
 
     const deleteReading = async (id: number) => {
-        if (!confirm('Are you sure?')) return;
+        const confirmed = await notify.confirm('Delete Reading', 'Are you sure you want to delete this bill reading?', 'warning');
+        if (!confirmed) return;
         try {
             await api.deleteBillReading(id);
             await refreshData();
-        } catch (err) {
+            notify.success('Reading Deleted', 'Bill reading has been removed');
+        } catch (err: any) {
             console.error(err);
+            notify.error('Delete Failed', err.message);
         }
     };
 

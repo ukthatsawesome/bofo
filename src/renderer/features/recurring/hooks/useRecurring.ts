@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'preact/hooks';
 import { financeStore } from '@/core/financeStore';
 import { RecurringCharge } from '../../../../shared/types';
+import { notify } from '@/core/lib/notify';
 
 export function useRecurring() {
     const { recurringCharges, isLoading } = financeStore;
@@ -72,13 +73,16 @@ export function useRecurring() {
     };
 
     const deleteCharge = async (id: number) => {
-        if (confirm("Are you sure you want to delete this recurring charge?")) {
-            try {
-                await (window as any).api.deleteRecurringCharge(id);
-                await financeStore.loadAll();
-            } catch (error) {
-                console.error("Failed to delete recurring charge:", error);
-            }
+        const confirmed = await notify.confirm('Delete Recurring Charge', 'Are you sure you want to delete this recurring charge?', 'warning');
+        if (!confirmed) return;
+
+        try {
+            await (window as any).api.deleteRecurringCharge(id);
+            await financeStore.loadAll();
+            notify.success('Charge Deleted', 'Recurring charge has been removed');
+        } catch (error: any) {
+            console.error("Failed to delete recurring charge:", error);
+            notify.error('Delete Failed', error.message);
         }
     };
 

@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'preact/hooks';
 import { financeStore } from '@/core/financeStore';
 import { Budget, CategorySpending } from '../../../../shared/types';
 import { api } from '@/core/lib/api';
+import { notify } from '@/core/lib/notify';
 
 export function useBudget() {
     const budgets = financeStore.budgets.value;
@@ -114,8 +115,10 @@ export function useBudget() {
     };
 
     const deleteBudget = async (id: number) => {
-        if (!confirm('Are you sure you want to delete this budget?')) return;
-        financeStore.deleteBudget(id);
+        const confirmed = await notify.confirm('Delete Budget', 'Are you sure you want to delete this budget?', 'warning');
+        if (!confirmed) return;
+        await financeStore.deleteBudget(id);
+        notify.success('Budget Deleted', 'Budget has been removed');
     };
 
     const saveBudget = async (budget: Partial<Budget>) => {

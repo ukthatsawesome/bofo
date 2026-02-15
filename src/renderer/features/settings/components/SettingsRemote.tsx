@@ -8,6 +8,7 @@ import { clsx } from 'clsx';
 import { SectionTitle, Caption } from '@/components/ui/Typography';
 import { SETTING_KEYS } from '../../../../shared/settings/keys';
 import { DEFAULT_REMOTE_PORT } from '../../../../shared/settings/defaults';
+import { notify } from '@/core/lib/notify';
 
 export const SettingsRemote = () => {
     const [enabled, setEnabled] = useState(false);
@@ -62,7 +63,10 @@ export const SettingsRemote = () => {
     };
 
     const handleSave = async () => {
-        if (enabled && !key) return alert('Access Key is required when enabled');
+        if (enabled && !key) {
+            notify.error('Access Key Required', 'Please generate or enter an access key when enabling remote access');
+            return;
+        }
 
         setLoading(true);
         try {
@@ -81,9 +85,9 @@ export const SettingsRemote = () => {
             } else {
                 setHostInfo([]);
             }
-            alert('Settings saved and server restarted');
+            notify.success('Settings Saved', 'Remote server restarted successfully');
         } catch (error: any) {
-            alert(error.message);
+            notify.error('Save Failed', error.message);
         } finally {
             setLoading(false);
         }

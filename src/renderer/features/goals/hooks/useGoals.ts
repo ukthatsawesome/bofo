@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'preact/hooks';
 import { financeStore } from '@/core/financeStore';
 import { Goal } from '../../../../shared/types';
+import { notify } from '@/core/lib/notify';
 
 interface GoalsSummary {
     activeGoals: number;
@@ -58,8 +59,10 @@ export function useGoals() {
     };
 
     const deleteGoal = async (id: number) => {
-        if (!confirm('Delete this goal?')) return;
-        financeStore.deleteGoal(id);
+        const confirmed = await notify.confirm('Delete Goal', 'Are you sure you want to delete this goal?', 'warning');
+        if (!confirmed) return;
+        await financeStore.deleteGoal(id);
+        notify.success('Goal Deleted', 'Goal has been removed');
     };
 
     const contribute = async (goalId: number, amount: number, source?: string, notes?: string) => {

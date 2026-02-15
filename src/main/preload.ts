@@ -129,7 +129,7 @@ contextBridge.exposeInMainWorld('api', {
   saveAISettings: (settings: AISettings) => invokeWithTimeout('save-ai-settings', [settings]),
   getAIModels: (url: string) => invokeWithTimeout('get-ai-models', [url], 10000),
   getOllamaModels: (url: string) => invokeWithTimeout('get-ai-models', [url], 10000), // Alias for compatibility
-  checkAIConnection: () => invokeWithTimeout('check-ai-connection', [], 10000),
+  checkAIConnection: (url?: string) => invokeWithTimeout('check-ai-connection', [url], 10000),
   getAIHealth: () => invokeWithTimeout('get-ai-health'),
   parseTransactionAI: (text: string) => invokeWithTimeout('parse-transaction-ai', [text], 60000),
   getAIInsight: (summary: any) => invokeWithTimeout('get-ai-insight', [summary], 60000),

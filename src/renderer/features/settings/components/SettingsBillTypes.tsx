@@ -13,6 +13,7 @@ import { formatCurrency } from '@/utils/format';
 import { clsx } from 'clsx';
 import { SectionTitle, Caption } from '@/components/ui/Typography';
 import { useSortedData } from '@/hooks/useSortedData';
+import { notify } from '@/core/lib/notify';
 
 // Icon mapping helper
 const getIcon = (name: string | undefined | null) => {
@@ -91,21 +92,30 @@ export const SettingsBillTypes = () => {
 
             if (editingId) {
                 await (window as any).api.updateBillType({ id: editingId, data: payload });
+                notify.success('Bill Type Updated', 'Bill type has been saved');
             } else {
                 await (window as any).api.addBillType(payload);
+                notify.success('Bill Type Created', 'New bill type has been added');
             }
             await financeStore.loadAll();
             setIsModalOpen(false);
-        } catch (error) {
+        } catch (error: any) {
             console.error(error);
-            alert('Failed to save bill type');
+            notify.error('Save Failed', error.message || 'Failed to save bill type');
         }
     };
 
     const handleDelete = async (id: number) => {
-        if (!confirm('Delete this bill type?')) return;
-        await (window as any).api.deleteBillType(id);
-        await financeStore.loadAll();
+        const confirmed = await notify.confirm('Delete Bill Type', 'Are you sure you want to delete this bill type?', 'warning');
+        if (!confirmed) return;
+
+        try {
+            await (window as any).api.deleteBillType(id);
+            await financeStore.loadAll();
+            notify.success('Bill Type Deleted', 'Bill type has been removed');
+        } catch (error: any) {
+            notify.error('Delete Failed', error.message);
+        }
     };
 
     const columns: Column<BillType>[] = [

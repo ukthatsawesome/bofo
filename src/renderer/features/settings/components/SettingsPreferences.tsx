@@ -9,6 +9,9 @@ import { api } from '@/core/lib/api';
 import { CURRENCIES } from '../../../../shared/currencies';
 import { SETTING_KEYS } from '../../../../shared/settings/keys';
 
+const THEME_PREF_KEY = 'bofo_theme_preference';
+const THEME_CACHE_KEY = 'bofo_theme_cache';
+
 export const SettingsPreferences = () => {
     // We can assume financeStore.settings has been loaded by App init, 
     // but financeStore doesn't expose a raw settings signal directly in the same way.
@@ -33,7 +36,15 @@ export const SettingsPreferences = () => {
         try {
             await api.updateSetting({ key: SETTING_KEYS.APPEARANCE.THEME, value: newTheme });
             setTheme(newTheme);
-            (window as any).location.reload(); // Simple reload to apply theme for now
+
+            // Apply theme reactively without page reload
+            const effectiveTheme = newTheme === 'system'
+                ? window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+                : newTheme;
+            document.documentElement.setAttribute('data-theme', effectiveTheme);
+            document.documentElement.classList.toggle('dark', effectiveTheme === 'dark');
+            localStorage.setItem(THEME_PREF_KEY, newTheme);
+            localStorage.setItem(THEME_CACHE_KEY, effectiveTheme);
         } finally {
             setLoading(false);
         }

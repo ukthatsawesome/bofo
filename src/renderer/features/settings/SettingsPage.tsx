@@ -48,10 +48,10 @@ export const SettingsPage = () => {
 
     return (
         <ViewLayout title="Settings" actions={null}>
-            <div className="flex h-full gap-6">
+            <div className="flex h-full gap-6 items-start">
                 {/* Sidebar Navigation */}
-                <div className="w-64 flex-shrink-0 animate-fade-in-left">
-                    <div className="bg-surface-card/60 backdrop-blur-md border border-white/10 rounded-2xl overflow-hidden shadow-sm flex flex-col h-full max-h-[calc(100vh-140px)]">
+                <div className="w-64 flex-shrink-0 animate-fade-in-left sticky top-6">
+                    <div className="bg-surface-card/60 backdrop-blur-md border border-white/10 rounded-2xl overflow-hidden shadow-sm flex flex-col h-[calc(100vh-12rem)] min-h-[32rem]">
                         <div className="p-4 border-b border-border/50 bg-surface-base/30">
                             <h2 className="font-semibold text-text-primary">Configuration</h2>
                             <p className="text-xs text-text-muted">System preferences</p>

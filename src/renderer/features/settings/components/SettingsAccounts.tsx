@@ -14,6 +14,7 @@ import { Account } from '../../../../shared/types';
 import { clsx } from 'clsx';
 import { useSortedData } from '@/hooks/useSortedData';
 import { CURRENCIES } from '../../../../shared/currencies';
+import { notify } from '@/core/lib/notify';
 
 export const SettingsAccounts = () => {
     const accounts = financeStore.accounts.value;
@@ -63,27 +64,35 @@ export const SettingsAccounts = () => {
             const payload = {
                 ...formData,
                 initial_balance: parseFloat(formData.initial_balance),
-                balance: parseFloat(formData.initial_balance) // Initial balance is current balance on creation usually, or backend handles it
+                balance: parseFloat(formData.initial_balance)
             };
 
             if (editingAccount?.id) {
                 await (window as any).api.updateAccount({ ...payload, id: editingAccount.id });
-                // We keep balance separate in update if backend supports it, but here we update initial
+                notify.success('Account Updated', 'Account has been saved');
             } else {
                 await (window as any).api.addAccount(payload);
+                notify.success('Account Created', 'New account has been added');
             }
             await financeStore.loadAll();
             setIsModalOpen(false);
-        } catch (error) {
+        } catch (error: any) {
             console.error(error);
-            alert('Failed to save account');
+            notify.error('Save Failed', error.message || 'Failed to save account');
         }
     };
 
     const handleDelete = async (id: number) => {
-        if (!confirm('Are you sure? This will unlink transactions.')) return;
-        await (window as any).api.deleteAccount(id);
-        await financeStore.loadAll();
+        const confirmed = await notify.confirm('Delete Account', 'Are you sure? This will unlink all transactions.', 'warning');
+        if (!confirmed) return;
+
+        try {
+            await (window as any).api.deleteAccount(id);
+            await financeStore.loadAll();
+            notify.success('Account Deleted', 'Account has been removed');
+        } catch (error: any) {
+            notify.error('Delete Failed', error.message);
+        }
     };
 
     const handleArchive = async (id: number, isArchived: boolean) => {

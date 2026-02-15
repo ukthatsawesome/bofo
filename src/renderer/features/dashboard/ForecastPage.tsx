@@ -122,9 +122,11 @@ export const ForecastPage = () => {
             },
             {
                 label: "Runway",
-                value: summary.runway === Infinity
-                    ? 'Infinite'
-                    : `${summary.runway.toFixed(1)} Months`,
+                value: summary.runway === undefined || summary.runway === null
+                    ? 'N/A'
+                    : summary.runway === Infinity
+                        ? 'Infinite'
+                        : `${summary.runway.toFixed(1)} Months`,
                 icon: Clock
             }
         ];

@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'preact/hooks';
+import { useEffect } from 'preact/hooks';
 import { signal } from '@preact/signals';
 import { financeStore } from '../core/financeStore';
 import { api } from '../core/lib/api';
+import { SETTING_KEYS } from '../../shared/settings/keys';
 
 // Global app initialization state
 interface AppState {
@@ -17,6 +18,9 @@ export const appState = signal<AppState>({
     isDataLoaded: false,
     error: null,
 });
+
+const THEME_PREF_KEY = 'bofo_theme_preference';
+const THEME_CACHE_KEY = 'bofo_theme_cache';
 
 export const useAppInit = () => {
     useEffect(() => {
@@ -59,14 +63,19 @@ export const useAppInit = () => {
                 // 2. Setup Theme
                 const initTheme = async () => {
                     const settings = await api.getSettings();
-                    const theme = settings.theme || 'system';
+                    const theme = settings[SETTING_KEYS.APPEARANCE.THEME] || 'system';
+                    localStorage.setItem(THEME_PREF_KEY, theme);
                     applyTheme(theme);
 
                     // Listen for system theme changes
                     if (api.onNativeThemeChanged) {
                         const unsubscribeTheme = api.onNativeThemeChanged((isDark: boolean) => {
-                            if (theme === 'system') {
+                            const currentPreference = localStorage.getItem(THEME_PREF_KEY) || theme;
+                            if (currentPreference === 'system') {
+                                const effectiveTheme = isDark ? 'dark' : 'light';
+                                document.documentElement.setAttribute('data-theme', effectiveTheme);
                                 document.documentElement.classList.toggle('dark', isDark);
+                                localStorage.setItem(THEME_CACHE_KEY, effectiveTheme);
                             }
                         });
                         // We need to store this unsubscribe to clean it up
@@ -131,7 +140,10 @@ export const useAppInit = () => {
 // Helper for theme (can be moved to a useTheme hook later)
 const applyTheme = (theme: string) => {
     const isDark = theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+    const effectiveTheme = isDark ? 'dark' : 'light';
+    document.documentElement.setAttribute('data-theme', effectiveTheme);
     document.documentElement.classList.toggle('dark', isDark);
+    localStorage.setItem(THEME_CACHE_KEY, effectiveTheme);
     // Also notify main process if needed, or Main does it automatically?
     // Main actually sends 'native-theme-changed'.
 };

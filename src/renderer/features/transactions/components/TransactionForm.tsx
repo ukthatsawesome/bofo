@@ -7,6 +7,7 @@ import { financeStore } from '@/core/financeStore';
 import { Transaction } from '../../../../shared/types';
 import { Calendar, DollarSign, FileText, Tag, Wallet, Check, Plus } from 'lucide-preact';
 import { ToggleButtonGroup } from '@/components/ui/ToggleButtonGroup';
+import { notify } from '@/core/lib/notify';
 
 // ==================== TYPES ====================
 
@@ -126,26 +127,26 @@ export const TransactionForm = ({ initialData, onSubmit, onCancel }: Transaction
         // Validation
         const amt = parseFloat(formData.amount);
         if (isNaN(amt) || amt <= 0) {
-            alert("Please enter a valid positive amount");
+            notify.error('Invalid Amount', 'Please enter a valid positive amount');
             return;
         }
         if (!formData.account_id) {
-            alert("Please select an account");
+            notify.error('Account Required', 'Please select an account');
             return;
         }
         if (type === 'transfer') {
             if (!formData.to_account_id) {
-                alert("Please select a destination account for transfer");
+                notify.error('Destination Required', 'Please select a destination account for transfer');
                 return;
             }
             if (formData.account_id === formData.to_account_id) {
-                alert("Source and destination accounts cannot be the same");
+                notify.error('Invalid Transfer', 'Source and destination accounts cannot be the same');
                 return;
             }
         } else {
             // If not a transfer, category is required
             if (!formData.category_id) {
-                alert("Please select a category");
+                notify.error('Category Required', 'Please select a category');
                 return;
             }
         }
@@ -168,7 +169,7 @@ export const TransactionForm = ({ initialData, onSubmit, onCancel }: Transaction
             await onSubmit(payload);
         } catch (error) {
             console.error(error);
-            alert("Failed to save transaction. Please try again.");
+            notify.error('Save Failed', 'Failed to save transaction. Please try again.');
         } finally {
             setIsLoading(false);
         }

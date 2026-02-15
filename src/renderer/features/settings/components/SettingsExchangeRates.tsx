@@ -15,6 +15,7 @@ import { CURRENCY_API_PROVIDERS } from '../../../../shared/currencies';
 import { useSortedData } from '@/hooks/useSortedData';
 import { SETTING_KEYS } from '../../../../shared/settings/keys';
 import { DEFAULT_CURRENCY, DEFAULT_CURRENCY_PROVIDER } from '../../../../shared/settings/defaults';
+import { notify } from '@/core/lib/notify';
 
 export const SettingsExchangeRates = () => {
     const [rates, setRates] = useState<ExchangeRate[]>([]);
@@ -61,13 +62,13 @@ export const SettingsExchangeRates = () => {
 
             const result = await (window as any).api.syncExchangeRates({ provider, baseCurrency, customUrl });
             if (result.success) {
-                alert(`Synced ${result.ratesUpdated} rates`);
+                notify.success('Sync Complete', `Synced ${result.ratesUpdated} exchange rates`);
                 await loadData();
             } else {
                 throw new Error(result.message);
             }
         } catch (e: any) {
-            alert('Sync failed: ' + e.message);
+            notify.error('Sync Failed', e.message);
         } finally {
             setLoading(false);
         }
@@ -77,10 +78,10 @@ export const SettingsExchangeRates = () => {
         setLoading(true);
         try {
             const result = await (window as any).api.testCurrencyAPI({ provider, baseCurrency, customUrl });
-            if (result.success) alert('Connection successful!');
-            else alert('Connection failed: ' + result.message);
+            if (result.success) notify.success('Connection Successful', 'API connection verified');
+            else notify.error('Connection Failed', result.message);
         } catch (e: any) {
-            alert('Error: ' + e.message);
+            notify.error('Error', e.message);
         } finally {
             setLoading(false);
         }
@@ -97,15 +98,23 @@ export const SettingsExchangeRates = () => {
             await (window as any).api.setExchangeRate(payload);
             await loadData();
             setIsModalOpen(false);
+            notify.success('Rate Saved', 'Exchange rate has been saved');
         } catch (e: any) {
-            alert(e.message);
+            notify.error('Save Failed', e.message);
         }
     };
 
     const handleDelete = async (id: number) => {
-        if (!confirm('Delete this rate?')) return;
-        await (window as any).api.deleteExchangeRate(id);
-        await loadData();
+        const confirmed = await notify.confirm('Delete Rate', 'Are you sure you want to delete this exchange rate?', 'warning');
+        if (!confirmed) return;
+
+        try {
+            await (window as any).api.deleteExchangeRate(id);
+            await loadData();
+            notify.success('Rate Deleted', 'Exchange rate has been removed');
+        } catch (e: any) {
+            notify.error('Delete Failed', e.message);
+        }
     };
 
     const columns: Column<ExchangeRate>[] = [

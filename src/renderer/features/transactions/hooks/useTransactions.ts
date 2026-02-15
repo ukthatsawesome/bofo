@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect } from 'preact/hooks';
 import { financeStore } from '@/core/financeStore';
 import { api } from '@/core/lib/api';
 import { Transaction } from '../../../../shared/types';
+import { notify } from '@/core/lib/notify';
 
 export const useTransactions = () => {
     // Local View State
@@ -107,8 +108,10 @@ export const useTransactions = () => {
 
     // Actions
     const deleteTransaction = async (id: number) => {
-        if (!confirm('Are you sure you want to delete this transaction?')) return;
-        financeStore.deleteTransaction(id);
+        const confirmed = await notify.confirm('Delete Transaction', 'Are you sure you want to delete this transaction?', 'warning');
+        if (!confirmed) return;
+        await financeStore.deleteTransaction(id);
+        notify.success('Transaction Deleted', 'Transaction has been removed');
     };
 
     return {

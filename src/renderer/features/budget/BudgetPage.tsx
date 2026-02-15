@@ -13,6 +13,7 @@ import { clsx } from 'clsx';
 import { BudgetCard } from './components/BudgetCard';
 import { ViewLayout } from '@/components/layout/ViewLayout';
 import { ToggleButtonGroup } from '@/components/ui/ToggleButtonGroup';
+import { notify } from '@/core/lib/notify';
 
 // Date Helpers
 const formatDate = (date: Date) => {
@@ -83,7 +84,7 @@ export const BudgetPage = () => {
             });
             setIsModalOpen(false);
         } catch (e: any) {
-            alert(e.message);
+            notify.error('Save Failed', e.message || 'Unable to save budget');
         }
     };
 

@@ -81,26 +81,46 @@ export const DataTable = <T,>({
                             {columns.map((col, idx) => {
                                 const sortIdentifier = col.sortKey || (typeof col.accessor === 'string' ? col.accessor : undefined);
                                 const isSorted = sortColumn === sortIdentifier;
+                                const SortButton = (
+                                    <div className="flex items-center gap-1">
+                                        {col.header}
+                                        {col.sortable && (
+                                            <div className="flex flex-col">
+                                                {isSorted && sortDirection === 'asc' && <ChevronUp size={14} className="text-brand-primary" />}
+                                                {isSorted && sortDirection === 'desc' && <ChevronDown size={14} className="text-brand-primary" />}
+                                                {!isSorted && <div className="w-3.5 h-3.5" />}
+                                            </div>
+                                        )}
+                                    </div>
+                                );
+
+                                if (col.sortable) {
+                                    return (
+                                        <th
+                                            key={idx}
+                                            className={clsx("px-6 py-3 text-left text-xs font-semibold text-text-muted uppercase tracking-wider whitespace-nowrap transition-colors", col.className)}
+                                            aria-sort={isSorted ? (sortDirection === 'asc' ? 'ascending' : 'descending') : 'none'}
+                                        >
+                                            <button
+                                                type="button"
+                                                onClick={() => handleHeaderClick(col)}
+                                                className="flex items-center gap-1 hover:text-text-primary focus:outline-none focus:ring-2 focus:ring-brand-primary/20 rounded"
+                                            >
+                                                {SortButton}
+                                            </button>
+                                        </th>
+                                    );
+                                }
+
                                 return (
                                     <th
                                         key={idx}
-                                        onClick={() => handleHeaderClick(col)}
                                         className={clsx(
-                                            "px-6 py-3 text-left text-xs font-semibold text-text-muted uppercase tracking-wider whitespace-nowrap transition-colors",
-                                            col.sortable && "cursor-pointer hover:bg-surface-active hover:text-text-primary select-none",
+                                            "px-6 py-3 text-left text-xs font-semibold text-text-muted uppercase tracking-wider whitespace-nowrap",
                                             col.className
                                         )}
                                     >
-                                        <div className="flex items-center gap-1">
-                                            {col.header}
-                                            {col.sortable && (
-                                                <div className="flex flex-col">
-                                                    {isSorted && sortDirection === 'asc' && <ChevronUp size={14} className="text-brand-primary" />}
-                                                    {isSorted && sortDirection === 'desc' && <ChevronDown size={14} className="text-brand-primary" />}
-                                                    {!isSorted && <div className="w-3.5 h-3.5" />} {/* Placeholder */}
-                                                </div>
-                                            )}
-                                        </div>
+                                        {col.header}
                                     </th>
                                 );
                             })}
@@ -111,9 +131,18 @@ export const DataTable = <T,>({
                             <tr
                                 key={String(item[keyField])}
                                 onClick={() => onRowClick && onRowClick(item)}
+                                onKeyDown={(e) => {
+                                    if (e.target !== e.currentTarget) return;
+                                    if (onRowClick && (e.key === 'Enter' || e.key === ' ')) {
+                                        e.preventDefault();
+                                        onRowClick(item);
+                                    }
+                                }}
+                                tabIndex={onRowClick ? 0 : undefined}
+                                role={onRowClick ? "button" : undefined}
                                 className={clsx(
                                     "group transition-colors",
-                                    onRowClick ? "cursor-pointer hover:bg-surface-hover" : ""
+                                    onRowClick ? "cursor-pointer hover:bg-surface-hover focus:outline-none focus:ring-2 focus:ring-brand-primary/20" : ""
                                 )}
                             >
                                 {columns.map((col, idx) => (

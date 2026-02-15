@@ -75,17 +75,37 @@
   <script type="module" src="./main.tsx"></script>
 </head>
 
-<!-- Main Mount Point -->
-<div id="app" class="h-screen w-screen bg-surface-base"></div>
+<body>
+  <!-- Main Mount Point -->
+  <div id="app" class="h-screen w-screen bg-surface-base"></div>
 
-<!-- Dynamic Overlay Containers -->
-<div id="toast-container" class="toast-container"></div>
+  <!-- Dynamic Overlay Containers -->
+  <div id="toast-container" class="toast-container"></div>
 
-<!-- Global Loader Overlay -->
-<div id="global-loader" class="loader-overlay">
-  <div class="spinner"></div>
-  <p class="text-secondary" style="margin-top: 16px; font-weight: 500;">Loading...</p>
-</div>
+  <!-- Notification Modal -->
+  <div id="notification-modal"
+    class="modal fixed inset-0 bg-black/85 backdrop-blur-sm z-[3000] flex items-center justify-center transition-all duration-300 hidden opacity-0 invisible pointer-events-none">
+    <div
+      class="modal-content bg-surface-card w-[90%] max-w-md p-8 rounded-lg border border-border shadow-lg relative animate-[modalSlideUp_0.4s_ease-out]">
+      <div class="flex flex-col items-center text-center">
+        <div id="notification-icon" class="w-16 h-16 rounded-full flex items-center justify-center mb-6">
+        </div>
+        <h2 id="notification-title" class="text-2xl font-bold text-text-primary mb-3">Notification</h2>
+        <p id="notification-message" class="text-text-muted mb-8 text-lg leading-relaxed"></p>
+        <div id="notification-custom-content" class="w-full mb-8 empty:hidden"></div>
+        <div class="flex gap-4 w-full justify-center">
+          <button id="notification-cancel" class="btn secondary px-8 py-3 text-lg hidden">Cancel</button>
+          <button id="notification-confirm" class="btn primary px-8 py-3 text-lg">Confirm</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Global Loader Overlay -->
+  <div id="global-loader" class="loader-overlay">
+    <div class="spinner"></div>
+    <p class="text-secondary" style="margin-top: 16px; font-weight: 500;">Loading...</p>
+  </div>
 </body>
 
 </html>

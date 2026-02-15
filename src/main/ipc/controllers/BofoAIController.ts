@@ -2,7 +2,7 @@
 import { BaseController } from './BaseController';
 import { Route } from '../router';
 import { Logger } from '../../utils/logger';
-import { AI_DEFAULTS } from '../../config/AIConfig';
+import { AI_DEFAULTS, AIConfigService } from '../../config/AIConfig';
 
 export class BofoAIController extends BaseController {
 
@@ -15,9 +15,10 @@ export class BofoAIController extends BaseController {
         const ai = this.getAIService();
         // Use the centralized sync method from AIService
         await ai.syncFromConfig();
+        const config = await AIConfigService.getEffectiveConfig();
 
         return {
-            enabled: true,
+            enabled: config.enabled,
             url: ai.baseUrl,
             model: ai.model,
             promptTx: ai.promptTx,
@@ -65,9 +66,15 @@ export class BofoAIController extends BaseController {
                 }
             },
 
-            'check-ai-connection': async () => {
+            'check-ai-connection': async (_, url?: string) => {
                 try {
-                    return await this.getAIService().checkConnection();
+                    const ai = this.getAIService();
+                    if (url) {
+                        await ai.setConfig(url, ai.model);
+                    } else {
+                        await ai.syncFromConfig();
+                    }
+                    return await ai.checkConnection();
                 } catch (e) {
                     return false;
                 }

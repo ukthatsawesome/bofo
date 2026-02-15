@@ -12,6 +12,7 @@ import { Category } from '../../../../shared/types';
 import { clsx } from 'clsx';
 import { SectionTitle, Caption } from '@/components/ui/Typography';
 import { useSortedData } from '@/hooks/useSortedData';
+import { notify } from '@/core/lib/notify';
 
 export const SettingsCategories = () => {
     const categories = financeStore.categories.value;
@@ -51,21 +52,30 @@ export const SettingsCategories = () => {
         try {
             if (editingCategory?.id) {
                 await (window as any).api.updateCategory({ ...formData, id: editingCategory.id });
+                notify.success('Category Updated', 'Category has been saved');
             } else {
                 await (window as any).api.addCategory(formData);
+                notify.success('Category Created', 'New category has been added');
             }
             await financeStore.loadAll();
             setIsModalOpen(false);
-        } catch (error) {
+        } catch (error: any) {
             console.error(error);
-            alert('Failed to save category');
+            notify.error('Save Failed', error.message || 'Failed to save category');
         }
     };
 
     const handleDelete = async (id: number) => {
-        if (!confirm('Are you sure?')) return;
-        await (window as any).api.deleteCategory(id);
-        await financeStore.loadAll();
+        const confirmed = await notify.confirm('Delete Category', 'Are you sure you want to delete this category?', 'warning');
+        if (!confirmed) return;
+
+        try {
+            await (window as any).api.deleteCategory(id);
+            await financeStore.loadAll();
+            notify.success('Category Deleted', 'Category has been removed');
+        } catch (error: any) {
+            notify.error('Delete Failed', error.message);
+        }
     };
 
     const handleArchive = async (id: number, isArchived: boolean) => {

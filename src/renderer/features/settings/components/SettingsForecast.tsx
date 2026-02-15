@@ -6,6 +6,7 @@ import { UiButton } from '@/components/ui/UiButton';
 import { TrendingUp, Save } from 'lucide-preact';
 import { SectionTitle, Caption } from '@/components/ui/Typography';
 import { SETTING_KEYS } from '../../../../shared/settings/keys';
+import { notify } from '@/core/lib/notify';
 
 export const SettingsForecast = () => {
     const [range, setRange] = useState('12');
@@ -30,11 +31,10 @@ export const SettingsForecast = () => {
                 value: includeRecurring ? 'true' : 'false'
             });
 
-            // Re-fetch logic if needed, or just toast
-            alert('Forecast settings saved');
+            notify.success('Settings Saved', 'Forecast settings have been updated');
         } catch (err) {
             console.error(err);
-            alert('Failed to save settings');
+            notify.error('Save Failed', 'Unable to save forecast settings');
         } finally {
             setLoading(false);
         }

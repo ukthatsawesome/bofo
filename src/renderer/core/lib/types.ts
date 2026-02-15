@@ -114,7 +114,7 @@ export interface API {
   saveAISettings: (settings: any) => Promise<any>;
   getAIModels: (url?: string) => Promise<string[]>;
   getOllamaModels: (url?: string) => Promise<string[]>;
-  checkAIConnection: () => Promise<boolean>;
+  checkAIConnection: (url?: string) => Promise<boolean>;
   getAIHealth: () => Promise<any>;
   parseTransactionAI: (text: string) => Promise<any>;
   getAIInsight: (summary: any) => Promise<string>;

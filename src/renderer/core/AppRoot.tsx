@@ -24,7 +24,7 @@ export const AppRoot = () => {
     if (error) {
         return (
             <div className="h-full w-full flex items-center justify-center bg-red-50 text-red-900 dark:bg-red-900/20 dark:text-red-100">
-                <div className="text-center p-8 bg-white dark:bg-surface-800 rounded-lg shadow-xl max-w-md">
+                <div className="text-center p-8 bg-surface-card rounded-lg shadow-xl max-w-md">
                     <h1 className="text-2xl font-bold mb-4">Startup Error</h1>
                     <p className="mb-6 opacity-80">{error}</p>
                     <button
@@ -45,7 +45,7 @@ export const AppRoot = () => {
         // usually index.html loader is removed when AppRoot mounts, 
         // but since we return null, we might want to render an explicit loader to be safe)
         return (
-            <div className="h-full w-full flex flex-col items-center justify-center bg-surface-50 dark:bg-surface-900 text-primary">
+            <div className="h-full w-full flex flex-col items-center justify-center bg-surface-base text-primary">
                 <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mb-4"></div>
                 <p className="animate-pulse opacity-70">Initializing Bofo...</p>
             </div>

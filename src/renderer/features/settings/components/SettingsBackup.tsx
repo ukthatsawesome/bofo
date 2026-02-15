@@ -3,10 +3,11 @@ import { useState, useEffect } from 'preact/hooks';
 import { UiCard } from '@/components/ui/UiCard';
 import { UiButton } from '@/components/ui/UiButton';
 import { Input } from '@/components/ui/Input';
-import { Download, Upload, FileText, Sheet, FolderOpen, Database, RefreshCw } from 'lucide-preact';
+import { Download, Upload, FileText, Sheet, FolderOpen, Database, RefreshCw, AlertTriangle } from 'lucide-preact';
 import { clsx } from 'clsx';
 import { SectionTitle, Caption } from '@/components/ui/Typography';
 import { SETTING_KEYS } from '../../../../shared/settings/keys';
+import { notify } from '@/core/lib/notify';
 
 export const SettingsBackup = () => {
     // Auto backup state
@@ -14,6 +15,10 @@ export const SettingsBackup = () => {
     const [backupDir, setBackupDir] = useState('');
     const [lastBackup, setLastBackup] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
+
+    // 2-step import flow
+    const [importStep, setImportStep] = useState<1 | 2>(1);
+    const [confirmText, setConfirmText] = useState('');
 
     useEffect(() => {
         const load = async () => {
@@ -30,23 +35,48 @@ export const SettingsBackup = () => {
             if (type === 'json') await (window as any).api.exportData();
             if (type === 'csv') await (window as any).api.exportCSV();
             if (type === 'excel') await (window as any).api.exportExcel();
-            alert('Export successful');
+            notify.success('Export Successful', 'Your data has been exported');
         } catch (error: any) {
-            if (error.message !== 'cancelled') alert(error.message);
+            if (error.message !== 'cancelled') notify.error('Export Failed', error.message);
         }
     };
 
-    const handleImport = async () => {
-        if (!confirm('This will REPLACE all existing data. Continue?')) return;
+    const startImport = async () => {
+        // Step 1: Show warning and ask user to proceed
+        const proceed = await notify.confirm(
+            'Import Data',
+            'This will replace ALL existing data. We recommend exporting a backup first. Continue?',
+            'warning'
+        );
+        if (proceed) {
+            setImportStep(2);
+        }
+    };
+
+    const confirmImport = async () => {
+        if (confirmText !== 'REPLACE') {
+            notify.error('Confirmation Required', 'Please type REPLACE to confirm');
+            return;
+        }
+
         try {
             const result = await (window as any).api.importData();
             if (result?.success) {
-                alert('Import successful. Reloading...');
+                notify.success('Import Successful', 'Reloading application...');
                 window.location.reload();
             }
         } catch (error: any) {
-            if (error.message !== 'cancelled') alert(error.message);
+            if (error.message !== 'cancelled') notify.error('Import Failed', error.message);
         }
+
+        // Reset flow
+        setImportStep(1);
+        setConfirmText('');
+    };
+
+    const cancelImport = () => {
+        setImportStep(1);
+        setConfirmText('');
     };
 
     const toggleAutoBackup = async (checked: boolean) => {
@@ -73,22 +103,18 @@ export const SettingsBackup = () => {
     };
 
     const runBackupNow = async () => {
-        if (!backupDir) return alert('Select backup directory first');
+        if (!backupDir) {
+            notify.error('Directory Required', 'Please select a backup directory first');
+            return;
+        }
         setLoading(true);
         try {
             await (window as any).api.runBackupNow(backupDir);
             const now = new Date().toISOString();
             setLastBackup(now);
-            // handlers.ts updates LAST_BACKUP, so strictly we don't need to manually set it here?
-            // But for UI responsiveness we can. API doesn't return the new time?
-            // Actually handlers.ts *does* update it. We can re-fetch or just set local state.
-            // Let's assume the runBackupNow call was successful.
-            // Note: runBackupNow handler updates the setting in DB.
-            // We'll update UI state, but won't manually call updateSetting again to avoid race/redundancy.
-            // await (window as any).api.updateSetting({ key: 'last_backup_time', value: now });
-            alert('Backup created successfully');
+            notify.success('Backup Complete', 'Backup has been created successfully');
         } catch (error: any) {
-            alert(error.message);
+            notify.error('Backup Failed', error.message);
         } finally {
             setLoading(false);
         }
@@ -114,9 +140,44 @@ export const SettingsBackup = () => {
                             Export to Excel (.xlsx)
                         </UiButton>
                         <hr className="border-border my-4" />
-                        <UiButton variant="secondary" className="w-full justify-start text-danger hover:text-danger hover:bg-danger/10" icon={<Upload size={18} />} onClick={handleImport}>
+                        <UiButton variant="secondary" className="w-full justify-start text-danger hover:text-danger hover:bg-danger/10" icon={<Upload size={18} />} onClick={startImport}>
                             Import Backup (.json)
                         </UiButton>
+
+                        {/* Step 2: Confirm Import */}
+                        {importStep === 2 && (
+                            <div className="mt-4 p-4 bg-danger/10 border border-danger/20 rounded-lg space-y-3">
+                                <div className="flex items-center gap-2 text-danger font-semibold">
+                                    <AlertTriangle size={18} />
+                                    Warning: This will replace ALL data
+                                </div>
+                                <p className="text-sm text-text-muted">
+                                    Type <span className="font-mono font-bold text-danger">REPLACE</span> to confirm:
+                                </p>
+                                <Input
+                                    value={confirmText}
+                                    onInput={(e) => setConfirmText((e.target as HTMLInputElement).value)}
+                                    placeholder="Type REPLACE"
+                                    className="font-mono"
+                                />
+                                <div className="flex gap-2">
+                                    <UiButton
+                                        variant="ghost"
+                                        className="flex-1"
+                                        onClick={cancelImport}
+                                    >
+                                        Cancel
+                                    </UiButton>
+                                    <UiButton
+                                        variant="primary"
+                                        className="flex-1 bg-danger hover:bg-danger/90"
+                                        onClick={confirmImport}
+                                    >
+                                        Confirm Import
+                                    </UiButton>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 </UiCard>
 

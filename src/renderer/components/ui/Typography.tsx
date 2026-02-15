@@ -79,11 +79,17 @@ export const SubsectionTitle = ({ children, className = '' }: BaseTypographyProp
 );
 
 // ===== LABEL (Form Labels) =====
-export const Label = ({ children, className = '' }: BaseTypographyProps) => (
-    <label className={clsx(
-        'text-xs font-semibold text-text-muted uppercase tracking-wide',
-        className
-    )}>
+interface LabelProps extends BaseTypographyProps {
+    htmlFor?: string;
+}
+
+export const Label = ({ children, className = '', htmlFor }: LabelProps) => (
+    <label
+        htmlFor={htmlFor}
+        className={clsx(
+            'text-xs font-semibold text-text-muted uppercase tracking-wide',
+            className
+        )}>
         {children}
     </label>
 );

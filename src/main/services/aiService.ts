@@ -161,8 +161,17 @@ OR
     this.promptChat = null;
   }
 
+  private _normalizeBaseUrl(url: string): string {
+    const raw = (url || '').trim();
+    if (!raw) return AI_DEFAULTS.URL;
+
+    // Accept users entering either host root or /api endpoint.
+    const withoutTrailingSlash = raw.replace(/\/+$/, '');
+    return withoutTrailingSlash.replace(/\/api$/i, '');
+  }
+
   async setConfig(url: string, model: string): Promise<void> {
-    this.baseUrl = url || AI_DEFAULTS.URL;
+    this.baseUrl = this._normalizeBaseUrl(url || AI_DEFAULTS.URL);
     this.model = model || AI_DEFAULTS.MODEL;
     this._resetCircuit();
   }
@@ -174,7 +183,7 @@ OR
   async syncFromConfig(): Promise<void> {
     try {
       const config = await AIConfigService.getEffectiveConfig();
-      this.baseUrl = config.url;
+      this.baseUrl = this._normalizeBaseUrl(config.url);
       this.model = config.model;
       this.promptTx = config.prompts.tx || null;
       this.promptInsight = config.prompts.insight || null;
@@ -184,7 +193,7 @@ OR
     } catch (error) {
       Logger.warn('[AI] Failed to sync config, using defaults:', error);
       // Fall back to defaults
-      this.baseUrl = AI_DEFAULTS.URL;
+      this.baseUrl = this._normalizeBaseUrl(AI_DEFAULTS.URL);
       this.model = AI_DEFAULTS.MODEL;
     }
   }
@@ -256,7 +265,47 @@ OR
       if ((error as Error).name === 'AbortError') {
         throw new Error(`Request timed out after ${timeout / 1000}s`);
       }
+      // Retry once by swapping loopback host (localhost <-> 127.0.0.1).
+      // This helps when one form resolves/reaches differently in Electron runtime.
+      const fallbackUrl = this._getLoopbackFallbackUrl(url);
+      if (fallbackUrl) {
+        try {
+          const retryController = new AbortController();
+          const retryTimeoutId = setTimeout(() => retryController.abort(), timeout);
+          const retryResponse = await fetch(fallbackUrl, {
+            ...options,
+            signal: retryController.signal,
+          });
+          clearTimeout(retryTimeoutId);
+          // Persist the working host back to baseUrl for subsequent requests
+          const fallbackOrigin = new URL(fallbackUrl).origin;
+          this.baseUrl = this._normalizeBaseUrl(fallbackOrigin);
+          Logger.info(`[AI] Loopback fallback succeeded via ${fallbackOrigin}`);
+          return retryResponse;
+        } catch (retryError) {
+          const primaryMsg = (error as any)?.cause?.message || (error as Error).message;
+          const retryMsg = (retryError as any)?.cause?.message || (retryError as Error).message;
+          throw new Error(`Fetch failed (${url} -> ${primaryMsg}); fallback failed (${fallbackUrl} -> ${retryMsg})`);
+        }
+      }
       throw error;
+    }
+  }
+
+  private _getLoopbackFallbackUrl(url: string): string | null {
+    try {
+      const parsed = new URL(url);
+      if (parsed.hostname === '127.0.0.1') {
+        parsed.hostname = 'localhost';
+        return parsed.toString();
+      }
+      if (parsed.hostname === 'localhost') {
+        parsed.hostname = '127.0.0.1';
+        return parsed.toString();
+      }
+      return null;
+    } catch {
+      return null;
     }
   }
 
@@ -297,7 +346,8 @@ OR
       throw new Error('AI service temporarily unavailable. Please try again later.');
     }
 
-    const url = `${this.baseUrl}/api/${endpoint}`;
+    const baseUrl = this._normalizeBaseUrl(this.baseUrl);
+    const url = `${baseUrl}/api/${endpoint}`;
 
     const makeRequest = async () => {
       const response = await this._fetchWithTimeout(url, {
@@ -343,8 +393,9 @@ OR
 
   async checkConnection(): Promise<boolean> {
     try {
+      const baseUrl = this._normalizeBaseUrl(this.baseUrl);
       const response = await this._fetchWithTimeout(
-        `${this.baseUrl}/api/tags`,
+        `${baseUrl}/api/tags`,
         { method: 'GET' },
         5000
       );
@@ -357,6 +408,7 @@ OR
       this._health.lastCheck = Date.now();
       this._health.isConnected = false;
       this._health.lastError = (error as Error).message;
+      Logger.warn('[AI] Connection check failed:', this._health.lastError);
       return false;
     }
   }
@@ -373,8 +425,9 @@ OR
 
   async getInstalledModels(): Promise<OllamaModel[]> {
     try {
+      const baseUrl = this._normalizeBaseUrl(this.baseUrl);
       const response = await this._fetchWithTimeout(
-        `${this.baseUrl}/api/tags`,
+        `${baseUrl}/api/tags`,
         { method: 'GET' },
         10000
       );
