@@ -12,7 +12,7 @@ import { ForecastChart } from './components/ForecastChart';
 import { ForecastCalendar } from './components/ForecastCalendar';
 import { ForecastInsights } from './components/ForecastInsights';
 import { Input } from '@/components/ui/Input';
-import { formatCurrency } from '@/utils/format';
+import { formatCurrency, formatNumber, getCurrencyCode } from '@/utils/format';
 import { RecurringCharge } from '../../../shared/types';
 import { ViewLayout } from '@/components/layout/ViewLayout';
 
@@ -23,6 +23,7 @@ interface StatConfig {
     value: string | number;
     icon: any; // LucideIcon component
     color?: 'success' | 'danger';
+    currency?: string;
 }
 
 // ==================== CONSTANTS ====================
@@ -101,20 +102,23 @@ export const ForecastPage = () => {
         return [
             {
                 label: "Projected Income",
-                value: formatCurrency(summary.totalIncome),
+                value: formatNumber(summary.totalIncome),
                 icon: TrendingUp,
-                color: "success"
+                color: "success",
+                currency: getCurrencyCode()
             },
             {
                 label: "Projected Expense",
-                value: formatCurrency(summary.totalExpense),
+                value: formatNumber(summary.totalExpense),
                 icon: TrendingDown,
-                color: "danger"
+                color: "danger",
+                currency: getCurrencyCode()
             },
             {
                 label: "Projected Savings",
-                value: formatCurrency(summary.netSavings),
-                icon: PiggyBank
+                value: formatNumber(summary.netSavings),
+                icon: PiggyBank,
+                currency: getCurrencyCode()
             },
             {
                 label: "Runway",
@@ -233,6 +237,7 @@ export const ForecastPage = () => {
                                 value={stat.value}
                                 icon={stat.icon}
                                 color={stat.color}
+                                currency={stat.currency}
                             />
                         ))}
                     </div>

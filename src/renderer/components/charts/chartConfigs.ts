@@ -162,15 +162,27 @@ export const getForecastChartConfig = (): ChartConfiguration<'line', ForecastCha
   }),
 });
 
-export const getCategoryChartConfig = (): ChartConfiguration<'doughnut', CategoryChartData, string> => ({
+export const getCategoryDoughnutConfig = (): ChartConfiguration<'doughnut', CategoryChartData, string> => ({
   type: 'doughnut',
   data: { datasets: [] },
-  options: deepMerge(getBasePolarOptions<'doughnut'>('Spending by Category'), {
-    cutout: '70%',
+  options: deepMerge(getBasePolarOptions<'doughnut'>(), {
+    cutout: '80%',
+    circumference: 360,
+    rotation: -90,
     plugins: {
       legend: {
-        position: 'right',
+        position: 'bottom',
+        labels: {
+          boxWidth: 12,
+          padding: 15,
+          font: { size: 11 }
+        }
       },
     },
+    // Ensure no scales are present for doughnut
+    scales: {
+      x: { display: false },
+      y: { display: false }
+    }
   }),
 });

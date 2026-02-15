@@ -116,7 +116,7 @@ const ENTITY_SCHEMAS: Record<EntityType, EntitySchema<any>> = {
     orderBy: 'start_date DESC',
     beforeWrite: async (data: Transaction, isCreate: boolean) => {
       // Fetch user's preference for base currency from settings
-      const setting = await get<{ value: string }>('SELECT value FROM settings WHERE key = ?', ['base_currency']);
+      const setting = await get<{ value: string }>('SELECT value FROM settings WHERE key = ?', ['currency_base']);
       const BASE_CURRENCY = setting?.value || 'USD';
 
       // 1. Handle Transfer Category
@@ -136,9 +136,6 @@ const ENTITY_SCHEMAS: Record<EntityType, EntitySchema<any>> = {
         const sourceAcc = await get<Account>('SELECT currency FROM accounts WHERE id = ?', [data.account_id]);
 
         if (sourceAcc) {
-          // Set transaction currency to account currency if not provided (best practice)
-          // But usually transaction currency matches account currency unless it's a foreign transaction on the account?
-          // For simplicity in V1, let's assume transaction currency = account currency.
           // Set transaction currency to account currency if available, else fallback to user's base currency
           data.currency = sourceAcc.currency || BASE_CURRENCY;
 
@@ -147,16 +144,9 @@ const ENTITY_SCHEMAS: Record<EntityType, EntitySchema<any>> = {
             const destAcc = await get<Account>('SELECT currency FROM accounts WHERE id = ?', [data.to_account_id]);
             if (destAcc) {
               if (destAcc.currency !== sourceAcc.currency) {
-                // Currency Mismatch: We need an exchange rate
-                // Try to find one
-                const rateRecord = await get<ExchangeRate>(
-                  'SELECT rate FROM exchange_rates WHERE from_currency = ? AND to_currency = ? ORDER BY updated_at DESC LIMIT 1',
-                  [sourceAcc.currency, destAcc.currency]
-                );
-
-                const rate = rateRecord ? rateRecord.rate : 1; // Default to 1 if not found (or should we throw?)
+                // Currency Mismatch: Use getExchangeRate which handles direct + reverse lookups
+                const rate = await FinanceModel.getExchangeRate(sourceAcc.currency, destAcc.currency) || 1;
                 // If user provided a specific rate for this transaction, use it, otherwise use DB rate
-                // data.exchange_rate might be 1 by default from UI, so we trust DB rate if available and rate is 1
                 if (!data.exchange_rate || data.exchange_rate === 1) {
                   data.exchange_rate = rate;
                 }
@@ -179,13 +169,9 @@ const ENTITY_SCHEMAS: Record<EntityType, EntitySchema<any>> = {
             data.base_amount = data.amount;
             data.base_currency = BASE_CURRENCY;
           } else {
-            // Try to convert to USD
-            const toBaseRate = await get<ExchangeRate>(
-              'SELECT rate FROM exchange_rates WHERE from_currency = ? AND to_currency = ? ORDER BY updated_at DESC LIMIT 1',
-              [data.currency, BASE_CURRENCY]
-            );
+            const toBaseRate = await FinanceModel.getExchangeRate(data.currency, BASE_CURRENCY);
             if (toBaseRate) {
-              data.base_amount = Math.round(data.amount * toBaseRate.rate * 100) / 100;
+              data.base_amount = Math.round(data.amount * toBaseRate * 100) / 100;
             } else {
               // Fallback: If no rate found, keep as is (imperfect, but better than 0)
               data.base_amount = data.amount;
@@ -220,7 +206,7 @@ const ENTITY_SCHEMAS: Record<EntityType, EntitySchema<any>> = {
     defaults: { status: 'active', balance: 0 },
     beforeWrite: async (data: Account) => {
       if (!data.currency) {
-        const setting = await get<{ value: string }>('SELECT value FROM settings WHERE key = ?', ['base_currency']);
+        const setting = await get<{ value: string }>('SELECT value FROM settings WHERE key = ?', ['currency_base']);
         data.currency = setting?.value || 'USD';
       }
       return data;
@@ -255,7 +241,7 @@ const ENTITY_SCHEMAS: Record<EntityType, EntitySchema<any>> = {
     defaults: { period: 'monthly' },
     beforeWrite: async (data: Budget) => {
       if (!data.currency) {
-        const setting = await get<{ value: string }>('SELECT value FROM settings WHERE key = ?', ['base_currency']);
+        const setting = await get<{ value: string }>('SELECT value FROM settings WHERE key = ?', ['currency_base']);
         data.currency = setting?.value || 'USD';
       }
       return data;
@@ -274,7 +260,7 @@ const ENTITY_SCHEMAS: Record<EntityType, EntitySchema<any>> = {
     },
     beforeWrite: async (data: Goal) => {
       if (!data.currency) {
-        const setting = await get<{ value: string }>('SELECT value FROM settings WHERE key = ?', ['base_currency']);
+        const setting = await get<{ value: string }>('SELECT value FROM settings WHERE key = ?', ['currency_base']);
         data.currency = setting?.value || 'USD';
       }
       return data;
@@ -290,7 +276,7 @@ const ENTITY_SCHEMAS: Record<EntityType, EntitySchema<any>> = {
     defaults: { frequency: 'monthly', due_day: 1, is_active: 1 },
     beforeWrite: async (data: RecurringCharge) => {
       if (!data.currency) {
-        const setting = await get<{ value: string }>('SELECT value FROM settings WHERE key = ?', ['base_currency']);
+        const setting = await get<{ value: string }>('SELECT value FROM settings WHERE key = ?', ['currency_base']);
         data.currency = setting?.value || 'USD';
       }
       return data;
@@ -309,7 +295,7 @@ const ENTITY_SCHEMAS: Record<EntityType, EntitySchema<any>> = {
     },
     beforeWrite: async (data: BillType) => {
       if (!data.currency) {
-        const setting = await get<{ value: string }>('SELECT value FROM settings WHERE key = ?', ['base_currency']);
+        const setting = await get<{ value: string }>('SELECT value FROM settings WHERE key = ?', ['currency_base']);
         data.currency = setting?.value || 'USD';
       }
       return data;
@@ -773,8 +759,14 @@ export const FinanceModel = {
       `SELECT 
         t.id, 
         t.account_id,
+        t.to_account_id,
+        t.category_id,
+        t.category,
         t.start_date, 
-        t.amount, 
+        t.amount,
+        t.to_amount,
+        t.exchange_rate,
+        t.currency,
         t.description, 
         CASE 
           WHEN t.type = 'transfer' THEN 'Transfer'
@@ -805,8 +797,14 @@ export const FinanceModel = {
       `SELECT 
         t.id, 
         t.account_id,
+        t.to_account_id,
+        t.category_id,
+        t.category,
         t.start_date, 
-        t.amount, 
+        t.amount,
+        t.to_amount,
+        t.exchange_rate,
+        t.currency,
         t.description, 
         CASE 
           WHEN t.type = 'transfer' THEN 'Transfer'
@@ -1293,6 +1291,19 @@ export const FinanceModel = {
       return 1 / reverseRate.rate;
     }
 
+    // Cross-rate: find a common intermediary currency X where X→from and X→to both exist
+    // e.g., NPR→SGD and NPR→USD exist → SGD→USD = (NPR→USD) / (NPR→SGD)
+    const crossRate = await get<{ rate_to: number; rate_from: number }>(`
+      SELECT r1.rate as rate_from, r2.rate as rate_to
+      FROM exchange_rates r1
+      JOIN exchange_rates r2 ON r1.from_currency = r2.from_currency
+      WHERE r1.to_currency = ? AND r2.to_currency = ?
+      LIMIT 1
+    `, [from, to]);
+    if (crossRate?.rate_from && crossRate.rate_from !== 0) {
+      return crossRate.rate_to / crossRate.rate_from;
+    }
+
     return null;
   },
 
@@ -1326,7 +1337,8 @@ export const FinanceModel = {
       UNION
       SELECT DISTINCT currency FROM transactions WHERE deleted_at IS NULL
     `);
-    return currencies.length > 0 ? currencies.map(c => c.currency) : ['USD'];
+    const valid = currencies.map(c => c.currency).filter(Boolean);
+    return valid.length > 0 ? valid : ['USD'];
   },
 
   getAccountsWithConvertedBalances: async (baseCurrency: string) => {
@@ -1335,9 +1347,13 @@ export const FinanceModel = {
     const result = [];
 
     for (const acc of accounts) {
-      const rate = rateMap[`${acc.currency || 'USD'}-${baseCurrency}`];
-      const convertedBalance = rate ? (acc.balance || 0) * rate : (acc.balance || 0);
-
+      const currency = acc.currency || baseCurrency;
+      if (currency === baseCurrency) {
+        result.push({ ...acc, converted_balance: acc.balance || 0 });
+        continue;
+      }
+      const rate = rateMap[`${currency}-${baseCurrency}`];
+      const convertedBalance = rate != null ? (acc.balance || 0) * rate : (acc.balance || 0);
       result.push({ ...acc, converted_balance: convertedBalance });
     }
     return result;

@@ -85,9 +85,14 @@ export const TransactionForm = ({ initialData, onSubmit, onCancel }: Transaction
         }
     }, [initialData?.id]);
 
-    // CRITICAL FIX 2: Reset Category ID when Type changes
-    // Prevents submitting an 'Expense' category ID when the transaction type is 'Income'
+    // CRITICAL FIX 2: Reset Category ID when Type changes (but not on initial edit load)
+    const isInitialTypeSet = useState({ current: true })[0];
     useEffect(() => {
+        // Skip clearing category on the initial mount/edit load
+        if (isInitialTypeSet.current) {
+            isInitialTypeSet.current = false;
+            return;
+        }
         setFormData(prev => ({
             ...prev,
             category_id: '' // Clear category to avoid data corruption

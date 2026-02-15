@@ -10,7 +10,7 @@ import { Modal } from '@/components/ui/Modal';
 import { Input } from '@/components/ui/Input';
 import { TransactionForm } from './components/TransactionForm';
 import { Plus, Filter, Wallet, TrendingUp, TrendingDown, ArrowRightLeft, Target } from 'lucide-preact';
-import { formatCurrency } from '@/utils/format';
+import { formatCurrency, formatNumber, getCurrencyCode } from '@/utils/format';
 import { Transaction } from '../../../shared/types';
 import { clsx } from 'clsx';
 import { ViewLayout } from '@/components/layout/ViewLayout';
@@ -95,16 +95,18 @@ export const TransactionsPage = () => {
         },
         {
             header: 'Amount',
-            accessor: (t) => (
-                <span className={clsx(
-                    "font-mono font-medium",
-                    t.type === 'income' ? "text-success" :
-                        t.type === 'expense' ? "text-text-primary" : "text-info"
-                )}>
-                    {t.type === 'expense' ? '-' : '+'}{formatCurrency(t.amount)}
-                </span>
-            ),
-            className: 'text-right'
+            accessor: (t) => {
+                const sign = t.type === 'expense' ? '-' : t.type === 'income' ? '+' : '';
+                return (
+                    <span className={clsx(
+                        "font-mono font-medium",
+                        t.type === 'income' ? "text-success" :
+                            t.type === 'expense' ? "text-text-primary" : "text-info"
+                    )}>
+                        {sign}{formatCurrency(t.amount, t.currency)}
+                    </span>
+                );
+            }
         },
         {
             header: 'Action',
@@ -140,10 +142,34 @@ export const TransactionsPage = () => {
             <div className="space-y-6">
                 {/* Stats Grid - Bento Style */}
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                    <UiStatCard label="Income" value={formatCurrency(stats.income)} icon={TrendingUp} color="success" />
-                    <UiStatCard label="Expenses" value={formatCurrency(stats.expense)} icon={TrendingDown} color="danger" />
-                    <UiStatCard label="Net Flow" value={formatCurrency(stats.netFlow)} icon={Target} color={stats.netFlow >= 0 ? "success" : "danger"} />
-                    <UiStatCard label="Savings Rate" value={`${stats.savingsRate.toFixed(1)}%`} icon={Wallet} color="info" />
+                    <UiStatCard
+                        label="Income"
+                        value={formatNumber(stats.income)}
+                        icon={TrendingUp}
+                        color="success"
+                        currency={getCurrencyCode()}
+                    />
+                    <UiStatCard
+                        label="Expenses"
+                        value={formatNumber(stats.expense)}
+                        icon={TrendingDown}
+                        color="danger"
+                        currency={getCurrencyCode()}
+                    />
+                    <UiStatCard
+                        label="Net Flow"
+                        value={formatNumber(stats.netFlow)}
+                        icon={Target}
+                        color={stats.netFlow >= 0 ? "success" : "danger"}
+                        currency={getCurrencyCode()}
+                    />
+                    <UiStatCard
+                        label="Savings Rate"
+                        value={`${stats.savingsRate.toFixed(1)}%`}
+                        icon={Wallet}
+                        color="info"
+                    // Percentage doesn't need currency
+                    />
                 </div>
 
                 {/* Main Table Card */}

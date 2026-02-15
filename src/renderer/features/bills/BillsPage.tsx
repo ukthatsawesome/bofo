@@ -7,7 +7,7 @@ import { UiStatCard } from '@/components/ui/UiStatCard';
 import { DataTable } from '@/components/ui/DataTable';
 import { BillChart } from './components/BillChart';
 import { Plus, Trash2, Edit3, TrendingUp, DollarSign } from 'lucide-preact';
-import { formatCurrency } from '@/utils/format';
+import { formatCurrency, formatNumber, getCurrencyCode } from '@/utils/format';
 import { ViewLayout } from '@/components/layout/ViewLayout';
 import { Modal } from '@/components/ui/Modal';
 import { Input } from '@/components/ui/Input';
@@ -90,17 +90,19 @@ export const BillsPage = () => {
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <UiStatCard
                         label="Total Monthly Cost"
-                        value={formatCurrency(stats.totalCost)}
+                        value={formatNumber(stats.totalCost)}
                         icon={DollarSign}
                         color="primary"
                         trend="up"
                         trendValue="+12%"
+                        currency={getCurrencyCode()}
                     />
                     <UiStatCard
                         label="Average Bill Cost"
-                        value={formatCurrency(stats.avgCost)}
+                        value={formatNumber(stats.avgCost)}
                         icon={TrendingUp}
                         color="warning"
+                        currency={getCurrencyCode()}
                     />
                     <UiStatCard
                         label="Active Subscriptions"

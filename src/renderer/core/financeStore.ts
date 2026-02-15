@@ -294,8 +294,13 @@ export const actions = {
                 return { ...acc, balance: acc.balance + change };
             }
             if (data.type === 'transfer' && data.to_account_id && acc.id === data.to_account_id) {
-                // Assuming same currency for optimistic update
-                return { ...acc, balance: acc.balance + Number(data.amount) };
+                // Only optimistically update destination for same-currency transfers
+                const sourceAcc = previousAccounts.find(a => a.id === data.account_id);
+                if (sourceAcc && sourceAcc.currency === acc.currency) {
+                    return { ...acc, balance: acc.balance + Number(data.amount) };
+                }
+                // Cross-currency: skip optimistic update, let backend compute via _refreshDerivedData
+                return acc;
             }
             return acc;
         });
@@ -484,6 +489,16 @@ export const actions = {
             console.error("Contribute failed", e);
             goals.value = previous;
             notify.error("Failed to contribute to goal", (e as Error).message);
+        }
+    },
+
+    fetchDashboardData: async (months: number) => {
+        try {
+            const data = await api.getDashboardData(months);
+            if (data) dashboardChartData.value = data;
+        } catch (e) {
+            console.error("Failed to fetch dashboard data", e);
+            notify.error("Failed to update chart", (e as Error).message);
         }
     }
 };

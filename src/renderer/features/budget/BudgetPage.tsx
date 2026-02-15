@@ -7,7 +7,7 @@ import { Modal } from '@/components/ui/Modal';
 import { Input } from '@/components/ui/Input';
 import { UiSelect } from '@/components/ui/UiSelect';
 import { UiStatCard } from '@/components/ui/UiStatCard';
-import { formatCurrency } from '@/utils/format';
+import { formatCurrency, formatNumber, getCurrencyCode } from '@/utils/format';
 import { PiggyBank, ShoppingCart, AlertCircle, CheckCircle, Plus, Edit3, Trash2 } from 'lucide-preact';
 import { clsx } from 'clsx';
 import { BudgetCard } from './components/BudgetCard';
@@ -140,25 +140,28 @@ export const BudgetPage = () => {
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     <UiStatCard
                         label="Total Budgeted"
-                        value={isLoading ? "..." : formatCurrency(stats.totalBudgeted)}
+                        value={isLoading ? "..." : formatNumber(stats.totalBudgeted)}
                         icon={PiggyBank}
                         trend="neutral"
                         trendValue="Target"
+                        currency={getCurrencyCode()}
                     />
                     <UiStatCard
                         label="Total Spent"
-                        value={isLoading ? "..." : formatCurrency(stats.totalSpent)}
+                        value={isLoading ? "..." : formatNumber(stats.totalSpent)}
                         icon={ShoppingCart}
                         trend="neutral"
                         trendValue="Actual"
+                        currency={getCurrencyCode()}
                     />
                     <UiStatCard
                         label="Remaining"
-                        value={isLoading ? "..." : formatCurrency(Math.abs(stats.totalRemaining))}
+                        value={isLoading ? "..." : formatNumber(Math.abs(stats.totalRemaining))}
                         icon={stats.isOverBudget ? AlertCircle : CheckCircle}
                         trend={stats.isOverBudget ? 'down' : 'up'}
                         trendValue={stats.isOverBudget ? 'Over Budget' : 'Under Budget'}
                         color={stats.isOverBudget ? 'danger' : 'success'}
+                        currency={getCurrencyCode()}
                     />
                 </div>
 

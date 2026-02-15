@@ -12,7 +12,7 @@ interface UiChartProps {
     type: ChartConfiguration['type'];
     data: ChartConfiguration['data'];
     options?: ChartConfiguration['options'];
-    height?: number;
+    height?: number | string;
     className?: string;
 }
 
@@ -126,7 +126,7 @@ export const UiChart = ({ type, data, options, height = 300, className = '' }: U
     }, [data, options, type, isDark]);
 
     return (
-        <div className={`w-full relative ${className}`} style={{ height: `${height}px` }}>
+        <div className={`w-full relative ${className}`} style={{ height: typeof height === 'number' ? `${height}px` : height }}>
             <canvas ref={canvasRef} />
         </div>
     );

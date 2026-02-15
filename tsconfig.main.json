@@ -6,6 +6,8 @@
         "module": "CommonJS",
         // Override: Node.js uses Node-specific resolution algorithm
         "moduleResolution": "Node",
+        // Override: Must emit for Electron main process (base tsconfig has noEmit: true for renderer)
+        "noEmit": false,
         /* ==================== Output Structure ==================== */
         // Output directory for compiled JavaScript
         "outDir": "dist",

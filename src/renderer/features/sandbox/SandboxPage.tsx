@@ -7,7 +7,7 @@ import { useSandbox } from '@/features/sandbox/hooks/useSandbox';
 import { UiCard } from '@/components/ui/UiCard';
 import { UiStatCard } from '@/components/ui/UiStatCard';
 import { UiButton } from '@/components/ui/UiButton';
-import { formatCurrency } from '@/utils/format';
+import { formatCurrency, formatNumber, getCurrencyCode } from '@/utils/format';
 import { SandboxChart } from './components/SandboxChart';
 import { PlannedItemsTable } from './components/PlannedItemsTable';
 import { AddPlannedItemForm } from './components/AddPlannedItemForm';
@@ -77,26 +77,30 @@ export const SandboxPage = () => {
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                         <UiStatCard
                             label="Current Balance"
-                            value={formatCurrency(currentBalance)}
+                            value={formatNumber(currentBalance)}
                             icon={Layout}
+                            currency={getCurrencyCode()}
                         />
                         <UiStatCard
                             label="Without Plan"
-                            value={formatCurrency(stats.baseEnd)}
+                            value={formatNumber(stats.baseEnd)}
                             icon={LineChart}
+                            currency={getCurrencyCode()}
                         />
                         <UiStatCard
                             label="With Plan"
-                            value={formatCurrency(stats.scenEnd)}
+                            value={formatNumber(stats.scenEnd)}
                             icon={TrendingUp}
                             trend={stats.impact !== 0 ? (stats.impact >= 0 ? 'up' : 'down') : undefined}
-                            trendValue={stats.impact !== 0 ? formatCurrency(Math.abs(stats.impact)) : undefined}
+                            trendValue={stats.impact !== 0 ? formatNumber(Math.abs(stats.impact)) : undefined}
+                            currency={getCurrencyCode()}
                         />
                         <UiStatCard
                             label="Net Impact"
-                            value={formatCurrency(stats.impact)}
+                            value={formatNumber(stats.impact)}
                             icon={Cpu}
                             color={stats.impact >= 0 ? 'success' : 'danger'}
+                            currency={getCurrencyCode()}
                         />
                     </div>
                 )}

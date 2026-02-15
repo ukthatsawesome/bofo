@@ -7,7 +7,7 @@ import { useRecurring } from '@/features/recurring/hooks/useRecurring';
 import { UiStatCard } from '@/components/ui/UiStatCard';
 import { UiCard } from '@/components/ui/UiCard';
 import { UiButton } from '@/components/ui/UiButton';
-import { formatCurrency } from '@/utils/format';
+import { formatCurrency, formatNumber, getCurrencyCode } from '@/utils/format';
 import { RecurringChargeModal } from './components/RecurringChargeModal';
 import { IconButton } from '@/components/ui/IconButton';
 import { clsx } from 'clsx';
@@ -58,9 +58,10 @@ export const RecurringPage = () => {
                     <div className="md:col-span-2">
                         <UiStatCard
                             label="Monthly Recurring Burden"
-                            value={formatCurrency(monthlyTotal)}
+                            value={formatNumber(monthlyTotal)}
                             icon={Receipt}
                             color="danger"
+                            currency={getCurrencyCode()}
                         />
                     </div>
                     <UiCard className="flex flex-col justify-center">

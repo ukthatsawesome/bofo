@@ -6,19 +6,28 @@ import { useDashboard } from '@/features/dashboard/hooks/useDashboard';
 import { UiStatCard } from '@/components/ui/UiStatCard';
 import { UiCard } from '@/components/ui/UiCard';
 import { Landmark, Gem, Wallet, TrendingDown, TrendingUp, PieChart, Target, Plus } from 'lucide-preact';
-import { formatCurrency } from '@/utils/format';
+import { formatCurrency, formatNumber, getCurrencyCode } from '@/utils/format';
 import { QuickTransactionWidget } from './components/QuickTransactionWidget';
 import { AccountsOverview } from './components/AccountsOverview';
 import { ViewLayout } from '@/components/layout/ViewLayout';
 import { UiButton } from '@/components/ui/UiButton';
 import { UiChart } from '@/components/ui/UiChart';
-import { getCategoryChartConfig } from '@/components/charts/chartConfigs';
+import { getCategoryDoughnutConfig } from '@/components/charts/chartConfigs';
 import { Modal } from '@/components/ui/Modal';
 import { TransactionForm } from '@/features/transactions/components/TransactionForm';
 import { financeStore } from '@/core/financeStore';
 
 export const DashboardPage = () => {
-    const { summaryStats, chartData, accounts, transactions, isLoading, insight } = useDashboard();
+    const {
+        summaryStats,
+        chartData,
+        transactions,
+        accounts,
+        insight,
+        isLoading,
+        range,
+        setRange
+    } = useDashboard();
     const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
 
     const handleTransferSave = async (data: any) => {
@@ -73,7 +82,15 @@ export const DashboardPage = () => {
         const txns = transactions.value;
         if (!txns || txns.length === 0) return null;
 
-        const expenses = txns.filter(t => t.type === 'expense');
+        const now = new Date();
+        const currentMonth = now.getMonth();
+        const currentYear = now.getFullYear();
+
+        const expenses = txns.filter(t => {
+            if (t.type !== 'expense') return false;
+            const d = new Date(t.start_date);
+            return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
+        });
         const categoryMap = new Map<string, number>();
 
         expenses.forEach(t => {
@@ -88,7 +105,7 @@ export const DashboardPage = () => {
 
         if (sortedCategories.length === 0) return null;
 
-        const config = getCategoryChartConfig();
+        const config = getCategoryDoughnutConfig();
         config.data = {
             labels: sortedCategories.map(([name]) => name),
             datasets: [{
@@ -129,10 +146,30 @@ export const DashboardPage = () => {
         return 'Good evening';
     };
 
+    const baseCurrency = getCurrencyCode();
+
+    const RangeSelector = (
+        <div className="relative group min-w-[120px]">
+            <select
+                value={range.toString()}
+                onChange={(e) => setRange(parseInt((e.target as HTMLSelectElement).value))}
+                className="w-full appearance-none bg-surface-card border border-border rounded-lg pl-3 pr-8 py-2 text-xs font-bold text-text-primary focus:outline-none focus:ring-2 focus:ring-brand-primary/20 transition-all cursor-pointer shadow-sm"
+            >
+                <option value="3">3 Months</option>
+                <option value="6">6 Months</option>
+                <option value="12">1 Year</option>
+                <option value="24">2 Years</option>
+            </select>
+            <div className="absolute right-2.5 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6" /></svg>
+            </div>
+        </div>
+    );
+
     return (
         <ViewLayout
             title={`${getGreeting()}, User`}
-            // actions={Actions} // Removed as per user request to avoid duplication with Quick Widget
+            actions={RangeSelector}
             isLoading={isLoading.value && !summaryStats.value}
         >
             <div className="space-y-6">
@@ -141,33 +178,37 @@ export const DashboardPage = () => {
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                     <UiStatCard
                         label="Total Balance"
-                        value={formatCurrency(summaryStats.value?.totalBalance ?? 0)}
+                        value={formatNumber(summaryStats.value?.totalBalance ?? 0)}
                         icon={Landmark}
                         color="primary"
                         trend="up"
                         trendValue="+2.5%"
+                        currency={baseCurrency}
                     />
                     <UiStatCard
                         label="Net Worth"
-                        value={formatCurrency(summaryStats.value?.netWorth ?? 0)}
+                        value={formatNumber(summaryStats.value?.netWorth ?? 0)}
                         icon={Gem}
                         color="info"
                         trend="up"
                         trendValue="+1.2%"
+                        currency={baseCurrency}
                     />
                     <UiStatCard
                         label="Monthly Income"
-                        value={formatCurrency(summaryStats.value?.monthIncome ?? 0)}
+                        value={formatNumber(summaryStats.value?.monthIncome ?? 0)}
                         icon={Wallet}
                         color="success"
+                        currency={baseCurrency}
                     />
                     <UiStatCard
                         label="Monthly Expenses"
-                        value={formatCurrency(summaryStats.value?.monthExpense ?? 0)}
+                        value={formatNumber(summaryStats.value?.monthExpense ?? 0)}
                         icon={TrendingDown}
                         color="danger"
                         trend={(summaryStats.value?.savingsRate ?? 0) >= 0 ? "up" : "down"}
                         trendValue={`${(summaryStats.value?.savingsRate ?? 0).toFixed(1)}% Saved`}
+                        currency={baseCurrency}
                     />
                 </div>
 
@@ -269,14 +310,14 @@ export const DashboardPage = () => {
                         </div>
                     </div>
 
-                    {/* Row 2: Categories + Budget Status + My Accounts */}
                     <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8">
                         <UiCard title="Top Categories" icon={PieChart}>
-                            <div className="h-48 flex items-center justify-center">
+                            <div className="h-52 flex items-center justify-center overflow-hidden">
                                 {categoryChartConfig ? (
                                     <div className="w-full h-full p-2">
                                         <UiChart
                                             type="doughnut"
+                                            height="100%"
                                             data={categoryChartConfig.data as any}
                                             options={categoryChartConfig.options as any}
                                         />
@@ -288,46 +329,52 @@ export const DashboardPage = () => {
                         </UiCard>
                         <UiCard title="Budget Status" icon={Target}>
                             <div className="h-48 flex flex-col justify-center px-4 space-y-4">
-                                <div className="flex justify-between items-end">
-                                    <div>
-                                        <div className="text-2xl font-bold text-text-primary">{budgetStatus.value}%</div>
-                                        <div className="text-xs text-text-muted">of Monthly Income Spent</div>
+                                {(summaryStats.value?.monthIncome ?? 0) === 0 && (summaryStats.value?.monthExpense ?? 0) === 0 ? (
+                                    <div className="flex items-center justify-center h-full text-text-muted text-sm">
+                                        No income or expenses this month
                                     </div>
-                                    <div className="text-right">
-                                        <div className="text-sm font-semibold text-text-primary">{formatCurrency(summaryStats.value?.monthExpense ?? 0)}</div>
-                                        <div className="text-xs text-text-muted">Total Expenses</div>
-                                    </div>
-                                </div>
+                                ) : (
+                                    <>
+                                        <div className="flex justify-between items-end">
+                                            <div>
+                                                <div className="text-2xl font-bold text-text-primary">{budgetStatus.value}%</div>
+                                                <div className="text-xs text-text-muted">of Monthly Income Spent</div>
+                                            </div>
+                                            <div className="text-right">
+                                                <div className="text-sm font-semibold text-text-primary">{formatCurrency(summaryStats.value?.monthExpense ?? 0)}</div>
+                                                <div className="text-xs text-text-muted">Total Expenses</div>
+                                            </div>
+                                        </div>
 
-                                <div className="w-full bg-surface-base rounded-full h-3 overflow-hidden">
-                                    <div
-                                        className={clsx("h-full rounded-full transition-all duration-500", budgetStatus.color)}
-                                        style={{ width: `${budgetStatus.percent}%` }}
-                                    ></div>
-                                </div>
+                                        <div className="w-full bg-surface-base rounded-full h-3 overflow-hidden">
+                                            <div
+                                                className={clsx("h-full rounded-full transition-all duration-500", budgetStatus.color)}
+                                                style={{ width: `${budgetStatus.percent}%` }}
+                                            ></div>
+                                        </div>
 
-                                <div className="text-xs text-text-muted text-center pt-2">
-                                    {100 - parseFloat(budgetStatus.value) > 0
-                                        ? `${(100 - parseFloat(budgetStatus.value)).toFixed(0)}% remaining to save`
-                                        : "Budget exceeded"}
-                                </div>
+                                        <div className="text-xs text-text-muted text-center pt-2">
+                                            {(summaryStats.value?.monthIncome ?? 0) === 0
+                                                ? 'No income recorded this month'
+                                                : 100 - parseFloat(budgetStatus.value) > 0
+                                                    ? `${(100 - parseFloat(budgetStatus.value)).toFixed(0)}% remaining to save`
+                                                    : 'All income has been spent'}
+                                        </div>
+                                    </>
+                                )}
                             </div>
                         </UiCard>
-                        {/* My Accounts Widget */}
                         <UiCard title="My Accounts" variant="default" icon={Wallet}>
-                            <div className="space-y-2">
-                                {(accounts.value || []).slice(0, 4).map(acc => (
+                            <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+                                {(accounts.value || []).map(acc => (
                                     <div key={acc.id} className="flex justify-between items-center p-3 bg-surface-hover rounded-xl border border-border/50 hover:border-brand-primary/30 transition-all cursor-pointer group">
                                         <div>
                                             <div className="font-semibold text-sm text-text-primary group-hover:text-brand-primary transition-colors">{acc.name}</div>
                                             <div className="text-xs text-text-muted capitalize">{acc.type.replace('_', ' ')}</div>
                                         </div>
-                                        <div className={clsx("font-mono font-medium text-sm", acc.balance >= 0 ? "text-success" : "text-danger")}>{formatCurrency(acc.balance)}</div>
+                                        <div className={clsx("font-mono font-medium text-sm", acc.balance >= 0 ? "text-success" : "text-danger")}>{formatCurrency(acc.balance, acc.currency)}</div>
                                     </div>
                                 ))}
-                                {(accounts.value || []).length > 4 && (
-                                    <UiButton variant="ghost" fullWidth className="mt-2">View All {accounts.value!.length} Accounts</UiButton>
-                                )}
                             </div>
                         </UiCard>
                     </div>

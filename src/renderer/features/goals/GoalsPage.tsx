@@ -13,7 +13,7 @@ import { UiSelect } from '@/components/ui/UiSelect';
 import { Input } from '@/components/ui/Input';
 import { Modal } from '@/components/ui/Modal';
 import { GoalCard } from './components/GoalCard';
-import { formatCurrency } from '@/utils/format';
+import { formatCurrency, formatNumber, getCurrencyCode } from '@/utils/format';
 import { ViewLayout } from '@/components/layout/ViewLayout';
 
 // Icon mapping
@@ -169,21 +169,24 @@ export const GoalsPage = () => {
                         />
                         <UiStatCard
                             label="Total Saved"
-                            value={formatCurrency(summary.totalSaved)}
+                            value={formatNumber(summary.totalSaved)}
                             icon={PiggyBank}
                             trend="up"
                             trendValue={`${summary.totalProgress.toFixed(1)}%`}
                             color="success"
+                            currency={getCurrencyCode()}
                         />
                         <UiStatCard
                             label="Total Target"
-                            value={formatCurrency(summary.totalTarget)}
+                            value={formatNumber(summary.totalTarget)}
                             icon={Flag}
+                            currency={getCurrencyCode()}
                         />
                         <UiStatCard
                             label="Monthly Allocation"
-                            value={formatCurrency(summary.totalMonthlyContribution)}
+                            value={formatNumber(summary.totalMonthlyContribution)}
                             icon={CalendarCheck}
+                            currency={getCurrencyCode()}
                         />
                     </div>
                 )}
