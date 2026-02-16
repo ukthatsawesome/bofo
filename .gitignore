@@ -88,5 +88,6 @@ finance_backup.js
 build_errors.txt
 seed*.log
 
+
 # Old dist backup
-dist_old/
+# dist_old/

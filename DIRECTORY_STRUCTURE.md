@@ -13,7 +13,7 @@ This document provides a detailed overview of the Bofo project structure.
 | `node_modules/` | Project dependencies |
 | `src/` | **Primary Source Code** |
 | `.gitignore` | Git ignore rules |
-| `finance.db` | Local development database (SQLite/SQLCipher) |
+| `finance.dev.db` | Local development database (SQLite/SQLCipher) |
 | `package.json` | Project metadata and dependencies |
 | `README.md` | General project overview |
 | `tsconfig.json` | TypeScript configuration |
@@ -53,8 +53,12 @@ The "Frontend" of the application, built with **Preact** and **Signals**.
 - `components/`: Shared UI elements.
   - `ui/`: Reusable primitives (Buttons, Inputs, Modals).
   - `layout/`: Layout components (Sidebar, Header).
-- `hooks/`: Custom React hooks (e.g., `useAppInit`).
 - `assets/`: Styles and static assets.
+  - `styles/`: Global styles and Tailwind configuration.
+- `hooks/`: Custom React hooks (e.g., `useAppInit`).
+- `services/`: Frontend services.
+- `types/`: Frontend-specific types.
+- `utils/`: Frontend utility functions.
 
 ### ♻️ Shared (`src/shared/`)
 Code and types shared between Main and Renderer processes.
@@ -70,7 +74,5 @@ Code and types shared between Main and Renderer processes.
 |------|---------|
 | `DEVELOPER_GUIDE.md` | Detailed guide for setting up and contributing |
 | `SECURITY.md` | Security implementation details and best practices |
-| `FIX_REPORT.md` | Log of historical bug fixes and technical debt resolution |
-| `ARCHITECTURE_PROPOSAL.md` | (.agent/) Planned architectural changes |
-| `GUIDELINES.md` | (.agent/) Coding standards and workflow rules |
-| `plan.md` | (.agent/) Development roadmap and task tracking |
+| `CHANGELOG.md` | Log of version history and changes |
+| `directory_structure.md` | Detailed file layout (this file) |

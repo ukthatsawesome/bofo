@@ -77,7 +77,7 @@ Recent updates have significantly hardened the application architecture:
 
 3. Run the application:
    ```bash
-   npm start
+   npm run dev
    ```
 
 ---
@@ -108,7 +108,7 @@ npm run dist:linux
 Bofo follows a strict separation between the **Main** (Backend) and **Renderer** (Frontend) processes.
 
 - `src/main/`: Electron main process, Database, AI services, and IPC handlers.
-- `src/renderer/`: Frontend UI organized by feature (Domain-Driven Architecture).
+- `src/renderer/`: Frontend UI organized by feature (Domain-Driven Architecture), containing `core`, `features`, `components`, and `assets`.
 - `src/shared/`: Common types and constants shared across processes.
 
 For a detailed breakdown, see [DIRECTORY_STRUCTURE.md](DIRECTORY_STRUCTURE.md).

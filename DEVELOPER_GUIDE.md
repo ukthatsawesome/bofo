@@ -35,7 +35,7 @@ Bofo uses a **Main-Renderer** architecture typical of Electron apps, but with a 
 
 ## 🎨 CSS Architecture
 
-The project uses **Tailwind CSS** with a **Soft UI** design system in `src/renderer/app/styles/tailwind-input.css`.
+The project uses **Tailwind CSS** with a **Soft UI** design system in `src/renderer/assets/styles/global.css`.
 
 | Layer | Description |
 |-------|-------------|
@@ -56,7 +56,7 @@ The project uses **Tailwind CSS** with a **Soft UI** design system in `src/rende
 | Badge | `success`, `danger`, `warning`, `info` |
 
 ### Usage
-- Edit `tailwind-input.css` for global styles or reusable components.
+- Edit `global.css` for global styles or reusable components.
 - Use Tailwind utility classes directly in your HTML/TypeScript files.
 - **Theming**: CSS variables in `:root` define the light theme.
 

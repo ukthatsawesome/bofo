@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## [Unreleased]
+## [2.0.0] - 2026-02-16
 
 ### 🚀 New Features
 - **Database Seeding**: Dev tool to populate database with demo data for testing via `window.api.seedDatabase()`.
