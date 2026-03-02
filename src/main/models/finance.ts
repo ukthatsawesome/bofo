@@ -1604,10 +1604,14 @@ export const FinanceModel = {
     const budgets = await all(`SELECT * FROM budgets WHERE deleted_at IS NULL`);
     const goals = await all(`SELECT * FROM goals WHERE deleted_at IS NULL`);
     const recurringCharges = await all(`SELECT * FROM recurring_charges WHERE deleted_at IS NULL`);
+    const goalContributions = await all(`SELECT * FROM goal_contributions`);
     const billTypes = await all(`SELECT * FROM bill_types WHERE deleted_at IS NULL`);
     const billReadings = await all(`SELECT * FROM bill_readings`);
     const exchangeRates = await all(`SELECT * FROM exchange_rates`);
     const settings = await all(`SELECT * FROM settings`);
+
+    // Filter out sensitive settings (remote access key) from export
+    const safeSettings = settings.filter((s: any) => s.key !== SETTING_KEYS.REMOTE.KEY);
 
     return {
       version: 2,
@@ -1619,10 +1623,11 @@ export const FinanceModel = {
         budgets,
         goals,
         recurringCharges,
+        goalContributions,
         billTypes,
         billReadings,
         exchangeRates,
-        settings,
+        settings: safeSettings,
       }
     };
   },
@@ -1649,6 +1654,7 @@ export const FinanceModel = {
       { table: 'budgets', whereClause: 'deleted_at IS NULL' },
       { table: 'goals', whereClause: 'deleted_at IS NULL' },
       { table: 'recurring_charges', whereClause: 'deleted_at IS NULL' },
+      { table: 'goal_contributions', whereClause: '1=1' },
       { table: 'bill_types', whereClause: 'deleted_at IS NULL' },
       { table: 'bill_readings', whereClause: '1=1' },
       { table: 'exchange_rates', whereClause: '1=1' },
@@ -1673,11 +1679,494 @@ export const FinanceModel = {
     return await all(`SELECT * FROM ${table} WHERE ${whereClause} LIMIT ? OFFSET ?`, [limit, offset]);
   },
 
-  importData: async (jsonData: any) => {
-    if (!jsonData.version || !jsonData.data) {
-      return { success: false, error: 'Invalid export format' };
+  importData: async (jsonData: any, options: { mode?: 'merge' | 'restore' } = {}) => {
+    // Support both v1 format (top-level accounts/transactions) and v2 format (data.accounts/data.transactions)
+    const data = jsonData.data || jsonData;
+
+    if (!data.accounts && !data.transactions) {
+      return { success: false, error: 'Invalid export format - no data found' };
     }
-    return { success: true, message: 'Import functionality requires full implementation' };
+
+    try {
+      await dbInitialized;
+
+      return await writeMutex.runExclusive(async () => {
+        await run('BEGIN TRANSACTION');
+        try {
+          const restoreMode = options.mode === 'restore';
+          let preservedRemoteKey: { value: string; category: string; updated_at: string } | null = null;
+
+          if (restoreMode) {
+            preservedRemoteKey = await get<{ value: string; category: string; updated_at: string }>(
+              'SELECT value, category, updated_at FROM settings WHERE key = ?',
+              [SETTING_KEYS.REMOTE.KEY]
+            ) || null;
+
+            // Delete child tables before parents to satisfy FKs
+            await run('DELETE FROM transaction_history');
+            await run('DELETE FROM audit_logs');
+            await run('DELETE FROM bill_readings');
+            await run('DELETE FROM goal_contributions');
+            await run('DELETE FROM recurring_charges');
+            await run('DELETE FROM budgets');
+            await run('DELETE FROM transactions');
+            await run('DELETE FROM bill_types');
+            await run('DELETE FROM goals');
+            await run('DELETE FROM categories');
+            await run('DELETE FROM accounts');
+            await run('DELETE FROM exchange_rates');
+
+            if (preservedRemoteKey) {
+              await run('DELETE FROM settings WHERE key != ?', [SETTING_KEYS.REMOTE.KEY]);
+            } else {
+              await run('DELETE FROM settings');
+            }
+          }
+
+          // Import accounts first (they are referenced by other entities)
+          if (data.accounts && Array.isArray(data.accounts)) {
+            for (const account of data.accounts) {
+              await run(
+                `INSERT INTO accounts (id, name, type, balance, initial_balance, currency, status, deleted_at, updated_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 ON CONFLICT(id) DO UPDATE SET
+                   name = excluded.name,
+                   type = excluded.type,
+                   balance = excluded.balance,
+                   initial_balance = excluded.initial_balance,
+                   currency = excluded.currency,
+                   status = excluded.status,
+                   deleted_at = excluded.deleted_at,
+                   updated_at = excluded.updated_at`,
+                [
+                  account.id, account.name, account.type, account.balance, account.initial_balance,
+                  account.currency, account.status, account.deleted_at, account.updated_at
+                ]
+              );
+            }
+          }
+
+          // Category ID remap to preserve references when conflicts occur on (type, name)
+          const categoryIdMap = new Map<number, number>();
+
+          // Import categories
+          if (data.categories && Array.isArray(data.categories)) {
+            for (const category of data.categories) {
+              let insertId: number | null = category.id ?? null;
+              const existingByPair = await get<{ id: number }>(
+                'SELECT id FROM categories WHERE type = ? AND name = ? LIMIT 1',
+                [category.type, category.name]
+              );
+              if (existingByPair?.id != null) {
+                insertId = existingByPair.id;
+                await run(
+                  `UPDATE categories
+                   SET status = ?, is_default = ?, color = ?, icon = ?, deleted_at = ?, updated_at = ?
+                   WHERE id = ?`,
+                  [
+                    category.status, category.is_default, category.color, category.icon,
+                    category.deleted_at, category.updated_at, insertId
+                  ]
+                );
+              } else if (category.id != null) {
+                const existingById = await get<{ type: string; name: string }>(
+                  'SELECT type, name FROM categories WHERE id = ? LIMIT 1',
+                  [category.id]
+                );
+                if (existingById && (existingById.type !== category.type || existingById.name !== category.name)) {
+                  insertId = null;
+                }
+                await run(
+                  `INSERT INTO categories (id, type, name, status, is_default, color, icon, deleted_at, updated_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                   ON CONFLICT(id) DO UPDATE SET
+                     type = excluded.type,
+                     name = excluded.name,
+                     status = excluded.status,
+                     is_default = excluded.is_default,
+                     color = excluded.color,
+                     icon = excluded.icon,
+                     deleted_at = excluded.deleted_at,
+                     updated_at = excluded.updated_at`,
+                  [
+                    insertId, category.type, category.name, category.status, category.is_default,
+                    category.color, category.icon, category.deleted_at, category.updated_at
+                  ]
+                );
+              } else {
+                await run(
+                  `INSERT INTO categories (id, type, name, status, is_default, color, icon, deleted_at, updated_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                   ON CONFLICT(id) DO UPDATE SET
+                     type = excluded.type,
+                     name = excluded.name,
+                     status = excluded.status,
+                     is_default = excluded.is_default,
+                     color = excluded.color,
+                     icon = excluded.icon,
+                     deleted_at = excluded.deleted_at,
+                     updated_at = excluded.updated_at`,
+                  [
+                    insertId, category.type, category.name, category.status, category.is_default,
+                    category.color, category.icon, category.deleted_at, category.updated_at
+                  ]
+                );
+              }
+
+              if (category.id != null) {
+                const existing = await get<{ id: number }>(
+                  'SELECT id FROM categories WHERE type = ? AND name = ? LIMIT 1',
+                  [category.type, category.name]
+                );
+                if (existing?.id != null && existing.id !== category.id) {
+                  categoryIdMap.set(category.id, existing.id);
+                }
+              }
+            }
+          }
+
+          // Import transactions
+          if (data.transactions && Array.isArray(data.transactions)) {
+            for (const tx of data.transactions) {
+              const mappedCategoryId = (tx.category_id != null && categoryIdMap.has(tx.category_id))
+                ? categoryIdMap.get(tx.category_id)
+                : tx.category_id;
+              await run(
+                `INSERT INTO transactions (
+                  id, account_id, to_account_id, type, category, category_id, amount, description,
+                  attachment, frequency, start_date, end_date, currency, exchange_rate, to_amount,
+                  base_currency, base_amount, tags, is_active, created_at, updated_at, deleted_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(id) DO UPDATE SET
+                  account_id = excluded.account_id,
+                  to_account_id = excluded.to_account_id,
+                  type = excluded.type,
+                  category = excluded.category,
+                  category_id = excluded.category_id,
+                  amount = excluded.amount,
+                  description = excluded.description,
+                  attachment = excluded.attachment,
+                  frequency = excluded.frequency,
+                  start_date = excluded.start_date,
+                  end_date = excluded.end_date,
+                  currency = excluded.currency,
+                  exchange_rate = excluded.exchange_rate,
+                  to_amount = excluded.to_amount,
+                  base_currency = excluded.base_currency,
+                  base_amount = excluded.base_amount,
+                  tags = excluded.tags,
+                  is_active = excluded.is_active,
+                  created_at = excluded.created_at,
+                  updated_at = excluded.updated_at,
+                  deleted_at = excluded.deleted_at`,
+                [
+                  tx.id, tx.account_id, tx.to_account_id, tx.type, tx.category, mappedCategoryId,
+                  tx.amount, tx.description, tx.attachment, tx.frequency, tx.start_date, tx.end_date,
+                  tx.currency, tx.exchange_rate, tx.to_amount, tx.base_currency, tx.base_amount,
+                  tx.tags, tx.is_active, tx.created_at, tx.updated_at, tx.deleted_at
+                ]
+              );
+            }
+          }
+
+          // Import budgets
+          if (data.budgets && Array.isArray(data.budgets)) {
+            for (const budget of data.budgets) {
+              const mappedCategoryId = (budget.category_id != null && categoryIdMap.has(budget.category_id))
+                ? categoryIdMap.get(budget.category_id)
+                : budget.category_id;
+              await run(
+                `INSERT INTO budgets (id, category, category_id, amount, period, start_date, end_date, currency, deleted_at, created_at, updated_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 ON CONFLICT(id) DO UPDATE SET
+                   category = excluded.category,
+                   category_id = excluded.category_id,
+                   amount = excluded.amount,
+                   period = excluded.period,
+                   start_date = excluded.start_date,
+                   end_date = excluded.end_date,
+                   currency = excluded.currency,
+                   deleted_at = excluded.deleted_at,
+                   created_at = excluded.created_at,
+                   updated_at = excluded.updated_at`,
+                [
+                  budget.id, budget.category, mappedCategoryId, budget.amount, budget.period,
+                  budget.start_date, budget.end_date, budget.currency, budget.deleted_at, budget.created_at, budget.updated_at
+                ]
+              );
+            }
+          }
+
+          // Import goals
+          if (data.goals && Array.isArray(data.goals)) {
+            for (const goal of data.goals) {
+              await run(
+                `INSERT INTO goals (
+                  id, name, description, target_amount, current_amount, monthly_contribution,
+                  icon, color, priority, target_date, status, auto_contribute, currency,
+                  deleted_at, created_at, updated_at, completed_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(id) DO UPDATE SET
+                  name = excluded.name,
+                  description = excluded.description,
+                  target_amount = excluded.target_amount,
+                  current_amount = excluded.current_amount,
+                  monthly_contribution = excluded.monthly_contribution,
+                  icon = excluded.icon,
+                  color = excluded.color,
+                  priority = excluded.priority,
+                  target_date = excluded.target_date,
+                  status = excluded.status,
+                  auto_contribute = excluded.auto_contribute,
+                  currency = excluded.currency,
+                  deleted_at = excluded.deleted_at,
+                  created_at = excluded.created_at,
+                  updated_at = excluded.updated_at,
+                  completed_at = excluded.completed_at`,
+                [
+                  goal.id, goal.name, goal.description, goal.target_amount, goal.current_amount,
+                  goal.monthly_contribution, goal.icon, goal.color, goal.priority, goal.target_date,
+                  goal.status, goal.auto_contribute, goal.currency,
+                  goal.deleted_at, goal.created_at, goal.updated_at, goal.completed_at
+                ]
+              );
+            }
+          }
+
+          // Import recurring charges
+          if (data.recurringCharges && Array.isArray(data.recurringCharges)) {
+            for (const rc of data.recurringCharges) {
+              const mappedCategoryId = (rc.category_id != null && categoryIdMap.has(rc.category_id))
+                ? categoryIdMap.get(rc.category_id)
+                : rc.category_id;
+              await run(
+                `INSERT INTO recurring_charges (
+                  id, category, category_id, name, amount, frequency, due_day,
+                  next_due_date, is_active, notes, currency, deleted_at, created_at, updated_at,
+                  last_transaction_id, last_generated_date, account_id
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(id) DO UPDATE SET
+                  category = excluded.category,
+                  category_id = excluded.category_id,
+                  name = excluded.name,
+                  amount = excluded.amount,
+                  frequency = excluded.frequency,
+                  due_day = excluded.due_day,
+                  next_due_date = excluded.next_due_date,
+                  is_active = excluded.is_active,
+                  notes = excluded.notes,
+                  currency = excluded.currency,
+                  deleted_at = excluded.deleted_at,
+                  created_at = excluded.created_at,
+                  updated_at = excluded.updated_at,
+                  last_transaction_id = excluded.last_transaction_id,
+                  last_generated_date = excluded.last_generated_date,
+                  account_id = excluded.account_id`,
+                [
+                  rc.id, rc.category, mappedCategoryId, rc.name, rc.amount, rc.frequency, rc.due_day,
+                  rc.next_due_date, rc.is_active, rc.notes, rc.currency, rc.deleted_at, rc.created_at, rc.updated_at,
+                  rc.last_transaction_id, rc.last_generated_date, rc.account_id
+                ]
+              );
+            }
+          }
+
+          // Import goal contributions
+          if (data.goalContributions && Array.isArray(data.goalContributions)) {
+            for (const gc of data.goalContributions) {
+              await run(
+                `INSERT INTO goal_contributions (
+                  id, goal_id, amount, source, notes, account_id, transaction_id, contributed_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(id) DO UPDATE SET
+                  goal_id = excluded.goal_id,
+                  amount = excluded.amount,
+                  source = excluded.source,
+                  notes = excluded.notes,
+                  account_id = excluded.account_id,
+                  transaction_id = excluded.transaction_id,
+                  contributed_at = excluded.contributed_at`,
+                [
+                  gc.id, gc.goal_id, gc.amount, gc.source, gc.notes,
+                  gc.account_id, gc.transaction_id, gc.contributed_at
+                ]
+              );
+            }
+          }
+
+          // Import bill types
+          if (data.billTypes && Array.isArray(data.billTypes)) {
+            for (const bt of data.billTypes) {
+              await run(
+                `INSERT INTO bill_types (
+                  id, name, unit_name, cost_per_unit, category_name, account_id,
+                  auto_transaction, icon, color, currency, created_at, updated_at, deleted_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(id) DO UPDATE SET
+                  name = excluded.name,
+                  unit_name = excluded.unit_name,
+                  cost_per_unit = excluded.cost_per_unit,
+                  category_name = excluded.category_name,
+                  account_id = excluded.account_id,
+                  auto_transaction = excluded.auto_transaction,
+                  icon = excluded.icon,
+                  color = excluded.color,
+                  currency = excluded.currency,
+                  created_at = excluded.created_at,
+                  updated_at = excluded.updated_at,
+                  deleted_at = excluded.deleted_at`,
+                [
+                  bt.id, bt.name, bt.unit_name, bt.cost_per_unit, bt.category_name, bt.account_id,
+                  bt.auto_transaction, bt.icon, bt.color, bt.currency, bt.created_at, bt.updated_at, bt.deleted_at
+                ]
+              );
+            }
+          }
+
+          // Import bill readings
+          if (data.billReadings && Array.isArray(data.billReadings)) {
+            for (const br of data.billReadings) {
+              await run(
+                `INSERT INTO bill_readings (id, bill_type_id, date, units_used, total_cost, notes, transaction_id, created_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                 ON CONFLICT(id) DO UPDATE SET
+                   bill_type_id = excluded.bill_type_id,
+                   date = excluded.date,
+                   units_used = excluded.units_used,
+                   total_cost = excluded.total_cost,
+                   notes = excluded.notes,
+                   transaction_id = excluded.transaction_id,
+                   created_at = excluded.created_at`,
+                [br.id, br.bill_type_id, br.date, br.units_used, br.total_cost, br.notes, br.transaction_id, br.created_at]
+              );
+            }
+          }
+
+          // Import exchange rates
+          if (data.exchangeRates && Array.isArray(data.exchangeRates)) {
+            for (const er of data.exchangeRates) {
+              let insertId: number | null = er.id ?? null;
+              const existingByPair = await get<{ id: number }>(
+                'SELECT id FROM exchange_rates WHERE from_currency = ? AND to_currency = ? LIMIT 1',
+                [er.from_currency, er.to_currency]
+              );
+              if (existingByPair?.id != null) {
+                insertId = existingByPair.id;
+                await run(
+                  `UPDATE exchange_rates
+                   SET rate = ?, source = ?, updated_at = ?
+                   WHERE from_currency = ? AND to_currency = ?`,
+                  [er.rate, er.source, er.updated_at, er.from_currency, er.to_currency]
+                );
+              } else if (er.id != null) {
+                const existingById = await get<{ from_currency: string; to_currency: string }>(
+                  'SELECT from_currency, to_currency FROM exchange_rates WHERE id = ? LIMIT 1',
+                  [er.id]
+                );
+                if (existingById && (existingById.from_currency !== er.from_currency || existingById.to_currency !== er.to_currency)) {
+                  insertId = null;
+                }
+                await run(
+                  `INSERT INTO exchange_rates (id, from_currency, to_currency, rate, source, updated_at)
+                   VALUES (?, ?, ?, ?, ?, ?)
+                   ON CONFLICT(id) DO UPDATE SET
+                     from_currency = excluded.from_currency,
+                     to_currency = excluded.to_currency,
+                     rate = excluded.rate,
+                     source = excluded.source,
+                     updated_at = excluded.updated_at`,
+                  [insertId, er.from_currency, er.to_currency, er.rate, er.source, er.updated_at]
+                );
+              } else {
+                await run(
+                  `INSERT INTO exchange_rates (id, from_currency, to_currency, rate, source, updated_at)
+                   VALUES (?, ?, ?, ?, ?, ?)
+                   ON CONFLICT(id) DO UPDATE SET
+                     from_currency = excluded.from_currency,
+                     to_currency = excluded.to_currency,
+                     rate = excluded.rate,
+                     source = excluded.source,
+                     updated_at = excluded.updated_at`,
+                  [insertId, er.from_currency, er.to_currency, er.rate, er.source, er.updated_at]
+                );
+              }
+            }
+          }
+
+          // Import settings (skip sensitive ones)
+          if (data.settings && Array.isArray(data.settings)) {
+            for (const setting of data.settings) {
+              // Skip remote access key for security
+              if (setting.key === SETTING_KEYS.REMOTE.KEY) continue;
+
+              await run(
+                `INSERT INTO settings (key, value, category, updated_at)
+                 VALUES (?, ?, ?, ?)
+                 ON CONFLICT(key) DO UPDATE SET
+                   value = excluded.value,
+                   category = excluded.category,
+                   updated_at = excluded.updated_at`,
+                [setting.key, setting.value, setting.category, setting.updated_at]
+              );
+            }
+          }
+
+          if (restoreMode && preservedRemoteKey) {
+            await run(
+              `INSERT INTO settings (key, value, category, updated_at)
+               VALUES (?, ?, ?, ?)
+               ON CONFLICT(key) DO UPDATE SET
+                 value = excluded.value,
+                 category = excluded.category,
+                 updated_at = excluded.updated_at`,
+              [SETTING_KEYS.REMOTE.KEY, preservedRemoteKey.value, preservedRemoteKey.category, preservedRemoteKey.updated_at]
+            );
+          }
+
+          // Ensure AUTOINCREMENT sequences are aligned with imported data
+          const autoIncrementTables = [
+            'accounts',
+            'transactions',
+            'categories',
+            'exchange_rates',
+            'budgets',
+            'goals',
+            'recurring_charges',
+            'goal_contributions',
+            'bill_types',
+            'bill_readings',
+            'transaction_history',
+            'audit_logs',
+          ];
+          for (const table of autoIncrementTables) {
+            const row = await get<{ maxId: number }>(`SELECT COALESCE(MAX(id), 0) as maxId FROM ${table}`);
+            const maxId = row?.maxId || 0;
+            const updated = await run(
+              `UPDATE sqlite_sequence SET seq = ? WHERE name = ?`,
+              [maxId, table]
+            );
+            if ((updated?.changes || 0) === 0) {
+              await run(
+                `INSERT INTO sqlite_sequence (name, seq) VALUES (?, ?)`,
+                [table, maxId]
+              );
+            }
+          }
+
+          // Recalculate all account balances after import
+          await FinanceModel.recalculateAllBalances();
+
+          await run('COMMIT');
+          return { success: true, message: 'Data imported successfully!' };
+        } catch (err) {
+          await run('ROLLBACK');
+          throw err;
+        }
+      });
+    } catch (err: any) {
+      console.error('[Import] Error:', err);
+      return { success: false, error: err.message || 'Import failed' };
+    }
   },
 
   exportAllToCSV: async () => {

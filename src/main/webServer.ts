@@ -40,6 +40,7 @@ function buildWebRoutes(): Record<string, Function> {
   const { BofoAIController } = require('./ipc/controllers/BofoAIController');
   const { CategoryController } = require('./ipc/controllers/CategoryController');
   const { AuditController } = require('./ipc/controllers/AuditController');
+  const { ExportController } = require('./ipc/controllers/ExportController');
 
   const controllers = [
     new TransactionController(),
@@ -54,6 +55,7 @@ function buildWebRoutes(): Record<string, Function> {
     new BofoAIController(),
     new CategoryController(),
     new AuditController(),
+    new ExportController(),
   ];
 
   const routes: Record<string, Function> = {};
@@ -73,7 +75,7 @@ function buildWebRoutes(): Record<string, Function> {
 // =============================================================================
 
 const SECURITY_CONFIG = {
-  maxBodySize: 1024 * 1024, // 1MB max request body
+  maxBodySize: 50 * 1024 * 1024, // 50MB max request body (for backup imports)
   rateLimitWindow: 60 * 1000, // 1 minute window
   rateLimitMax: 100, // Max requests per window per IP
   allowedChannelPattern: /^[a-z][a-z0-9-]*$/i,

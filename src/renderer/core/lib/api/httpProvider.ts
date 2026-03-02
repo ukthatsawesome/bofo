@@ -212,11 +212,12 @@ export class HttpApiProvider {
         reader.onload = async (event: any) => {
           try {
             const json = JSON.parse(event.target.result);
-            // Call the web-compatible import route
             const result = await this._request('import-backup-data', json);
-            resolve({ success: true, message: 'Data imported successfully' });
-            // Optional: Reload to see changes
-            setTimeout(() => window.location.reload(), 1000);
+            const response = result || { success: true, message: 'Data imported successfully' };
+            resolve(response);
+            if (response.success !== false) {
+              setTimeout(() => window.location.reload(), 1000);
+            }
           } catch (err: any) {
             resolve({ success: false, message: 'Invalid JSON file' });
           }

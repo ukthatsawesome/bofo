@@ -8,15 +8,17 @@ import {
 const invokeWithTimeout = async (channel: string, args: any[] = [], timeoutMs: number = 5000) => {
   let timeoutId: any;
 
-  const timeoutPromise = new Promise((_, reject) => {
-    timeoutId = setTimeout(() => reject(new Error(`Request Timed Out for channel: ${channel}`)), timeoutMs);
-  });
+  const timeoutPromise = timeoutMs > 0
+    ? new Promise((_, reject) => {
+      timeoutId = setTimeout(() => reject(new Error(`Request Timed Out for channel: ${channel}`)), timeoutMs);
+    })
+    : null;
 
   try {
-    const result = await Promise.race([
-      ipcRenderer.invoke(channel, ...args),
-      timeoutPromise
-    ]);
+    const ipcCall = ipcRenderer.invoke(channel, ...args);
+    const result = timeoutPromise
+      ? await Promise.race([ipcCall, timeoutPromise])
+      : await ipcCall;
 
     if (result && typeof result === 'object' && result.error === true) {
       const error = new Error(result.message || 'Unknown IPC Error');
@@ -114,9 +116,9 @@ contextBridge.exposeInMainWorld('api', {
   getAvailableForGoals: () => invokeWithTimeout('get-available-for-goals'),
 
   // Data Export/Import
-  exportData: () => invokeWithTimeout('export-data'),
-  importData: () => invokeWithTimeout('import-data', [], 60000), // Extended timeout for import
-  exportExcel: () => invokeWithTimeout('export-excel'),
+  exportData: () => invokeWithTimeout('export-data', [], 0),
+  importData: () => invokeWithTimeout('import-data', [], 0),
+  exportExcel: () => invokeWithTimeout('export-excel', [], 0),
 
   // Auto-Backup
   pickBackupDirectory: () => invokeWithTimeout('pick-backup-directory'),

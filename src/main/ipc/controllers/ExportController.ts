@@ -6,9 +6,13 @@ import { DateUtils } from '../../../shared/utils/dateUtils';
 import { Logger } from '../../utils/logger';
 import { runInWorker } from '../../utils/workerPool';
 import { validateSafePath } from '../../utils/security';
+import { createDbHelpers } from '../../database/helpers';
 import * as fs from 'fs';
 import * as path from 'path';
+import { once } from 'events';
 import { SETTING_KEYS } from '../../../shared/settings/keys';
+
+const { all } = createDbHelpers(require('../../database/db').dbInstance);
 
 export class ExportController extends BaseController {
 
@@ -32,24 +36,76 @@ export class ExportController extends BaseController {
                     const LARGE_DB_THRESHOLD = 100 * 1024 * 1024; // 100MB
 
                     if (dbSize > LARGE_DB_THRESHOLD) {
-                        Logger.info(`[Export] Large database detected (${Math.round(dbSize / 1024 / 1024)}MB), using streaming export`);
+                        Logger.info(`[Export] Large database detected (${Math.round(dbSize / 1024 / 1024)}MB), using true streaming export`);
                         const tableInfo = await model.getExportTableInfo();
-                        const tableData: Array<{ tableName: string; data: unknown[] }> = [];
+                        const CHUNK_SIZE = 1000000;
+                        const stream = fs.createWriteStream(filePath, { encoding: 'utf8' });
 
-                        for (const table of tableInfo) {
-                            const data = await model.exportTableChunk(table.table, table.whereClause, 1000000, 0);
-                            const keyName = table.table.replace(/_([a-z])/g, (_: string, c: string) => c.toUpperCase());
-                            tableData.push({ tableName: keyName, data });
-                        }
+                        const writeToStream = async (chunk: string) => {
+                            if (!stream.write(chunk)) {
+                                await Promise.race([
+                                    once(stream, 'drain'),
+                                    once(stream, 'error').then(([err]) => Promise.reject(err)),
+                                ]);
+                            }
+                        };
 
-                        const result = await runInWorker('exportWorker', {
-                            type: 'json-streaming-export',
-                            filePath,
-                            tableData,
-                        });
+                        try {
+                            await writeToStream('{\n');
+                            await writeToStream(`  "version": 2,\n`);
+                            await writeToStream(`  "exportedAt": "${new Date().toISOString()}",\n`);
+                            await writeToStream('  "data": {\n');
 
-                        if (!result.success) {
-                            Logger.error('Streaming export worker failed:', result.error);
+                            for (let i = 0; i < tableInfo.length; i++) {
+                                const table = tableInfo[i];
+                                const keyName = table.table.replace(/_([a-z])/g, (_: string, c: string) => c.toUpperCase());
+                                await writeToStream(`    "${keyName}": [`);
+
+                                let offset = 0;
+                                let wroteRow = false;
+                                let hasMore = true;
+
+                                while (hasMore) {
+                                    let chunk = await model.exportTableChunk(table.table, table.whereClause, CHUNK_SIZE, offset);
+                                    // Store raw length BEFORE filtering to determine if more data exists
+                                    const rawLength = chunk.length;
+
+                                    if (table.table === 'settings') {
+                                        chunk = (chunk as any[]).filter((s) => s.key !== SETTING_KEYS.REMOTE.KEY);
+                                    }
+
+                                    if (chunk.length > 0) {
+                                        const chunkStr = JSON.stringify(chunk);
+                                        const inner = chunkStr.length > 2 ? chunkStr.slice(1, -1) : '';
+                                        if (inner) {
+                                            if (wroteRow) await writeToStream(',');
+                                            await writeToStream(inner);
+                                            wroteRow = true;
+                                        }
+                                    }
+
+                                    offset += CHUNK_SIZE;
+                                    // Use raw length (before filtering) to determine if more rows exist
+                                    hasMore = rawLength === CHUNK_SIZE;
+                                }
+
+                                await writeToStream(']');
+                                if (i < tableInfo.length - 1) {
+                                    await writeToStream(',\n');
+                                } else {
+                                    await writeToStream('\n');
+                                }
+                            }
+
+                            await writeToStream('  }\n');
+                            await writeToStream('}\n');
+                            await new Promise<void>((resolve, reject) => {
+                                stream.end(() => resolve());
+                                stream.once('error', reject);
+                            });
+                        } catch (err: any) {
+                            stream.destroy();
+                            Logger.error('Streaming export failed:', err?.message || err);
                             return false;
                         }
                     } else {
@@ -87,11 +143,13 @@ export class ExportController extends BaseController {
                 try {
                     const fileContent = await fs.promises.readFile(filePaths[0], 'utf8');
                     const data = JSON.parse(fileContent);
-                    if (!data.accounts && !data.transactions) {
+                    // Support both v1 format (top-level accounts/transactions) and v2 format (data.accounts/data.transactions)
+                    const hasData = (data.accounts || data.transactions) || (data.data && (data.data.accounts || data.data.transactions));
+                    if (!hasData) {
                         return { success: false, message: 'Invalid backup file format' };
                     }
-                    await this.getFinanceModel().importData(data);
-                    return { success: true, message: 'Data imported successfully!' };
+                    const result = await this.getFinanceModel().importData(data);
+                    return result;
                 } catch (err: any) {
                     Logger.error('Import error:', err);
                     return { success: false, message: `Import failed: ${err.message}` };
@@ -109,12 +167,14 @@ export class ExportController extends BaseController {
                     if (canceled || !filePath) return false;
 
                     const model = this.getFinanceModel();
+                    const goalContributions = await all(`SELECT * FROM goal_contributions ORDER BY contributed_at DESC`);
                     const sheets = [
                         { name: 'Accounts', data: await model.getAllAccounts(), headers: ['id', 'name', 'type', 'balance', 'initial_balance', 'currency', 'status'] },
                         { name: 'Transactions', data: await model.getAllTransactions(), headers: ['id', 'start_date', 'type', 'category', 'amount', 'currency', 'account_id', 'to_account_id', 'description', 'frequency', 'is_active'] },
                         { name: 'Categories', data: await model.getAllCategories(), headers: ['id', 'type', 'name', 'status', 'is_default', 'color', 'icon'] },
                         { name: 'Budgets', data: await model.getAllBudgets(), headers: ['id', 'category', 'amount', 'period', 'start_date', 'end_date', 'created_at'] },
                         { name: 'Goals', data: await model.getAllGoals(), headers: ['id', 'name', 'description', 'target_amount', 'current_amount', 'monthly_contribution', 'target_date', 'status', 'priority'] },
+                        { name: 'Goal Contributions', data: goalContributions, headers: ['id', 'goal_id', 'amount', 'source', 'notes', 'contributed_at'] },
                         { name: 'Recurring Charges', data: await model.getAllRecurringCharges(), headers: ['id', 'category', 'name', 'amount', 'frequency', 'due_day', 'next_due_date', 'is_active', 'notes'] },
                         { name: 'Bill Types', data: await model.getBillTypes(), headers: ['id', 'name', 'unit_name', 'cost_per_unit', 'category_name', 'account_id', 'auto_transaction'] },
                         { name: 'Bill Readings', data: await model.getBillReadings({}), headers: ['id', 'bill_type_id', 'date', 'units_used', 'total_cost', 'notes'] },
