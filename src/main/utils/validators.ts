@@ -31,7 +31,7 @@ export function validateAmount(val: unknown, allowNegative: boolean = false): nu
   if (!allowNegative && num < 0) {
     throw new Error('Amount cannot be negative');
   }
-  // Round to 2 decimal places to avoid floating-point precision issues
+
   return Math.round(num * 100) / 100;
 }
 
@@ -146,11 +146,11 @@ export const EntityValidators: {
         'start_date',
         'account_id',
       ]);
-      // Category is mandatory unless it's a transfer
+
       if (data.type !== 'transfer') {
         validateRequired(data as Record<string, unknown>, ['category']);
       }
-      // To Account is mandatory for transfers
+
       if (data.type === 'transfer') {
         validateRequired(data as Record<string, unknown>, ['to_account_id']);
       }
@@ -159,9 +159,7 @@ export const EntityValidators: {
       validateEnum(data.type, ['income', 'expense', 'transfer', 'asset', 'liability'], 'type');
     }
 
-    // Enforce "Transfer" best practice: Transfers should not have a user-defined category.
     if (data.type === 'transfer') {
-      // We use 'as any' because Partial<T> fields are optional but we want to explicitly set them to null
       (data as any).category = null;
       (data as any).category_id = null;
     }
@@ -174,7 +172,7 @@ export const EntityValidators: {
     }
     if (data.start_date) {
       // @ts-ignore - validateDate returns string | null, but we need string for strict types here if present?
-      // Actually types.ts defines start_date as string. validateDate returns string | null.
+
       const d = validateDate(data.start_date, 'start_date');
       if (d) data.start_date = d;
     }
@@ -197,7 +195,7 @@ export const EntityValidators: {
       );
     }
     if (data.balance !== undefined) {
-      data.balance = validateAmount(data.balance, true); // Allow negative for liabilities
+      data.balance = validateAmount(data.balance, true);
     }
     if (data.initial_balance !== undefined) {
       data.initial_balance = validateAmount(data.initial_balance, true);

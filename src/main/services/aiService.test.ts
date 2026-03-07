@@ -8,7 +8,6 @@ describe('AIService', () => {
 
   describe('_replaceTemplate', () => {
     it('should replace template variables correctly', () => {
-      // Accessing private method for testing purpose
       const template = 'Hello {{name}}, you spent {{amount}} on {{category}}.';
       const data = { name: 'User', amount: '100', category: 'Food' };
 

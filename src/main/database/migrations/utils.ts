@@ -10,10 +10,6 @@
 import type { DbHelpers } from '../helpers';
 import type { ColumnInfo } from '../types';
 
-// =============================================================================
-// TABLE INFORMATION HELPERS
-// =============================================================================
-
 /**
  * Checks if a specific column exists in a table.
  *
@@ -42,10 +38,6 @@ export async function getColumnNames(all: DbHelpers['all'], table: string): Prom
   const columns = await all<ColumnInfo>(`PRAGMA table_info(${table})`);
   return columns.map((c) => c.name);
 }
-
-// =============================================================================
-// COLUMN MODIFICATION HELPERS
-// =============================================================================
 
 /**
  * Adds a single column to a table if it does not already exist.
@@ -101,10 +93,6 @@ export async function addColumns(
 
   return added;
 }
-
-// =============================================================================
-// INDEX & TRIGGER HELPERS
-// =============================================================================
 
 /**
  * Creates a database index if it does not exist.

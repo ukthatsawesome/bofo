@@ -1,11 +1,3 @@
-/*
- * Finance Model - Streamlined CRUD with Validation
- *
- * This module provides database operations for all financial entities.
- * Uses generic CRUD patterns to reduce code duplication.
- * Includes automatic validation via the validators module.
- */
-
 import { dbInstance, dbInitialized } from '../database/db';
 import { createDbHelpers } from '../database/helpers';
 import { EntityValidators, validateAmount, sanitizeData } from '../utils/validators';
@@ -32,10 +24,6 @@ import { Mutex } from '../utils/mutex';
 
 const { run, get, all } = createDbHelpers(dbInstance);
 const writeMutex = new Mutex();
-
-// =============================================================================
-// INTERNAL HELPERS
-// =============================================================================
 
 /**
  * Cache-friendly structure for exchange rates to avoid N+1 queries in loops.
@@ -72,15 +60,16 @@ const getBaseCurrency = async (): Promise<string> => {
 /**
  * Converts an amount to the base currency using a provided rate map.
  */
-const convertToBase = async (amount: number, currency: string, baseCurrency: string, rateMap: RateMap): Promise<number> => {
+const convertToBase = async (
+  amount: number,
+  currency: string,
+  baseCurrency: string,
+  rateMap: RateMap
+): Promise<number> => {
   if (currency === baseCurrency) return amount;
   const rate = rateMap[`${currency}-${baseCurrency}`] || 1;
   return amount * rate;
 };
-
-// =============================================================================
-// ENTITY SCHEMAS
-// =============================================================================
 
 export type EntityType =
   | 'transaction'
@@ -110,64 +99,78 @@ const ENTITY_SCHEMAS: Record<EntityType, EntitySchema<any>> = {
   transaction: {
     table: 'transactions',
     fields: [
-      'account_id', 'to_account_id', 'type', 'category', 'category_id',
-      'amount', 'description', 'attachment', 'frequency', 'start_date',
-      'end_date', 'currency', 'exchange_rate', 'to_amount', 'base_currency',
-      'base_amount', 'tags', 'is_active',
+      'account_id',
+      'to_account_id',
+      'type',
+      'category',
+      'category_id',
+      'amount',
+      'description',
+      'attachment',
+      'frequency',
+      'start_date',
+      'end_date',
+      'currency',
+      'exchange_rate',
+      'to_amount',
+      'base_currency',
+      'base_amount',
+      'tags',
+      'is_active',
     ],
     defaults: { frequency: 'once', is_active: 1, tags: '', exchange_rate: 1 },
     orderBy: 'start_date DESC',
     beforeWrite: async (data: Transaction, isCreate: boolean) => {
-      // Fetch user's preference for base currency from settings
-      const setting = await get<{ value: string }>('SELECT value FROM settings WHERE key = ?', [SETTING_KEYS.CURRENCY.BASE]);
+      const setting = await get<{ value: string }>('SELECT value FROM settings WHERE key = ?', [
+        SETTING_KEYS.CURRENCY.BASE,
+      ]);
       const BASE_CURRENCY = setting?.value || DEFAULT_CURRENCY;
 
-      // 1. Handle Transfer Category
       if (data.type === 'transfer') {
-        let transferCat = await get<Category>(`SELECT * FROM categories WHERE type = 'transfer' AND name = 'Transfer' LIMIT 1`);
+        let transferCat = await get<Category>(
+          `SELECT * FROM categories WHERE type = 'transfer' AND name = 'Transfer' LIMIT 1`
+        );
         if (!transferCat) {
-          const result = await run(`INSERT INTO categories (type, name, status, color, icon) VALUES ('transfer', 'Transfer', 'active', '#2563eb', 'arrow-right-left')`);
+          const result = await run(
+            `INSERT INTO categories (type, name, status, color, icon) VALUES ('transfer', 'Transfer', 'active', '#2563eb', 'arrow-right-left')`
+          );
           transferCat = { id: result.id, name: 'Transfer', type: 'transfer' } as Category;
         }
         data.category = transferCat.name;
         data.category_id = transferCat.id;
       }
 
-      // 2. Handle Currency Conversion & Exchange Rates
       if (data.account_id) {
-        // Fetch source account
-        const sourceAcc = await get<Account>('SELECT currency FROM accounts WHERE id = ?', [data.account_id]);
+        const sourceAcc = await get<Account>('SELECT currency FROM accounts WHERE id = ?', [
+          data.account_id,
+        ]);
 
         if (sourceAcc) {
-          // Set transaction currency to account currency if available, else fallback to user's base currency
           data.currency = sourceAcc.currency || BASE_CURRENCY;
 
-          // If Transfer, check destination account
           if (data.type === 'transfer' && data.to_account_id) {
-            const destAcc = await get<Account>('SELECT currency FROM accounts WHERE id = ?', [data.to_account_id]);
+            const destAcc = await get<Account>('SELECT currency FROM accounts WHERE id = ?', [
+              data.to_account_id,
+            ]);
             if (destAcc) {
               if (destAcc.currency !== sourceAcc.currency) {
-                // Currency Mismatch: Use getExchangeRate which handles direct + reverse lookups
-                const rate = await FinanceModel.getExchangeRate(sourceAcc.currency, destAcc.currency) || 1;
-                // If user provided a specific rate for this transaction, use it, otherwise use DB rate
+                const rate =
+                  (await FinanceModel.getExchangeRate(sourceAcc.currency, destAcc.currency)) || 1;
+
                 if (!data.exchange_rate || data.exchange_rate === 1) {
                   data.exchange_rate = rate;
                 }
 
-                // Calculate to_amount
                 data.to_amount = Math.round(data.amount * data.exchange_rate * 100) / 100;
               } else {
-                // Same currency
                 data.exchange_rate = 1;
                 data.to_amount = data.amount;
               }
             }
           } else {
-            // Not a transfer, or no dest account
-            data.to_amount = null; // Ensure null if not transfer
+            data.to_amount = null;
           }
 
-          // 3. Base Currency Normalization (for aggregation)
           if (data.currency === BASE_CURRENCY) {
             data.base_amount = data.amount;
             data.base_currency = BASE_CURRENCY;
@@ -176,7 +179,6 @@ const ENTITY_SCHEMAS: Record<EntityType, EntitySchema<any>> = {
             if (toBaseRate) {
               data.base_amount = Math.round(data.amount * toBaseRate * 100) / 100;
             } else {
-              // Fallback: If no rate found, keep as is (imperfect, but better than 0)
               data.base_amount = data.amount;
             }
             data.base_currency = BASE_CURRENCY;
@@ -187,7 +189,6 @@ const ENTITY_SCHEMAS: Record<EntityType, EntitySchema<any>> = {
       return data;
     },
     afterWrite: async (data: Transaction) => {
-      // Balance sync handled by application code (after Migration 25 removed triggers)
       if (data.account_id) {
         await FinanceModel.syncAccountBalance(data.account_id);
       }
@@ -196,14 +197,13 @@ const ENTITY_SCHEMAS: Record<EntityType, EntitySchema<any>> = {
       }
     },
     afterDelete: async (data: Transaction) => {
-      // Balance sync handled by application code (after Migration 25 removed triggers)
       if (data.account_id) {
         await FinanceModel.syncAccountBalance(data.account_id);
       }
       if (data.to_account_id) {
         await FinanceModel.syncAccountBalance(data.to_account_id);
       }
-    }
+    },
   },
   account: {
     table: 'accounts',
@@ -211,10 +211,12 @@ const ENTITY_SCHEMAS: Record<EntityType, EntitySchema<any>> = {
     defaults: { status: 'active', balance: 0 },
     beforeWrite: async (data: Account) => {
       if (!data.currency) {
-        const setting = await get<{ value: string }>('SELECT value FROM settings WHERE key = ?', [SETTING_KEYS.CURRENCY.BASE]);
+        const setting = await get<{ value: string }>('SELECT value FROM settings WHERE key = ?', [
+          SETTING_KEYS.CURRENCY.BASE,
+        ]);
         data.currency = setting?.value || DEFAULT_CURRENCY;
       }
-      // If initial_balance is not set but balance is provided, use balance as initial
+
       if (data.initial_balance === undefined && data.balance !== undefined) {
         data.initial_balance = data.balance;
       }
@@ -250,7 +252,9 @@ const ENTITY_SCHEMAS: Record<EntityType, EntitySchema<any>> = {
     defaults: { period: 'monthly' },
     beforeWrite: async (data: Budget) => {
       if (!data.currency) {
-        const setting = await get<{ value: string }>('SELECT value FROM settings WHERE key = ?', [SETTING_KEYS.CURRENCY.BASE]);
+        const setting = await get<{ value: string }>('SELECT value FROM settings WHERE key = ?', [
+          SETTING_KEYS.CURRENCY.BASE,
+        ]);
         data.currency = setting?.value || DEFAULT_CURRENCY;
       }
       return data;
@@ -260,16 +264,33 @@ const ENTITY_SCHEMAS: Record<EntityType, EntitySchema<any>> = {
   goal: {
     table: 'goals',
     fields: [
-      'name', 'description', 'target_amount', 'current_amount', 'monthly_contribution',
-      'icon', 'color', 'priority', 'target_date', 'status', 'auto_contribute', 'currency',
+      'name',
+      'description',
+      'target_amount',
+      'current_amount',
+      'monthly_contribution',
+      'icon',
+      'color',
+      'priority',
+      'target_date',
+      'status',
+      'auto_contribute',
+      'currency',
     ],
     defaults: {
-      current_amount: 0, monthly_contribution: 0, icon: 'target', color: '#a29bfe',
-      priority: 1, status: 'active', auto_contribute: 0,
+      current_amount: 0,
+      monthly_contribution: 0,
+      icon: 'target',
+      color: '#a29bfe',
+      priority: 1,
+      status: 'active',
+      auto_contribute: 0,
     },
     beforeWrite: async (data: Goal) => {
       if (!data.currency) {
-        const setting = await get<{ value: string }>('SELECT value FROM settings WHERE key = ?', [SETTING_KEYS.CURRENCY.BASE]);
+        const setting = await get<{ value: string }>('SELECT value FROM settings WHERE key = ?', [
+          SETTING_KEYS.CURRENCY.BASE,
+        ]);
         data.currency = setting?.value || DEFAULT_CURRENCY;
       }
       return data;
@@ -279,13 +300,23 @@ const ENTITY_SCHEMAS: Record<EntityType, EntitySchema<any>> = {
   recurringCharge: {
     table: 'recurring_charges',
     fields: [
-      'category', 'category_id', 'name', 'amount', 'frequency', 'due_day',
-      'next_due_date', 'is_active', 'notes', 'currency',
+      'category',
+      'category_id',
+      'name',
+      'amount',
+      'frequency',
+      'due_day',
+      'next_due_date',
+      'is_active',
+      'notes',
+      'currency',
     ],
     defaults: { frequency: 'monthly', due_day: 1, is_active: 1 },
     beforeWrite: async (data: RecurringCharge) => {
       if (!data.currency) {
-        const setting = await get<{ value: string }>('SELECT value FROM settings WHERE key = ?', [SETTING_KEYS.CURRENCY.BASE]);
+        const setting = await get<{ value: string }>('SELECT value FROM settings WHERE key = ?', [
+          SETTING_KEYS.CURRENCY.BASE,
+        ]);
         data.currency = setting?.value || DEFAULT_CURRENCY;
       }
       return data;
@@ -295,16 +326,28 @@ const ENTITY_SCHEMAS: Record<EntityType, EntitySchema<any>> = {
   billType: {
     table: 'bill_types',
     fields: [
-      'name', 'unit_name', 'cost_per_unit', 'category_name', 'account_id',
-      'auto_transaction', 'icon', 'color', 'currency',
+      'name',
+      'unit_name',
+      'cost_per_unit',
+      'category_name',
+      'account_id',
+      'auto_transaction',
+      'icon',
+      'color',
+      'currency',
     ],
     defaults: {
-      unit_name: 'Units', cost_per_unit: 0, auto_transaction: 0,
-      icon: 'file-text', color: '#7c3aed',
+      unit_name: 'Units',
+      cost_per_unit: 0,
+      auto_transaction: 0,
+      icon: 'file-text',
+      color: '#7c3aed',
     },
     beforeWrite: async (data: BillType) => {
       if (!data.currency) {
-        const setting = await get<{ value: string }>('SELECT value FROM settings WHERE key = ?', [SETTING_KEYS.CURRENCY.BASE]);
+        const setting = await get<{ value: string }>('SELECT value FROM settings WHERE key = ?', [
+          SETTING_KEYS.CURRENCY.BASE,
+        ]);
         data.currency = setting?.value || DEFAULT_CURRENCY;
       }
       return data;
@@ -330,17 +373,20 @@ const ENTITY_SCHEMAS: Record<EntityType, EntitySchema<any>> = {
           accountId = defaultAcc?.id || null;
         }
         if (accountId) {
-          // Use internal create to avoid deadlock (mutex is already held by parent create)
-          await FinanceModel.createInternal('transaction', {
-            account_id: accountId,
-            type: 'expense',
-            category: billType.category_name,
-            amount: data.total_cost,
-            description: `Bill: ${billType.name} (${data.units_used} units)`,
-            frequency: 'once',
-            start_date: data.date,
-            tags: 'bill-auto',
-          }, { source: 'SYSTEM', skipAudit: false });
+          await FinanceModel.createInternal(
+            'transaction',
+            {
+              account_id: accountId,
+              type: 'expense',
+              category: billType.category_name,
+              amount: data.total_cost,
+              description: `Bill: ${billType.name} (${data.units_used} units)`,
+              frequency: 'once',
+              start_date: data.date,
+              tags: 'bill-auto',
+            },
+            { source: 'SYSTEM', skipAudit: false }
+          );
         }
       }
     },
@@ -365,15 +411,15 @@ const ENTITY_SCHEMAS: Record<EntityType, EntitySchema<any>> = {
   },
 };
 
-// =============================================================================
-// GENERIC CRUD OPERATIONS
-// =============================================================================
-
 export const FinanceModel = {
   /**
    * Internal Create (No locking, assumes transaction/lock exists)
    */
-  createInternal: async (entityType: EntityType, data: any, auditContext: any): Promise<{ id: number; changes: number }> => {
+  createInternal: async (
+    entityType: EntityType,
+    data: any,
+    auditContext: any
+  ): Promise<{ id: number; changes: number }> => {
     const schema = ENTITY_SCHEMAS[entityType];
     if (!schema) throw new Error(`Unknown entity type: ${entityType}`);
 
@@ -384,22 +430,27 @@ export const FinanceModel = {
       data = await schema.beforeWrite(data, true);
     }
 
-
-
-    // Resolve category name from category_id for transactions
-    if (entityType === 'transaction' && data.category_id && (!data.category || data.category === 'Uncategorized')) {
-      const cat = await get<{ name: string }>('SELECT name FROM categories WHERE id = ?', [data.category_id]);
+    if (
+      entityType === 'transaction' &&
+      data.category_id &&
+      (!data.category || data.category === 'Uncategorized')
+    ) {
+      const cat = await get<{ name: string }>('SELECT name FROM categories WHERE id = ?', [
+        data.category_id,
+      ]);
       if (cat) data.category = cat.name;
     }
 
     const finalData = { ...schema.defaults, ...sanitizeData(data, schema.fields) };
 
-
     const fields = Object.keys(finalData);
     const placeholders = fields.map(() => '?').join(', ');
     const values = fields.map((f) => finalData[f]);
 
-    const result = await run(`INSERT INTO ${schema.table} (${fields.join(', ')}) VALUES (${placeholders})`, values);
+    const result = await run(
+      `INSERT INTO ${schema.table} (${fields.join(', ')}) VALUES (${placeholders})`,
+      values
+    );
 
     if (!auditContext?.skipAudit) {
       await FinanceModel.logAudit(entityType, result.id, 'CREATE', null, finalData, auditContext);
@@ -413,7 +464,11 @@ export const FinanceModel = {
   /**
    * Create a new entity (Atomic & Serialized)
    */
-  create: async (entityType: EntityType, data: any, auditContext: { source?: string; metadata?: any; skipAudit?: boolean } = {}): Promise<{ id: number; changes: number }> => {
+  create: async (
+    entityType: EntityType,
+    data: any,
+    auditContext: { source?: string; metadata?: any; skipAudit?: boolean } = {}
+  ): Promise<{ id: number; changes: number }> => {
     await dbInitialized;
     return await writeMutex.runExclusive(async () => {
       await run('BEGIN TRANSACTION');
@@ -608,14 +663,14 @@ export const FinanceModel = {
     );
 
     return {
-      data: rows.map(r => ({
+      data: rows.map((r) => ({
         ...r,
         changes: r.changes ? JSON.parse(r.changes) : null,
-        metadata: r.metadata ? JSON.parse(r.metadata) : null
+        metadata: r.metadata ? JSON.parse(r.metadata) : null,
       })),
       total: countResult?.count || 0,
       limit,
-      offset
+      offset,
     };
   },
 
@@ -671,13 +726,11 @@ export const FinanceModel = {
     return await FinanceModel.delete('goal', id, true);
   },
 
-  // =========================================================================
-  // SPECIALIZED OPERATIONS
-  // =========================================================================
-
   syncAccountBalance: async (accountId: number) => {
     await dbInitialized;
-    const acc = await get<Account>(`SELECT initial_balance FROM accounts WHERE id = ?`, [accountId]);
+    const acc = await get<Account>(`SELECT initial_balance FROM accounts WHERE id = ?`, [
+      accountId,
+    ]);
     if (!acc) return;
 
     const agg = await get<{ total_in: number; total_out: number }>(
@@ -702,7 +755,8 @@ export const FinanceModel = {
     if (!agg) return;
 
     const balance =
-      Math.round(((acc.initial_balance || 0) + (agg.total_in || 0) - (agg.total_out || 0)) * 100) / 100;
+      Math.round(((acc.initial_balance || 0) + (agg.total_in || 0) - (agg.total_out || 0)) * 100) /
+      100;
     return await run(`UPDATE accounts SET balance = ? WHERE id = ?`, [balance, accountId]);
   },
 
@@ -718,17 +772,15 @@ export const FinanceModel = {
     for (const account of accounts) {
       const oldBalance = account.balance;
 
-      // Recalculate this account's balance
       await FinanceModel.syncAccountBalance(account.id);
 
-      // Fetch the new balance
       const updated = await get<Account>(`SELECT balance FROM accounts WHERE id = ?`, [account.id]);
       const newBalance = updated?.balance || 0;
 
       results.push({
         accountId: account.id,
         oldBalance: oldBalance || 0,
-        newBalance
+        newBalance,
       });
     }
 
@@ -753,7 +805,15 @@ export const FinanceModel = {
     const limit = Math.min(Math.max(1, options.limit || 50), 500);
     const offset = Math.max(0, options.offset || 0);
     const activeOnly = options.activeOnly !== false;
-    const allowedSorts = ['start_date', 'amount', 'category', 'created_at', 'category_name', 'account_name', 'description'];
+    const allowedSorts = [
+      'start_date',
+      'amount',
+      'category',
+      'created_at',
+      'category_name',
+      'account_name',
+      'description',
+    ];
     const sortBy = allowedSorts.includes(options.sortBy || '') ? options.sortBy : 'start_date';
     const sortOrder = (options.sortOrder || 'DESC').toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
 
@@ -884,7 +944,14 @@ export const FinanceModel = {
 
     const whereClause = `WHERE ${conditions.join(' AND ')}`;
 
-    const rows = await all<{ currency: string; income: number; expense: number; transfers: number; count: number }>(`
+    const rows = await all<{
+      currency: string;
+      income: number;
+      expense: number;
+      transfers: number;
+      count: number;
+    }>(
+      `
       SELECT 
         COALESCE(a.currency, '${DEFAULT_CURRENCY}') as currency,
         COALESCE(SUM(CASE WHEN t.type = 'income' THEN t.amount ELSE 0 END), 0) as income,
@@ -895,21 +962,23 @@ export const FinanceModel = {
       LEFT JOIN accounts a ON t.account_id = a.id
       ${whereClause}
       GROUP BY COALESCE(a.currency, '${DEFAULT_CURRENCY}')
-    `, params);
+    `,
+      params
+    );
 
     const totalStats = {
       income: 0,
       expense: 0,
       transfers: 0,
       count: 0,
-      byCurrency: {} as Record<string, { income: number; expense: number; transfers: number }>
+      byCurrency: {} as Record<string, { income: number; expense: number; transfers: number }>,
     };
 
     const baseCurrency = await getBaseCurrency();
     const rateMap = await getExchangeRateMap();
 
     for (const r of rows) {
-      const rate = r.currency === baseCurrency ? 1 : (rateMap[`${r.currency}-${baseCurrency}`] || 1);
+      const rate = r.currency === baseCurrency ? 1 : rateMap[`${r.currency}-${baseCurrency}`] || 1;
 
       const convIncome = r.income * rate;
       const convExpense = r.expense * rate;
@@ -923,12 +992,12 @@ export const FinanceModel = {
       totalStats.byCurrency[r.currency] = {
         income: r.income,
         expense: r.expense,
-        transfers: r.transfers
+        transfers: r.transfers,
       };
     }
 
-    // Top Categories (Calculated in base currency)
-    const catRows = await all<{ category: string; amount: number; currency: string }>(`
+    const catRows = await all<{ category: string; amount: number; currency: string }>(
+      `
       SELECT 
         COALESCE(c.name, t.category) as category,
         t.amount,
@@ -936,11 +1005,14 @@ export const FinanceModel = {
       FROM transactions t
       LEFT JOIN categories c ON t.category_id = c.id
       ${whereClause} AND t.type = 'expense'
-    `, params);
+    `,
+      params
+    );
 
     const catStats: Record<string, number> = {};
     for (const row of catRows) {
-      const rate = row.currency === baseCurrency ? 1 : (rateMap[`${row.currency}-${baseCurrency}`] || 1);
+      const rate =
+        row.currency === baseCurrency ? 1 : rateMap[`${row.currency}-${baseCurrency}`] || 1;
       const convAmount = row.amount * rate;
       catStats[row.category] = (catStats[row.category] || 0) + convAmount;
     }
@@ -949,7 +1021,7 @@ export const FinanceModel = {
       .map(([category, amount]) => ({
         category,
         amount,
-        percent: totalStats.expense > 0 ? ((amount / totalStats.expense) * 100).toFixed(1) : '0'
+        percent: totalStats.expense > 0 ? ((amount / totalStats.expense) * 100).toFixed(1) : '0',
       }))
       .sort((a, b) => b.amount - a.amount)
       .slice(0, 5);
@@ -964,14 +1036,17 @@ export const FinanceModel = {
 
     const results = [];
     for (const b of budgets) {
-      const rows = await all<{ amount: number; currency: string }>(`
+      const rows = await all<{ amount: number; currency: string }>(
+        `
         SELECT t.amount, COALESCE(t.currency, ?) as currency
         FROM transactions t
         LEFT JOIN categories c ON t.category_id = c.id
         WHERE t.type = 'expense' AND t.is_active = 1 AND t.deleted_at IS NULL
           AND COALESCE(c.name, t.category) = ?
           AND t.start_date BETWEEN ? AND ?
-      `, [baseCurrency, b.category, b.start_date, b.end_date]);
+      `,
+        [baseCurrency, b.category, b.start_date, b.end_date]
+      );
 
       let spent = 0;
       for (const r of rows) {
@@ -1006,13 +1081,13 @@ export const FinanceModel = {
       [baseCurrency, startDate, endDate, baseCurrency]
     );
 
-    // Use the rate map helper for efficiency
     const rateMap = await getExchangeRateMap();
     let totalIncome = 0;
     let totalExpense = 0;
 
     for (const row of rows) {
-      const rate = row.currency === baseCurrency ? 1 : (rateMap[`${row.currency}-${baseCurrency}`] || 1);
+      const rate =
+        row.currency === baseCurrency ? 1 : rateMap[`${row.currency}-${baseCurrency}`] || 1;
       totalIncome += row.income * rate;
       totalExpense += row.expense * rate;
     }
@@ -1050,7 +1125,6 @@ export const FinanceModel = {
   getAllGoals: async () => FinanceModel.getAll<Goal>('goal'),
   getAllRecurringCharges: async () => FinanceModel.getAll<RecurringCharge>('recurringCharge'),
 
-  // Settings
   getAllSettings: async () => {
     const rows = await all<Setting>(`SELECT * FROM settings`);
     const settings: Record<string, string> = {};
@@ -1059,7 +1133,7 @@ export const FinanceModel = {
   },
 
   updateSetting: async (key: string, value: string) => {
-    const defaultSetting = DEFAULT_SETTINGS.find(s => s.key === key);
+    const defaultSetting = DEFAULT_SETTINGS.find((s) => s.key === key);
     const category = defaultSetting?.category || 'general';
 
     return await run(
@@ -1092,7 +1166,8 @@ export const FinanceModel = {
     const dbSettings: any = {};
     if (settings.url) dbSettings[SETTING_KEYS.AI.URL] = settings.url;
     if (settings.model) dbSettings[SETTING_KEYS.AI.MODEL] = settings.model;
-    if (settings.enabled !== undefined) dbSettings[SETTING_KEYS.AI.ENABLED] = String(settings.enabled);
+    if (settings.enabled !== undefined)
+      dbSettings[SETTING_KEYS.AI.ENABLED] = String(settings.enabled);
     if (settings.promptTx) dbSettings[SETTING_KEYS.AI.PROMPT_TX] = settings.promptTx;
     if (settings.promptInsight) dbSettings[SETTING_KEYS.AI.PROMPT_INSIGHT] = settings.promptInsight;
     if (settings.promptChat) dbSettings[SETTING_KEYS.AI.PROMPT_CHAT] = settings.promptChat;
@@ -1129,7 +1204,6 @@ export const FinanceModel = {
     });
   },
 
-  // Goals
   contributeToGoal: async (
     goalId: number,
     amount: number,
@@ -1139,7 +1213,9 @@ export const FinanceModel = {
     amount = validateAmount(amount);
     await FinanceModel.create('goalContribution', { goal_id: goalId, amount, source, notes });
 
-    const goal = await get<Goal>(`SELECT current_amount, target_amount FROM goals WHERE id = ?`, [goalId]);
+    const goal = await get<Goal>(`SELECT current_amount, target_amount FROM goals WHERE id = ?`, [
+      goalId,
+    ]);
     if (!goal) throw new Error('Goal not found');
 
     const newAmount = Math.round(((goal.current_amount || 0) + amount) * 100) / 100;
@@ -1160,7 +1236,9 @@ export const FinanceModel = {
 
   getGoalsSummary: async () => {
     const baseCurrency = await getBaseCurrency();
-    const goals = await all<Goal & { currency?: string }>(`SELECT * FROM goals WHERE status = 'active'`);
+    const goals = await all<Goal & { currency?: string }>(
+      `SELECT * FROM goals WHERE status = 'active'`
+    );
     const rateMap = await getExchangeRateMap();
 
     let totalTarget = 0;
@@ -1228,7 +1306,12 @@ export const FinanceModel = {
     let monthlyTotal = 0;
 
     for (const c of charges) {
-      const convertedAmount = await convertToBase(c.amount, c.currency || baseCurrency, baseCurrency, rateMap);
+      const convertedAmount = await convertToBase(
+        c.amount,
+        c.currency || baseCurrency,
+        baseCurrency,
+        rateMap
+      );
 
       if (c.frequency === 'weekly') monthlyTotal += convertedAmount * 4.33;
       else if (c.frequency === 'monthly') monthlyTotal += convertedAmount;
@@ -1238,7 +1321,6 @@ export const FinanceModel = {
     return Math.round(monthlyTotal * 100) / 100;
   },
 
-  // Bills
   getBillTypes: async () => {
     return await all<BillType & { account_name: string }>(`
       SELECT b.*, a.name as account_name 
@@ -1274,7 +1356,13 @@ export const FinanceModel = {
   },
 
   getBillReadingsPaginated: async (options: any) => {
-    return { data: [], total: 0, limit: options.limit || 50, offset: options.offset || 0, hasMore: false };
+    return {
+      data: [],
+      total: 0,
+      limit: options.limit || 50,
+      offset: options.offset || 0,
+      hasMore: false,
+    };
   },
 
   getBillProjections: async () => {
@@ -1294,23 +1382,26 @@ export const FinanceModel = {
     const lastMonthRaw = new Date(now.getFullYear(), now.getMonth() - 1, 1);
     const lastMonth = lastMonthRaw.toISOString().slice(0, 7);
 
-    const actuals = await all<any>(`
+    const actuals = await all<any>(
+      `
       SELECT 
         bill_type_id,
         SUM(CASE WHEN strftime('%Y-%m', date) = ? THEN total_cost ELSE 0 END) as this_month,
         SUM(CASE WHEN strftime('%Y-%m', date) = ? THEN total_cost ELSE 0 END) as last_month
       FROM bill_readings
       GROUP BY bill_type_id
-    `, [thisMonth, lastMonth]);
+    `,
+      [thisMonth, lastMonth]
+    );
 
-    return billTypes.map(bt => {
-      const actual = actuals.find(a => a.bill_type_id === bt.id);
+    return billTypes.map((bt) => {
+      const actual = actuals.find((a) => a.bill_type_id === bt.id);
       return {
         name: bt.name,
         color: bt.color || '#7c3aed',
         projected_cost: bt.avg_cost || (bt.avg_units || 0) * (bt.cost_per_unit || 0),
         this_month_actual: actual?.this_month || 0,
-        last_month_actual: actual?.last_month || 0
+        last_month_actual: actual?.last_month || 0,
       };
     });
   },
@@ -1322,27 +1413,34 @@ export const FinanceModel = {
   getExchangeRate: async (from: string, to: string): Promise<number | null> => {
     if (from === to) return 1;
 
-    const directRate = await get<{ rate: number }>(`
+    const directRate = await get<{ rate: number }>(
+      `
       SELECT rate FROM exchange_rates WHERE from_currency = ? AND to_currency = ?
-    `, [from, to]);
+    `,
+      [from, to]
+    );
     if (directRate?.rate) return directRate.rate;
 
-    const reverseRate = await get<{ rate: number }>(`
+    const reverseRate = await get<{ rate: number }>(
+      `
       SELECT rate FROM exchange_rates WHERE from_currency = ? AND to_currency = ?
-    `, [to, from]);
+    `,
+      [to, from]
+    );
     if (reverseRate?.rate && reverseRate.rate !== 0) {
       return 1 / reverseRate.rate;
     }
 
-    // Cross-rate: find a common intermediary currency X where X→from and X→to both exist
-    // e.g., NPR→SGD and NPR→USD exist → SGD→USD = (NPR→USD) / (NPR→SGD)
-    const crossRate = await get<{ rate_to: number; rate_from: number }>(`
+    const crossRate = await get<{ rate_to: number; rate_from: number }>(
+      `
       SELECT r1.rate as rate_from, r2.rate as rate_to
       FROM exchange_rates r1
       JOIN exchange_rates r2 ON r1.from_currency = r2.from_currency
       WHERE r1.to_currency = ? AND r2.to_currency = ?
       LIMIT 1
-    `, [from, to]);
+    `,
+      [from, to]
+    );
     if (crossRate?.rate_from && crossRate.rate_from !== 0) {
       return crossRate.rate_to / crossRate.rate_from;
     }
@@ -1351,18 +1449,24 @@ export const FinanceModel = {
   },
 
   setExchangeRate: async (from: string, to: string, rate: number, source: string) => {
-    await run(`
+    await run(
+      `
       INSERT INTO exchange_rates (from_currency, to_currency, rate, source, updated_at)
       VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
       ON CONFLICT(from_currency, to_currency) DO UPDATE SET
         rate = excluded.rate,
         source = excluded.source,
         updated_at = CURRENT_TIMESTAMP
-    `, [from, to, rate, source]);
+    `,
+      [from, to, rate, source]
+    );
     return { success: true };
   },
 
-  setExchangeRatesBulk: async (rates: Array<{ from: string; to: string; rate: number }>, source: string) => {
+  setExchangeRatesBulk: async (
+    rates: Array<{ from: string; to: string; rate: number }>,
+    source: string
+  ) => {
     for (const { from, to, rate } of rates) {
       await FinanceModel.setExchangeRate(from, to, rate, source);
     }
@@ -1380,7 +1484,7 @@ export const FinanceModel = {
       UNION
       SELECT DISTINCT currency FROM transactions WHERE deleted_at IS NULL
     `);
-    const valid = currencies.map(c => c.currency).filter(Boolean);
+    const valid = currencies.map((c) => c.currency).filter(Boolean);
     return valid.length > 0 ? valid : [DEFAULT_CURRENCY];
   },
 
@@ -1396,7 +1500,7 @@ export const FinanceModel = {
         continue;
       }
       const rate = rateMap[`${currency}-${baseCurrency}`];
-      const convertedBalance = rate != null ? (acc.balance || 0) * rate : (acc.balance || 0);
+      const convertedBalance = rate != null ? (acc.balance || 0) * rate : acc.balance || 0;
       result.push({ ...acc, converted_balance: convertedBalance });
     }
     return result;
@@ -1435,7 +1539,8 @@ export const FinanceModel = {
       currency: string;
       transaction_count: number;
       total_amount: number;
-    }>(`
+    }>(
+      `
       SELECT c.id, c.name, c.type, c.color, c.icon,
         COALESCE(t.currency, ?) as currency,
         COUNT(t.id) as transaction_count,
@@ -1445,13 +1550,20 @@ export const FinanceModel = {
       WHERE c.deleted_at IS NULL
       GROUP BY c.id, COALESCE(t.currency, ?)
       ORDER BY c.name
-    `, [baseCurrency, baseCurrency]);
+    `,
+      [baseCurrency, baseCurrency]
+    );
 
     const rateMap = await getExchangeRateMap();
     const categoryMap = new Map<number, any>();
 
     for (const row of rows) {
-      const convertedAmount = await convertToBase(row.total_amount, row.currency, baseCurrency, rateMap);
+      const convertedAmount = await convertToBase(
+        row.total_amount,
+        row.currency,
+        baseCurrency,
+        rateMap
+      );
 
       const existing = categoryMap.get(row.id);
       if (existing) {
@@ -1473,7 +1585,7 @@ export const FinanceModel = {
     const result = Array.from(categoryMap.values());
     result.sort((a, b) => b.total_amount - a.total_amount);
 
-    return result.map(cat => ({
+    return result.map((cat) => ({
       ...cat,
       avg_amount: cat.transaction_count > 0 ? cat.total_amount / cat.transaction_count : 0,
     }));
@@ -1492,7 +1604,6 @@ export const FinanceModel = {
     const firstMonthStart = new Date(now.getFullYear(), now.getMonth() - (months - 1), 1);
     const startStr = firstMonthStart.toISOString().split('T')[0];
 
-    // Initial Balance from Accounts
     const accounts = await FinanceModel.getAllAccounts();
     let initialAccountBalance = 0;
     for (const a of accounts) {
@@ -1500,8 +1611,8 @@ export const FinanceModel = {
       initialAccountBalance += (a.initial_balance || 0) * rate;
     }
 
-    // Net Change from transactions before start date
-    const prePeriodStats = await all<{ currency: string; income: number; expense: number }>(`
+    const prePeriodStats = await all<{ currency: string; income: number; expense: number }>(
+      `
       SELECT 
         COALESCE(currency, ?) as currency, 
         SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END) as income,
@@ -1509,13 +1620,20 @@ export const FinanceModel = {
       FROM transactions 
       WHERE is_active = 1 AND start_date < ?
       GROUP BY COALESCE(currency, ?)
-    `, [baseCurrency, startStr, baseCurrency]);
+    `,
+      [baseCurrency, startStr, baseCurrency]
+    );
 
     let prePeriodNetChange = 0;
     for (const row of prePeriodStats) {
       const convertedIncome = await convertToBase(row.income, row.currency, baseCurrency, rateMap);
-      const convertedExpense = await convertToBase(row.expense, row.currency, baseCurrency, rateMap);
-      prePeriodNetChange += (convertedIncome - convertedExpense);
+      const convertedExpense = await convertToBase(
+        row.expense,
+        row.currency,
+        baseCurrency,
+        rateMap
+      );
+      prePeriodNetChange += convertedIncome - convertedExpense;
     }
 
     let runningNetWorth = initialAccountBalance + prePeriodNetChange;
@@ -1547,7 +1665,7 @@ export const FinanceModel = {
       summary: {
         totalIncome: income.reduce((a, b) => a + b, 0),
         totalExpense: expenses.reduce((a, b) => a + b, 0),
-      }
+      },
     };
   },
 
@@ -1559,7 +1677,8 @@ export const FinanceModel = {
       color: string;
       icon: string;
       currency: string;
-    }>(`
+    }>(
+      `
       SELECT 
         COALESCE(c.name, t.category) as category,
         c.color,
@@ -1574,10 +1693,15 @@ export const FinanceModel = {
         AND t.is_active = 1
       GROUP BY COALESCE(c.name, t.category), COALESCE(t.currency, ?)
       ORDER BY amount DESC
-    `, [baseCurrency, startDate, endDate, baseCurrency]);
+    `,
+      [baseCurrency, startDate, endDate, baseCurrency]
+    );
 
     const rateMap = await getExchangeRateMap();
-    const categoryMap = new Map<string, { category: string; amount: number; color: string; icon: string }>();
+    const categoryMap = new Map<
+      string,
+      { category: string; amount: number; color: string; icon: string }
+    >();
 
     for (const row of rows) {
       const convertedAmount = await convertToBase(row.amount, row.currency, baseCurrency, rateMap);
@@ -1589,7 +1713,7 @@ export const FinanceModel = {
           category: row.category,
           amount: convertedAmount,
           color: row.color,
-          icon: row.icon
+          icon: row.icon,
         });
       }
     }
@@ -1610,7 +1734,6 @@ export const FinanceModel = {
     const exchangeRates = await all(`SELECT * FROM exchange_rates`);
     const settings = await all(`SELECT * FROM settings`);
 
-    // Filter out sensitive settings (remote access key) from export
     const safeSettings = settings.filter((s: any) => s.key !== SETTING_KEYS.REMOTE.KEY);
 
     return {
@@ -1628,7 +1751,7 @@ export const FinanceModel = {
         billReadings,
         exchangeRates,
         settings: safeSettings,
-      }
+      },
     };
   },
 
@@ -1646,7 +1769,9 @@ export const FinanceModel = {
    * Export tables info for chunked export.
    * Returns table names and their row counts.
    */
-  getExportTableInfo: async (): Promise<Array<{ table: string; count: number; whereClause: string }>> => {
+  getExportTableInfo: async (): Promise<
+    Array<{ table: string; count: number; whereClause: string }>
+  > => {
     const tables = [
       { table: 'accounts', whereClause: 'deleted_at IS NULL' },
       { table: 'categories', whereClause: 'deleted_at IS NULL' },
@@ -1675,12 +1800,19 @@ export const FinanceModel = {
    * Export a chunk of data from a specific table.
    * Used for memory-efficient exports of large databases.
    */
-  exportTableChunk: async (table: string, whereClause: string, limit: number, offset: number): Promise<unknown[]> => {
-    return await all(`SELECT * FROM ${table} WHERE ${whereClause} LIMIT ? OFFSET ?`, [limit, offset]);
+  exportTableChunk: async (
+    table: string,
+    whereClause: string,
+    limit: number,
+    offset: number
+  ): Promise<unknown[]> => {
+    return await all(`SELECT * FROM ${table} WHERE ${whereClause} LIMIT ? OFFSET ?`, [
+      limit,
+      offset,
+    ]);
   },
 
   importData: async (jsonData: any, options: { mode?: 'merge' | 'restore' } = {}) => {
-    // Support both v1 format (top-level accounts/transactions) and v2 format (data.accounts/data.transactions)
     const data = jsonData.data || jsonData;
 
     if (!data.accounts && !data.transactions) {
@@ -1694,15 +1826,16 @@ export const FinanceModel = {
         await run('BEGIN TRANSACTION');
         try {
           const restoreMode = options.mode === 'restore';
-          let preservedRemoteKey: { value: string; category: string; updated_at: string } | null = null;
+          let preservedRemoteKey: { value: string; category: string; updated_at: string } | null =
+            null;
 
           if (restoreMode) {
-            preservedRemoteKey = await get<{ value: string; category: string; updated_at: string }>(
-              'SELECT value, category, updated_at FROM settings WHERE key = ?',
-              [SETTING_KEYS.REMOTE.KEY]
-            ) || null;
+            preservedRemoteKey =
+              (await get<{ value: string; category: string; updated_at: string }>(
+                'SELECT value, category, updated_at FROM settings WHERE key = ?',
+                [SETTING_KEYS.REMOTE.KEY]
+              )) || null;
 
-            // Delete child tables before parents to satisfy FKs
             await run('DELETE FROM transaction_history');
             await run('DELETE FROM audit_logs');
             await run('DELETE FROM bill_readings');
@@ -1723,7 +1856,6 @@ export const FinanceModel = {
             }
           }
 
-          // Import accounts first (they are referenced by other entities)
           if (data.accounts && Array.isArray(data.accounts)) {
             for (const account of data.accounts) {
               await run(
@@ -1739,17 +1871,22 @@ export const FinanceModel = {
                    deleted_at = excluded.deleted_at,
                    updated_at = excluded.updated_at`,
                 [
-                  account.id, account.name, account.type, account.balance, account.initial_balance,
-                  account.currency, account.status, account.deleted_at, account.updated_at
+                  account.id,
+                  account.name,
+                  account.type,
+                  account.balance,
+                  account.initial_balance,
+                  account.currency,
+                  account.status,
+                  account.deleted_at,
+                  account.updated_at,
                 ]
               );
             }
           }
 
-          // Category ID remap to preserve references when conflicts occur on (type, name)
           const categoryIdMap = new Map<number, number>();
 
-          // Import categories
           if (data.categories && Array.isArray(data.categories)) {
             for (const category of data.categories) {
               let insertId: number | null = category.id ?? null;
@@ -1764,8 +1901,13 @@ export const FinanceModel = {
                    SET status = ?, is_default = ?, color = ?, icon = ?, deleted_at = ?, updated_at = ?
                    WHERE id = ?`,
                   [
-                    category.status, category.is_default, category.color, category.icon,
-                    category.deleted_at, category.updated_at, insertId
+                    category.status,
+                    category.is_default,
+                    category.color,
+                    category.icon,
+                    category.deleted_at,
+                    category.updated_at,
+                    insertId,
                   ]
                 );
               } else if (category.id != null) {
@@ -1773,7 +1915,10 @@ export const FinanceModel = {
                   'SELECT type, name FROM categories WHERE id = ? LIMIT 1',
                   [category.id]
                 );
-                if (existingById && (existingById.type !== category.type || existingById.name !== category.name)) {
+                if (
+                  existingById &&
+                  (existingById.type !== category.type || existingById.name !== category.name)
+                ) {
                   insertId = null;
                 }
                 await run(
@@ -1789,8 +1934,15 @@ export const FinanceModel = {
                      deleted_at = excluded.deleted_at,
                      updated_at = excluded.updated_at`,
                   [
-                    insertId, category.type, category.name, category.status, category.is_default,
-                    category.color, category.icon, category.deleted_at, category.updated_at
+                    insertId,
+                    category.type,
+                    category.name,
+                    category.status,
+                    category.is_default,
+                    category.color,
+                    category.icon,
+                    category.deleted_at,
+                    category.updated_at,
                   ]
                 );
               } else {
@@ -1807,8 +1959,15 @@ export const FinanceModel = {
                      deleted_at = excluded.deleted_at,
                      updated_at = excluded.updated_at`,
                   [
-                    insertId, category.type, category.name, category.status, category.is_default,
-                    category.color, category.icon, category.deleted_at, category.updated_at
+                    insertId,
+                    category.type,
+                    category.name,
+                    category.status,
+                    category.is_default,
+                    category.color,
+                    category.icon,
+                    category.deleted_at,
+                    category.updated_at,
                   ]
                 );
               }
@@ -1825,12 +1984,12 @@ export const FinanceModel = {
             }
           }
 
-          // Import transactions
           if (data.transactions && Array.isArray(data.transactions)) {
             for (const tx of data.transactions) {
-              const mappedCategoryId = (tx.category_id != null && categoryIdMap.has(tx.category_id))
-                ? categoryIdMap.get(tx.category_id)
-                : tx.category_id;
+              const mappedCategoryId =
+                tx.category_id != null && categoryIdMap.has(tx.category_id)
+                  ? categoryIdMap.get(tx.category_id)
+                  : tx.category_id;
               await run(
                 `INSERT INTO transactions (
                   id, account_id, to_account_id, type, category, category_id, amount, description,
@@ -1860,21 +2019,39 @@ export const FinanceModel = {
                   updated_at = excluded.updated_at,
                   deleted_at = excluded.deleted_at`,
                 [
-                  tx.id, tx.account_id, tx.to_account_id, tx.type, tx.category, mappedCategoryId,
-                  tx.amount, tx.description, tx.attachment, tx.frequency, tx.start_date, tx.end_date,
-                  tx.currency, tx.exchange_rate, tx.to_amount, tx.base_currency, tx.base_amount,
-                  tx.tags, tx.is_active, tx.created_at, tx.updated_at, tx.deleted_at
+                  tx.id,
+                  tx.account_id,
+                  tx.to_account_id,
+                  tx.type,
+                  tx.category,
+                  mappedCategoryId,
+                  tx.amount,
+                  tx.description,
+                  tx.attachment,
+                  tx.frequency,
+                  tx.start_date,
+                  tx.end_date,
+                  tx.currency,
+                  tx.exchange_rate,
+                  tx.to_amount,
+                  tx.base_currency,
+                  tx.base_amount,
+                  tx.tags,
+                  tx.is_active,
+                  tx.created_at,
+                  tx.updated_at,
+                  tx.deleted_at,
                 ]
               );
             }
           }
 
-          // Import budgets
           if (data.budgets && Array.isArray(data.budgets)) {
             for (const budget of data.budgets) {
-              const mappedCategoryId = (budget.category_id != null && categoryIdMap.has(budget.category_id))
-                ? categoryIdMap.get(budget.category_id)
-                : budget.category_id;
+              const mappedCategoryId =
+                budget.category_id != null && categoryIdMap.has(budget.category_id)
+                  ? categoryIdMap.get(budget.category_id)
+                  : budget.category_id;
               await run(
                 `INSERT INTO budgets (id, category, category_id, amount, period, start_date, end_date, currency, deleted_at, created_at, updated_at)
                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -1890,14 +2067,22 @@ export const FinanceModel = {
                    created_at = excluded.created_at,
                    updated_at = excluded.updated_at`,
                 [
-                  budget.id, budget.category, mappedCategoryId, budget.amount, budget.period,
-                  budget.start_date, budget.end_date, budget.currency, budget.deleted_at, budget.created_at, budget.updated_at
+                  budget.id,
+                  budget.category,
+                  mappedCategoryId,
+                  budget.amount,
+                  budget.period,
+                  budget.start_date,
+                  budget.end_date,
+                  budget.currency,
+                  budget.deleted_at,
+                  budget.created_at,
+                  budget.updated_at,
                 ]
               );
             }
           }
 
-          // Import goals
           if (data.goals && Array.isArray(data.goals)) {
             for (const goal of data.goals) {
               await run(
@@ -1924,21 +2109,34 @@ export const FinanceModel = {
                   updated_at = excluded.updated_at,
                   completed_at = excluded.completed_at`,
                 [
-                  goal.id, goal.name, goal.description, goal.target_amount, goal.current_amount,
-                  goal.monthly_contribution, goal.icon, goal.color, goal.priority, goal.target_date,
-                  goal.status, goal.auto_contribute, goal.currency,
-                  goal.deleted_at, goal.created_at, goal.updated_at, goal.completed_at
+                  goal.id,
+                  goal.name,
+                  goal.description,
+                  goal.target_amount,
+                  goal.current_amount,
+                  goal.monthly_contribution,
+                  goal.icon,
+                  goal.color,
+                  goal.priority,
+                  goal.target_date,
+                  goal.status,
+                  goal.auto_contribute,
+                  goal.currency,
+                  goal.deleted_at,
+                  goal.created_at,
+                  goal.updated_at,
+                  goal.completed_at,
                 ]
               );
             }
           }
 
-          // Import recurring charges
           if (data.recurringCharges && Array.isArray(data.recurringCharges)) {
             for (const rc of data.recurringCharges) {
-              const mappedCategoryId = (rc.category_id != null && categoryIdMap.has(rc.category_id))
-                ? categoryIdMap.get(rc.category_id)
-                : rc.category_id;
+              const mappedCategoryId =
+                rc.category_id != null && categoryIdMap.has(rc.category_id)
+                  ? categoryIdMap.get(rc.category_id)
+                  : rc.category_id;
               await run(
                 `INSERT INTO recurring_charges (
                   id, category, category_id, name, amount, frequency, due_day,
@@ -1963,15 +2161,28 @@ export const FinanceModel = {
                   last_generated_date = excluded.last_generated_date,
                   account_id = excluded.account_id`,
                 [
-                  rc.id, rc.category, mappedCategoryId, rc.name, rc.amount, rc.frequency, rc.due_day,
-                  rc.next_due_date, rc.is_active, rc.notes, rc.currency, rc.deleted_at, rc.created_at, rc.updated_at,
-                  rc.last_transaction_id, rc.last_generated_date, rc.account_id
+                  rc.id,
+                  rc.category,
+                  mappedCategoryId,
+                  rc.name,
+                  rc.amount,
+                  rc.frequency,
+                  rc.due_day,
+                  rc.next_due_date,
+                  rc.is_active,
+                  rc.notes,
+                  rc.currency,
+                  rc.deleted_at,
+                  rc.created_at,
+                  rc.updated_at,
+                  rc.last_transaction_id,
+                  rc.last_generated_date,
+                  rc.account_id,
                 ]
               );
             }
           }
 
-          // Import goal contributions
           if (data.goalContributions && Array.isArray(data.goalContributions)) {
             for (const gc of data.goalContributions) {
               await run(
@@ -1987,14 +2198,19 @@ export const FinanceModel = {
                   transaction_id = excluded.transaction_id,
                   contributed_at = excluded.contributed_at`,
                 [
-                  gc.id, gc.goal_id, gc.amount, gc.source, gc.notes,
-                  gc.account_id, gc.transaction_id, gc.contributed_at
+                  gc.id,
+                  gc.goal_id,
+                  gc.amount,
+                  gc.source,
+                  gc.notes,
+                  gc.account_id,
+                  gc.transaction_id,
+                  gc.contributed_at,
                 ]
               );
             }
           }
 
-          // Import bill types
           if (data.billTypes && Array.isArray(data.billTypes)) {
             for (const bt of data.billTypes) {
               await run(
@@ -2016,14 +2232,24 @@ export const FinanceModel = {
                   updated_at = excluded.updated_at,
                   deleted_at = excluded.deleted_at`,
                 [
-                  bt.id, bt.name, bt.unit_name, bt.cost_per_unit, bt.category_name, bt.account_id,
-                  bt.auto_transaction, bt.icon, bt.color, bt.currency, bt.created_at, bt.updated_at, bt.deleted_at
+                  bt.id,
+                  bt.name,
+                  bt.unit_name,
+                  bt.cost_per_unit,
+                  bt.category_name,
+                  bt.account_id,
+                  bt.auto_transaction,
+                  bt.icon,
+                  bt.color,
+                  bt.currency,
+                  bt.created_at,
+                  bt.updated_at,
+                  bt.deleted_at,
                 ]
               );
             }
           }
 
-          // Import bill readings
           if (data.billReadings && Array.isArray(data.billReadings)) {
             for (const br of data.billReadings) {
               await run(
@@ -2037,12 +2263,20 @@ export const FinanceModel = {
                    notes = excluded.notes,
                    transaction_id = excluded.transaction_id,
                    created_at = excluded.created_at`,
-                [br.id, br.bill_type_id, br.date, br.units_used, br.total_cost, br.notes, br.transaction_id, br.created_at]
+                [
+                  br.id,
+                  br.bill_type_id,
+                  br.date,
+                  br.units_used,
+                  br.total_cost,
+                  br.notes,
+                  br.transaction_id,
+                  br.created_at,
+                ]
               );
             }
           }
 
-          // Import exchange rates
           if (data.exchangeRates && Array.isArray(data.exchangeRates)) {
             for (const er of data.exchangeRates) {
               let insertId: number | null = er.id ?? null;
@@ -2063,7 +2297,11 @@ export const FinanceModel = {
                   'SELECT from_currency, to_currency FROM exchange_rates WHERE id = ? LIMIT 1',
                   [er.id]
                 );
-                if (existingById && (existingById.from_currency !== er.from_currency || existingById.to_currency !== er.to_currency)) {
+                if (
+                  existingById &&
+                  (existingById.from_currency !== er.from_currency ||
+                    existingById.to_currency !== er.to_currency)
+                ) {
                   insertId = null;
                 }
                 await run(
@@ -2093,10 +2331,8 @@ export const FinanceModel = {
             }
           }
 
-          // Import settings (skip sensitive ones)
           if (data.settings && Array.isArray(data.settings)) {
             for (const setting of data.settings) {
-              // Skip remote access key for security
               if (setting.key === SETTING_KEYS.REMOTE.KEY) continue;
 
               await run(
@@ -2119,11 +2355,15 @@ export const FinanceModel = {
                  value = excluded.value,
                  category = excluded.category,
                  updated_at = excluded.updated_at`,
-              [SETTING_KEYS.REMOTE.KEY, preservedRemoteKey.value, preservedRemoteKey.category, preservedRemoteKey.updated_at]
+              [
+                SETTING_KEYS.REMOTE.KEY,
+                preservedRemoteKey.value,
+                preservedRemoteKey.category,
+                preservedRemoteKey.updated_at,
+              ]
             );
           }
 
-          // Ensure AUTOINCREMENT sequences are aligned with imported data
           const autoIncrementTables = [
             'accounts',
             'transactions',
@@ -2139,21 +2379,19 @@ export const FinanceModel = {
             'audit_logs',
           ];
           for (const table of autoIncrementTables) {
-            const row = await get<{ maxId: number }>(`SELECT COALESCE(MAX(id), 0) as maxId FROM ${table}`);
-            const maxId = row?.maxId || 0;
-            const updated = await run(
-              `UPDATE sqlite_sequence SET seq = ? WHERE name = ?`,
-              [maxId, table]
+            const row = await get<{ maxId: number }>(
+              `SELECT COALESCE(MAX(id), 0) as maxId FROM ${table}`
             );
+            const maxId = row?.maxId || 0;
+            const updated = await run(`UPDATE sqlite_sequence SET seq = ? WHERE name = ?`, [
+              maxId,
+              table,
+            ]);
             if ((updated?.changes || 0) === 0) {
-              await run(
-                `INSERT INTO sqlite_sequence (name, seq) VALUES (?, ?)`,
-                [table, maxId]
-              );
+              await run(`INSERT INTO sqlite_sequence (name, seq) VALUES (?, ?)`, [table, maxId]);
             }
           }
 
-          // Recalculate all account balances after import
           await FinanceModel.recalculateAllBalances();
 
           await run('COMMIT');
@@ -2186,18 +2424,29 @@ export const FinanceModel = {
       return 'id,type,amount,description,date,category,account,currency\n';
     }
 
-    const headers = ['id', 'type', 'amount', 'description', 'date', 'category', 'account', 'currency'];
-    const rows = transactions.map(t => [
-      t.id,
-      t.type,
-      t.amount,
-      `"${(t.description || '').replace(/"/g, '""')}"`,
-      t.start_date,
-      `"${(t.category || '').replace(/"/g, '""')}"`,
-      `"${(t.account_name || '').replace(/"/g, '""')}"`,
-      t.currency || DEFAULT_CURRENCY
-    ].join(','));
+    const headers = [
+      'id',
+      'type',
+      'amount',
+      'description',
+      'date',
+      'category',
+      'account',
+      'currency',
+    ];
+    const rows = transactions.map((t) =>
+      [
+        t.id,
+        t.type,
+        t.amount,
+        `"${(t.description || '').replace(/"/g, '""')}"`,
+        t.start_date,
+        `"${(t.category || '').replace(/"/g, '""')}"`,
+        `"${(t.account_name || '').replace(/"/g, '""')}"`,
+        t.currency || DEFAULT_CURRENCY,
+      ].join(',')
+    );
 
     return [headers.join(','), ...rows].join('\n');
-  }
+  },
 };

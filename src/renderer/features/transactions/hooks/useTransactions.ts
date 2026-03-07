@@ -5,148 +5,143 @@ import { Transaction } from '../../../../shared/types';
 import { notify } from '@/core/lib/notify';
 
 export const useTransactions = () => {
-    // Local View State
-    const [page, setPage] = useState(1);
-    const [pageSize, setPageSize] = useState(10);
-    const [filterType, setFilterType] = useState<string>('all');
-    const [filterMonth, setFilterMonth] = useState<string>(''); // YYYY-MM
-    const [sortField, setSortField] = useState<keyof Transaction>('start_date');
-    const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
-    const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const [filterType, setFilterType] = useState<string>('all');
+  const [filterMonth, setFilterMonth] = useState<string>('');
+  const [sortField, setSortField] = useState<keyof Transaction>('start_date');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
 
-    // Server-side Stats State
-    const [stats, setStats] = useState({
-        income: 0,
-        expense: 0,
-        transfers: 0,
-        count: 0,
-        netFlow: 0,
-        savingsRate: 0
-    });
+  const [stats, setStats] = useState({
+    income: 0,
+    expense: 0,
+    transfers: 0,
+    count: 0,
+    netFlow: 0,
+    savingsRate: 0,
+  });
 
-    // Access Global Store
-    const allTransactions = financeStore.transactions.value || [];
-    const totalTransactions = financeStore.totalTransactions.value || 0;
-    const isLoading = financeStore.isLoading.value;
+  const allTransactions = financeStore.transactions.value || [];
+  const totalTransactions = financeStore.totalTransactions.value || 0;
+  const isLoading = financeStore.isLoading.value;
 
-    // Derived: Initial Load
-    useEffect(() => {
-        if ((!financeStore.transactions.value || financeStore.transactions.value.length === 0) && !financeStore.isLoading.value) {
-            financeStore.loadAll();
+  useEffect(() => {
+    if (
+      (!financeStore.transactions.value || financeStore.transactions.value.length === 0) &&
+      !financeStore.isLoading.value
+    ) {
+      financeStore.loadAll();
+    }
+  }, []);
+
+  useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        const filters: any = {};
+        if (filterType !== 'all') filters.type = filterType;
+        if (filterMonth) {
+          const [year, month] = filterMonth.split('-');
+          const start = new Date(parseInt(year), parseInt(month) - 1, 1);
+          const end = new Date(parseInt(year), parseInt(month), 0);
+          filters.startDate = start.toISOString().split('T')[0];
+          filters.endDate = end.toISOString().split('T')[0];
         }
-    }, []);
 
-    // Effect: Fetch Stats from Server
-    useEffect(() => {
-        const fetchStats = async () => {
-            try {
-                const filters: any = {};
-                if (filterType !== 'all') filters.type = filterType;
-                if (filterMonth) {
-                    const [year, month] = filterMonth.split('-');
-                    const start = new Date(parseInt(year), parseInt(month) - 1, 1);
-                    const end = new Date(parseInt(year), parseInt(month), 0);
-                    filters.startDate = start.toISOString().split('T')[0];
-                    filters.endDate = end.toISOString().split('T')[0];
-                }
+        const data = await api.getTransactionStats(filters);
 
-                const data = await api.getTransactionStats(filters);
+        const netFlow = data.income - data.expense;
+        const savingsRate = data.income > 0 ? (netFlow / data.income) * 100 : 0;
 
-                const netFlow = data.income - data.expense;
-                const savingsRate = data.income > 0 ? ((netFlow / data.income) * 100) : 0;
-
-                setStats({
-                    ...data,
-                    netFlow,
-                    savingsRate
-                });
-            } catch (e) {
-                console.error("Failed to fetch transaction stats", e);
-            }
-        };
-
-        fetchStats();
-    }, [filterType, filterMonth, totalTransactions]); // Re-fetch when filters or data changes
-
-    // Derived: Filtering (Still needed for table list view)
-    const filteredTransactions = useMemo(() => {
-        const txns = financeStore.transactions.value || [];
-        if (!Array.isArray(txns)) return [];
-        return txns.filter(t => {
-            // Type Filter
-            if (filterType !== 'all' && t.type !== filterType) return false;
-
-            // Month Filter
-            if (filterMonth) {
-                if (!t.start_date.startsWith(filterMonth)) return false;
-            }
-
-            return true;
+        setStats({
+          ...data,
+          netFlow,
+          savingsRate,
         });
-    }, [financeStore.transactions.value, filterType, filterMonth]);
-
-    // Derived: Sorting
-    const sortedTransactions = useMemo(() => {
-        return [...filteredTransactions].sort((a, b) => {
-            const valA = a[sortField];
-            const valB = b[sortField];
-
-            if (valA === valB) return 0;
-
-            const comparison = valA! > valB! ? 1 : -1;
-            return sortOrder === 'asc' ? comparison : -comparison;
-        });
-    }, [filteredTransactions, sortField, sortOrder]);
-
-    // Derived: Pagination (Local within the 100 items returned)
-    const paginatedTransactions = useMemo(() => {
-        const start = (page - 1) * pageSize;
-        return sortedTransactions.slice(start, start + pageSize);
-    }, [sortedTransactions, page, pageSize]);
-
-    const totalPages = Math.ceil((filterType === 'all' && !filterMonth ? (financeStore.totalTransactions.value || 0) : filteredTransactions.length) / pageSize);
-
-    // Actions
-    const deleteTransaction = async (id: number) => {
-        const confirmed = await notify.confirm('Delete Transaction', 'Are you sure you want to delete this transaction?', 'warning');
-        if (!confirmed) return;
-        await financeStore.deleteTransaction(id);
-        notify.success('Transaction Deleted', 'Transaction has been removed');
+      } catch (e) {
+        console.error('Failed to fetch transaction stats', e);
+      }
     };
 
-    return {
-        // Data
-        transactions: paginatedTransactions,
-        allTransactions: sortedTransactions, // For export or charts if needed
-        stats,
-        isLoading: financeStore.isLoading.value,
+    fetchStats();
+  }, [filterType, filterMonth, totalTransactions]);
 
-        // Pagination
-        page,
-        setPage,
-        pageSize,
-        setPageSize,
-        totalPages,
-        totalCount: filterType === 'all' && !filterMonth ? totalTransactions : filteredTransactions.length,
+  const filteredTransactions = useMemo(() => {
+    const txns = financeStore.transactions.value || [];
+    if (!Array.isArray(txns)) return [];
+    return txns.filter((t) => {
+      if (filterType !== 'all' && t.type !== filterType) return false;
 
-        // Filters
-        filterType,
-        setFilterType,
-        filterMonth,
-        setFilterMonth,
+      if (filterMonth) {
+        if (!t.start_date.startsWith(filterMonth)) return false;
+      }
 
-        // Sorting
-        sortField,
-        setSortField,
-        sortOrder,
-        setSortOrder,
+      return true;
+    });
+  }, [financeStore.transactions.value, filterType, filterMonth]);
 
-        // Selection
-        selectedIds,
-        setSelectedIds,
+  const sortedTransactions = useMemo(() => {
+    return [...filteredTransactions].sort((a, b) => {
+      const valA = a[sortField];
+      const valB = b[sortField];
 
-        // Actions
-        deleteTransaction,
-        refresh: financeStore.loadAll
-    };
+      if (valA === valB) return 0;
+
+      const comparison = valA! > valB! ? 1 : -1;
+      return sortOrder === 'asc' ? comparison : -comparison;
+    });
+  }, [filteredTransactions, sortField, sortOrder]);
+
+  const paginatedTransactions = useMemo(() => {
+    const start = (page - 1) * pageSize;
+    return sortedTransactions.slice(start, start + pageSize);
+  }, [sortedTransactions, page, pageSize]);
+
+  const totalPages = Math.ceil(
+    (filterType === 'all' && !filterMonth
+      ? financeStore.totalTransactions.value || 0
+      : filteredTransactions.length) / pageSize
+  );
+
+  const deleteTransaction = async (id: number) => {
+    const confirmed = await notify.confirm(
+      'Delete Transaction',
+      'Are you sure you want to delete this transaction?',
+      'warning'
+    );
+    if (!confirmed) return;
+    await financeStore.deleteTransaction(id);
+    notify.success('Transaction Deleted', 'Transaction has been removed');
+  };
+
+  return {
+    transactions: paginatedTransactions,
+    allTransactions: sortedTransactions, // For export or charts if needed
+    stats,
+    isLoading: financeStore.isLoading.value,
+
+    page,
+    setPage,
+    pageSize,
+    setPageSize,
+    totalPages,
+    totalCount:
+      filterType === 'all' && !filterMonth ? totalTransactions : filteredTransactions.length,
+
+    filterType,
+    setFilterType,
+    filterMonth,
+    setFilterMonth,
+
+    sortField,
+    setSortField,
+    sortOrder,
+    setSortOrder,
+
+    selectedIds,
+    setSelectedIds,
+
+    deleteTransaction,
+    refresh: financeStore.loadAll,
+  };
 };

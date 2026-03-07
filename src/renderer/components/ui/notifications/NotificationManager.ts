@@ -22,7 +22,7 @@ export class NotificationManager {
   constructor() {
     this.resolvePromise = null;
     this.options = null;
-    // Bind event listeners only once the DOM is ready
+
     if (document.readyState === 'loading') {
       document.addEventListener('DOMContentLoaded', () => this.setupEventListeners());
     } else {
@@ -94,13 +94,16 @@ export class NotificationManager {
             </div>
         `;
 
-    const container = document.getElementById('toast-container') || (() => {
-      const el = document.createElement('div');
-      el.id = 'toast-container';
-      el.style.cssText = 'position:fixed;top:1rem;right:1rem;z-index:9999;display:flex;flex-direction:column;gap:0.5rem;max-width:24rem;pointer-events:none;';
-      document.body.appendChild(el);
-      return el;
-    })();
+    const container =
+      document.getElementById('toast-container') ||
+      (() => {
+        const el = document.createElement('div');
+        el.id = 'toast-container';
+        el.style.cssText =
+          'position:fixed;top:1rem;right:1rem;z-index:9999;display:flex;flex-direction:column;gap:0.5rem;max-width:24rem;pointer-events:none;';
+        document.body.appendChild(el);
+        return el;
+      })();
 
     toast.style.pointerEvents = 'auto';
     container.appendChild(toast);
@@ -122,9 +125,8 @@ export class NotificationManager {
     type: ModalType,
     isConfirm: boolean
   ): Promise<any> {
-    // Ensure any previously open modal is closed
     this.closeModal(false);
-    this.options = null; // Reset options for simple modals
+    this.options = null;
 
     return new Promise((resolve) => {
       this.resolvePromise = resolve;
@@ -147,7 +149,6 @@ export class NotificationManager {
 
       const iconEl = document.getElementById('notification-icon');
       if (iconEl) {
-        // Remove existing type classes
         iconEl.classList.remove(
           'success',
           'error',
@@ -163,7 +164,6 @@ export class NotificationManager {
           'text-info'
         );
 
-        // Add new classes based on type
         iconEl.classList.add(type);
         const colorMap: Record<string, string[]> = {
           success: ['bg-success/20', 'text-success'],
@@ -208,7 +208,6 @@ export class NotificationManager {
    * Show a custom modal with HTML content
    */
   modal(options: NotificationOptions): void {
-    // Ensure any previously open modal is closed
     this.closeModal(false);
     this.options = options;
 
@@ -245,7 +244,6 @@ export class NotificationManager {
 
     const iconEl = document.getElementById('notification-icon');
     if (iconEl) {
-      // Remove existing type classes
       iconEl.className = 'w-16 h-16 rounded-full flex items-center justify-center mb-6';
 
       const colorMap: Record<string, string[]> = {

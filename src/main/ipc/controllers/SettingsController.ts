@@ -12,20 +12,19 @@ export class SettingsController extends BaseController {
       'get-settings': () => this.getFinanceModel().getAllSettings(),
 
       'update-setting': (_, { key, value }) => {
-        // Validate value against schema
         validateSetting(key, value);
         return this.getFinanceModel().updateSetting(key, value);
       },
 
-      'save-settings': (_, settings) => { // settings is Record<string, any>
-        // Validate all keys in the object
+      'save-settings': (_, settings) => {
+        // settings is Record<string, any>
+
         for (const [key, value] of Object.entries(settings)) {
           validateSetting(key, value);
         }
         return this.getFinanceModel().saveSettings(settings);
       },
 
-      // Generate secure API key (replaces insecure Math.random in renderer)
       'generate-secure-key': () => {
         return crypto.randomUUID();
       },
@@ -34,15 +33,15 @@ export class SettingsController extends BaseController {
         const [ai, currency, remote] = await Promise.all([
           AIConfigService.getEffectiveConfig(),
           CurrencyConfigService.getEffectiveConfig(),
-          RemoteConfigService.getEffectiveConfig()
+          RemoteConfigService.getEffectiveConfig(),
         ]);
 
         return {
           ai,
           currency,
-          remote
+          remote,
         };
-      }
+      },
     };
   }
 }

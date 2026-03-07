@@ -18,34 +18,24 @@ import * as path from 'path';
 import * as fs from 'fs';
 import type { App } from 'electron';
 
-// =============================================================================
-// STATE & CONFIGURATION
-// =============================================================================
-
 let app: App | null = null;
 let safeStorage: typeof import('electron').safeStorage | null = null;
 
 try {
-  // Dynamic require to allow this module to be tested in environments without Electron
   const electron = require('electron');
   app = electron.app;
   safeStorage = electron.safeStorage;
 } catch (e) {
-  // Non-electron environment (e.g., unit tests)
   app = null;
   safeStorage = null;
 }
 
 export const isDev = app ? !app.isPackaged : process.env.NODE_ENV === 'development';
 
-const KEY_LENGTH = 32; // 256 bits for AES-256
-export const KEY_FILE_NAME = '.bofo-key'; // Legacy format (machine-salt)
-export const SAFE_KEY_FILE_NAME = '.bofo-key-secure'; // New format (safeStorage)
+const KEY_LENGTH = 32;
+export const KEY_FILE_NAME = '.bofo-key';
+export const SAFE_KEY_FILE_NAME = '.bofo-key-secure';
 const DEV_KEY_SALT = 'bofo-dev-environment-salt-2025';
-
-// =============================================================================
-// PRIVATE HELPER FUNCTIONS
-// =============================================================================
 
 /**
  * Logs a message to console and, if available, to the application log file.
@@ -77,7 +67,7 @@ function getKeyDirectory(): string {
   } else {
     if (!app) {
       logInternal('[Encryption] ERROR: app is null in production!');
-      // Fallback to a safe default - use APPDATA or HOME directly
+
       const appData = process.env.APPDATA || process.env.HOME || '.';
       dir = path.join(appData, 'Bofo');
     } else {
@@ -87,7 +77,6 @@ function getKeyDirectory(): string {
 
   logInternal(`[Encryption] Storage directory: ${dir}`);
 
-  // Ensure the directory exists
   try {
     if (!fs.existsSync(dir)) {
       fs.mkdirSync(dir, { recursive: true });
@@ -121,10 +110,6 @@ function getMachineSalt(): string {
     .update(`${hostname}:${username}:bofo-finance-v1`)
     .digest('hex');
 }
-
-// =============================================================================
-// ENCRYPTION LOGIC (SAFE STORAGE)
-// =============================================================================
 
 function isSafeStorageAvailable(): boolean {
   if (!safeStorage) {
@@ -176,14 +161,10 @@ function decryptWithSafeStorage(encryptedData: string): string | null {
   }
 }
 
-// =============================================================================
-// ENCRYPTION LOGIC (LEGACY FALLBACK)
-// =============================================================================
-
 function encryptKeyLegacy(key: string): string {
   const salt = getMachineSalt();
   const iv = crypto.randomBytes(16);
-  // Salt is 64 hex chars = 32 bytes, exactly what AES-256 needs
+
   const cipher = crypto.createCipheriv('aes-256-gcm', Buffer.from(salt, 'hex'), iv);
 
   let encrypted = cipher.update(key, 'utf8', 'hex');
@@ -225,10 +206,6 @@ function decryptKeyLegacy(encryptedData: string): string | null {
   }
 }
 
-// =============================================================================
-// KEY LIFECYCLE MANAGEMENT
-// =============================================================================
-
 /**
  * Migrates a legacy key to the safeStorage format.
  */
@@ -256,7 +233,6 @@ function migrateToSafeStorage(key: string, keyDir: string): boolean {
  * Saves the encryption key using the best available method.
  */
 function saveKey(key: string, keyDir: string): boolean {
-  // Try safeStorage first (most secure)
   if (isSafeStorageAvailable()) {
     const safeKeyPath = path.join(keyDir, SAFE_KEY_FILE_NAME);
     try {
@@ -271,7 +247,6 @@ function saveKey(key: string, keyDir: string): boolean {
     }
   }
 
-  // Fallback to legacy machine-salt method
   const legacyKeyPath = path.join(keyDir, KEY_FILE_NAME);
   try {
     const encryptedKey = encryptKeyLegacy(key);
@@ -293,7 +268,6 @@ function loadKey(keyDir: string): string | null {
   const safeKeyPath = path.join(keyDir, SAFE_KEY_FILE_NAME);
   const legacyKeyPath = path.join(keyDir, KEY_FILE_NAME);
 
-  // Try safeStorage format first (version 2)
   if (fs.existsSync(safeKeyPath) && isSafeStorageAvailable()) {
     try {
       const encryptedKey = fs.readFileSync(safeKeyPath, 'utf8');
@@ -309,7 +283,6 @@ function loadKey(keyDir: string): string | null {
     }
   }
 
-  // Try legacy format (version 1)
   if (fs.existsSync(legacyKeyPath)) {
     try {
       const encryptedKey = fs.readFileSync(legacyKeyPath, 'utf8');
@@ -318,7 +291,6 @@ function loadKey(keyDir: string): string | null {
       if (key) {
         logInternal('[Encryption] Key loaded from legacy format');
 
-        // Attempt to migrate to safeStorage for future use
         if (isSafeStorageAvailable() && !fs.existsSync(safeKeyPath)) {
           logInternal('[Encryption] Attempting migration to safeStorage...');
           migrateToSafeStorage(key, keyDir);
@@ -335,10 +307,6 @@ function loadKey(keyDir: string): string | null {
 
   return null;
 }
-
-// =============================================================================
-// PUBLIC API
-// =============================================================================
 
 /**
  * Logs a message to console and file
@@ -360,14 +328,12 @@ export function getOrCreateEncryptionKey(): string {
     logInternal(`[Encryption] Init - isDev: ${isDev}, isPackaged: ${app ? app.isPackaged : 'N/A'}`);
     logInternal('[Encryption] Checking safeStorage...');
 
-    // Development: Use deterministic key
     if (isDev) {
       const devKey = crypto.createHash('sha256').update(DEV_KEY_SALT).digest('hex');
       logInternal('[Encryption] Using dev key');
       return devKey;
     }
 
-    // Production: Load or Generate Key
     const keyDir = getKeyDirectory();
     const existingKey = loadKey(keyDir);
 
@@ -408,7 +374,7 @@ export function isDatabaseEncrypted(dbPath: string): boolean | null {
   let fd: number | undefined;
   try {
     const stats = fs.statSync(dbPath);
-    if (stats.size < 16) return false; // Not a valid DB yet
+    if (stats.size < 16) return false;
 
     const header = Buffer.alloc(16);
     fd = fs.openSync(dbPath, 'r');
@@ -422,7 +388,7 @@ export function isDatabaseEncrypted(dbPath: string): boolean | null {
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error);
     logInternal(`[Encryption] DB Check Error: ${message}`);
-    return null; // Uncertain
+    return null;
   } finally {
     if (fd !== undefined) fs.closeSync(fd);
   }

@@ -18,17 +18,13 @@ import { app } from 'electron';
 import { RemoteConfigService } from './config/RemoteConfig';
 
 function getFinanceModel() {
-  // Legacy helper removal or keep if needed elsewhere
   return require('./models/finance').FinanceModel;
 }
 
 let server: http.Server | null = null;
 
 function buildWebRoutes(): Record<string, Function> {
-  // Lazy-load controllers to avoid module initialization ordering issues.
-  const {
-    TransactionController,
-  } = require('./ipc/controllers/TransactionController');
+  const { TransactionController } = require('./ipc/controllers/TransactionController');
   const { AccountController } = require('./ipc/controllers/AccountController');
   const { FinanceController } = require('./ipc/controllers/FinanceController');
   const { SettingsController } = require('./ipc/controllers/SettingsController');
@@ -63,16 +59,12 @@ function buildWebRoutes(): Record<string, Function> {
     const controllerRoutes = controller.registerRoutes();
     for (const [channel, route] of Object.entries(controllerRoutes)) {
       if (!route) continue;
-      const handler = (typeof route === 'object' && 'handler' in route) ? route.handler : route;
+      const handler = typeof route === 'object' && 'handler' in route ? route.handler : route;
       routes[channel] = handler as Function;
     }
   }
   return routes;
 }
-
-// =============================================================================
-// SECURITY CONFIGURATION
-// =============================================================================
 
 const SECURITY_CONFIG = {
   maxBodySize: 50 * 1024 * 1024, // 50MB max request body (for backup imports)
@@ -81,15 +73,9 @@ const SECURITY_CONFIG = {
   allowedChannelPattern: /^[a-z][a-z0-9-]*$/i,
 };
 
-// Rate limiting store (IP -> { count, resetTime })
 const rateLimitStore = new Map<string, { count: number; resetTime: number }>();
 
-// Allowed origins for CORS (configurable)
-let allowedOrigins = new Set<string>();
-
-// =============================================================================
-// SECURITY UTILITIES
-// =============================================================================
+const allowedOrigins = new Set<string>();
 
 /**
  * Constant-time string comparison to prevent timing attacks
@@ -99,7 +85,6 @@ function secureCompare(a: string | unknown, b: string): boolean {
   const bufA = Buffer.from(a);
   const bufB = Buffer.from(b);
   if (bufA.length !== bufB.length) {
-    // Still do comparison to maintain constant time
     crypto.timingSafeEqual(bufA, bufA);
     return false;
   }
@@ -150,7 +135,6 @@ function isValidChannel(channel: unknown): boolean {
  * Sanitize error messages for client (don't leak internal details)
  */
 function sanitizeError(err: any): string {
-  // In development, show full errors; in production, generic message
   const isDev = !app.isPackaged;
   if (isDev) return err.message || String(err);
   return 'An error occurred processing your request';
@@ -182,15 +166,12 @@ function handleCORS(
     return;
   }
 
-  // Check if origin is in whitelist or is localhost in dev mode
   const isLocalhost = origin.includes('localhost') || origin.includes('127.0.0.1');
   const isAllowed = origins.has(origin) || (isDev && isLocalhost);
 
   if (isAllowed) {
     res.setHeader('Access-Control-Allow-Origin', origin);
   } else if (isDev) {
-    // In dev mode, also allow local network origins (e.g. 192.168.x.x)
-    // for easier mobile testing, even if not explicitly in whitelist
     res.setHeader('Access-Control-Allow-Origin', origin);
   }
 
@@ -223,13 +204,7 @@ function readBody(req: http.IncomingMessage, maxSize: number): Promise<string> {
   });
 }
 
-// =============================================================================
-// WEB SERVER
-// =============================================================================
-
 import { Logger } from './utils/logger';
-
-// ... imports
 
 export async function startWebServer(): Promise<void> {
   Logger.info('[Web Server] Checking configuration...');
@@ -250,32 +225,26 @@ export async function startWebServer(): Promise<void> {
     server = http.createServer(async (req, res) => {
       const clientIP = getClientIP(req);
 
-      // Set security headers on all responses
       setSecurityHeaders(res);
 
-      // Handle CORS
       handleCORS(req, res, isDev, allowedOrigins);
 
-      // Handle preflight
       if (req.method === 'OPTIONS') {
         res.writeHead(204);
         res.end();
         return;
       }
 
-      // GET Request - Serve static files (Production only)
       if (req.method === 'GET') {
         const url = req.url || '/';
-        // Determine base path for static files
-        // In production (packaged), dist/renderer is located relative to the app
+
         const rendererPath = path.join(
           app.getAppPath(),
           app.isPackaged ? 'dist/renderer' : 'src/renderer'
         );
 
-        let filePath = path.join(rendererPath, url === '/' ? 'index.html' : url);
+        const filePath = path.join(rendererPath, url === '/' ? 'index.html' : url);
 
-        // Security: Prevent path traversal
         if (!filePath.startsWith(rendererPath)) {
           res.writeHead(403);
           res.end('Forbidden');
@@ -284,7 +253,6 @@ export async function startWebServer(): Promise<void> {
 
         fs.readFile(filePath, (err, data) => {
           if (err) {
-            // Fallback to index.html for SPA routing if file not found
             if (err.code === 'ENOENT') {
               fs.readFile(path.join(rendererPath, 'index.html'), (e, d) => {
                 if (e) {
@@ -302,7 +270,6 @@ export async function startWebServer(): Promise<void> {
             return;
           }
 
-          // Simple mime type detection
           const ext = path.extname(filePath).toLowerCase();
           const mimeTypes: Record<string, string> = {
             '.html': 'text/html',
@@ -322,7 +289,6 @@ export async function startWebServer(): Promise<void> {
         return;
       }
 
-      // Rate limiting for API calls (POST)
       const rateLimit = checkRateLimit(clientIP);
       res.setHeader('X-RateLimit-Remaining', rateLimit.remaining);
 
@@ -337,17 +303,14 @@ export async function startWebServer(): Promise<void> {
         return;
       }
 
-      // Only allow POST for API
       if (req.method !== 'POST') {
         res.writeHead(405, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: 'Method not allowed. Use POST or visit UI via GET.' }));
         return;
       }
 
-      // Authenticate with constant-time comparison
       const providedKey = (req.headers['x-api-key'] as string) || '';
       if (!secureCompare(providedKey, apiKey)) {
-        // Add small delay to further prevent timing attacks
         await new Promise((r) => setTimeout(r, 100 + Math.random() * 100));
         res.writeHead(401, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: 'Unauthorized' }));
@@ -355,7 +318,6 @@ export async function startWebServer(): Promise<void> {
       }
 
       try {
-        // Read body with size limit
         const body = await readBody(req, SECURITY_CONFIG.maxBodySize);
 
         let parsed: any;
@@ -369,14 +331,12 @@ export async function startWebServer(): Promise<void> {
 
         const { channel, data } = parsed;
 
-        // Validate channel name
         if (!isValidChannel(channel)) {
           res.writeHead(400, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({ error: 'Invalid channel name' }));
           return;
         }
 
-        // Check if channel exists and is allowed via web
         const handler = WEB_ROUTES[channel];
         if (!handler) {
           res.writeHead(404, { 'Content-Type': 'application/json' });
@@ -386,7 +346,6 @@ export async function startWebServer(): Promise<void> {
           return;
         }
 
-        // Execute handler
         const result = await handler(null, data);
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify(result));
@@ -397,7 +356,6 @@ export async function startWebServer(): Promise<void> {
       }
     });
 
-    // Check if external access is explicitly enabled
     const bindAddress = external ? '0.0.0.0' : '127.0.0.1';
 
     server.listen(port, bindAddress, () => {

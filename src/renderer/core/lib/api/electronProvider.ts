@@ -7,5 +7,4 @@
 
 import type { API } from '../types';
 
-// In Electron, the 'api' object is injected into window by preload.js
 export const ElectronApiProvider = typeof window !== 'undefined' ? window.api : null;

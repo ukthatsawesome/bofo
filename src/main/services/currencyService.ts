@@ -45,8 +45,7 @@ interface CacheEntry {
   baseCurrency: string;
 }
 
-// In-memory cache with 1-hour TTL (to reduce API calls during session)
-const CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
+const CACHE_TTL_MS = 60 * 60 * 1000;
 const rateCache: Map<string, CacheEntry> = new Map();
 
 const PROVIDERS: Record<string, ProviderConfig> = {
@@ -66,8 +65,9 @@ const PROVIDERS: Record<string, ProviderConfig> = {
         throw new Error('Invalid response from Frankfurter API');
       } catch (error: any) {
         if (error.message.includes('404') || error.message.includes('not found')) {
-          // Fallback to ExchangeRate-API for unsupported currencies (like NPR)
-          console.warn(`Frankfurter API does not support ${baseCurrency}, falling back to ExchangeRate-API...`);
+          console.warn(
+            `Frankfurter API does not support ${baseCurrency}, falling back to ExchangeRate-API...`
+          );
           return PROVIDERS['exchangerate-api'].fetchRates(baseCurrency);
         }
         throw error;
@@ -135,7 +135,6 @@ async function fetchJSONWithRetry(
         throw lastError;
       }
 
-      // Exponential backoff: 1s, 2s, 4s...
       const delay = baseDelayMs * Math.pow(2, attempt);
       await sleep(delay);
     }
@@ -155,7 +154,7 @@ function isRetryableError(err: Error): boolean {
     message.includes('econnrefused') ||
     message.includes('enotfound') ||
     message.includes('http 5') ||
-    message.includes('http 429') // Rate limited
+    message.includes('http 429')
   );
 }
 
@@ -230,7 +229,6 @@ export const CurrencyService = {
 
     const cacheKey = getCacheKey(providerId, baseCurrency);
 
-    // Check cache first (unless explicitly bypassing)
     if (useCache) {
       const cached = rateCache.get(cacheKey);
       if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
@@ -238,13 +236,11 @@ export const CurrencyService = {
       }
     }
 
-    // Fetch from API
     const rates =
       providerId === 'custom'
         ? await provider.fetchRates(baseCurrency, customUrl)
         : await provider.fetchRates(baseCurrency);
 
-    // Cache the results
     rateCache.set(cacheKey, {
       rates,
       timestamp: Date.now(),

@@ -1,7 +1,5 @@
 import { ChartConfiguration, ChartOptions, ChartType } from 'chart.js';
 
-// ==================== UTILS ====================
-
 /**
  * Helper to retrieve CSS variable values.
  * Expects variables to be in "r g b" format (e.g., "99 102 241") for usage with alpha.
@@ -14,7 +12,7 @@ function getCssColor(variable: string, alpha = 1): string {
 
 /**
  * Deep merges two objects.
- * Uses 'any' for the source to allow merging partial config overrides 
+ * Uses 'any' for the source to allow merging partial config overrides
  * that might technically mismatch strict Chart.js types during the merge process,
  * but validates the return via generic T.
  */
@@ -43,8 +41,6 @@ function deepMerge<T>(target: T, source: any): T {
   return output as T;
 }
 
-// ==================== THEME ====================
-
 const getChartTheme = () => ({
   colors: {
     text: getCssColor('--text-secondary'),
@@ -59,21 +55,19 @@ const getChartTheme = () => ({
   },
 });
 
-// ==================== BASE OPTIONS ====================
-
 const _getCommonPlugins = (theme: ReturnType<typeof getChartTheme>, title?: string) => ({
   title: title
     ? {
-      display: true,
-      text: title,
-      color: theme.colors.text,
-      font: {
-        family: theme.fonts.family,
-        size: 16,
-        weight: 'bold' as const,
-      },
-      padding: { bottom: 20 },
-    }
+        display: true,
+        text: title,
+        color: theme.colors.text,
+        font: {
+          family: theme.fonts.family,
+          size: 16,
+          weight: 'bold' as const,
+        },
+        padding: { bottom: 20 },
+      }
     : undefined,
   legend: {
     position: 'bottom' as const,
@@ -98,7 +92,9 @@ const _getCommonPlugins = (theme: ReturnType<typeof getChartTheme>, title?: stri
 /**
  * Generates base options for Cartesian charts (Line, Bar) which use Axes.
  */
-export const getBaseCartesianOptions = <TType extends ChartType = 'line'>(title?: string): ChartOptions<TType> => {
+export const getBaseCartesianOptions = <TType extends ChartType = 'line'>(
+  title?: string
+): ChartOptions<TType> => {
   const theme = getChartTheme();
 
   return {
@@ -121,7 +117,9 @@ export const getBaseCartesianOptions = <TType extends ChartType = 'line'>(title?
 /**
  * Generates base options for Polar charts (Doughnut, Pie) which DO NOT use Axes.
  */
-export const getBasePolarOptions = <TType extends ChartType = 'doughnut'>(title?: string): ChartOptions<TType> => {
+export const getBasePolarOptions = <TType extends ChartType = 'doughnut'>(
+  title?: string
+): ChartOptions<TType> => {
   const theme = getChartTheme();
 
   return {
@@ -131,15 +129,15 @@ export const getBasePolarOptions = <TType extends ChartType = 'doughnut'>(title?
   } as ChartOptions<TType>;
 };
 
-// ==================== DATA CONFIGS ====================
-
 export type DashboardChartData = number | null;
 export type ForecastChartData = number | null;
 export type CategoryChartData = number;
 
-// ==================== CHART CONFIGS ====================
-
-export const getDashboardChartConfig = (): ChartConfiguration<'line', DashboardChartData, string> => ({
+export const getDashboardChartConfig = (): ChartConfiguration<
+  'line',
+  DashboardChartData,
+  string
+> => ({
   type: 'line',
   data: { datasets: [] },
   options: deepMerge(getBaseCartesianOptions<'line'>('Spending Trend'), {
@@ -150,7 +148,11 @@ export const getDashboardChartConfig = (): ChartConfiguration<'line', DashboardC
   }),
 });
 
-export const getForecastChartConfig = (): ChartConfiguration<'line', ForecastChartData, string> => ({
+export const getForecastChartConfig = (): ChartConfiguration<
+  'line',
+  ForecastChartData,
+  string
+> => ({
   type: 'line',
   data: { datasets: [] },
   options: deepMerge(getBaseCartesianOptions<'line'>('Wealth Projection'), {
@@ -162,7 +164,11 @@ export const getForecastChartConfig = (): ChartConfiguration<'line', ForecastCha
   }),
 });
 
-export const getCategoryDoughnutConfig = (): ChartConfiguration<'doughnut', CategoryChartData, string> => ({
+export const getCategoryDoughnutConfig = (): ChartConfiguration<
+  'doughnut',
+  CategoryChartData,
+  string
+> => ({
   type: 'doughnut',
   data: { datasets: [] },
   options: deepMerge(getBasePolarOptions<'doughnut'>(), {
@@ -175,14 +181,14 @@ export const getCategoryDoughnutConfig = (): ChartConfiguration<'doughnut', Cate
         labels: {
           boxWidth: 12,
           padding: 15,
-          font: { size: 11 }
-        }
+          font: { size: 11 },
+        },
       },
     },
-    // Ensure no scales are present for doughnut
+
     scales: {
       x: { display: false },
-      y: { display: false }
-    }
+      y: { display: false },
+    },
   }),
 });

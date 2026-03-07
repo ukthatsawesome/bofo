@@ -90,10 +90,6 @@ class FinanceService {
     return await FinanceModel.unarchive('category', id);
   }
 
-  // =========================================================================
-  // ACCOUNT MANAGEMENT
-  // =========================================================================
-
   async getAccounts() {
     return await FinanceModel.getAllAccounts();
   }
@@ -109,10 +105,6 @@ class FinanceService {
   async deleteAccount(id: number) {
     return await FinanceModel.delete('account', id);
   }
-
-  // =========================================================================
-  // SETTINGS
-  // =========================================================================
 
   async getSettings() {
     return await FinanceModel.getAllSettings();
@@ -149,15 +141,14 @@ class FinanceService {
       rcs = await FinanceModel.getAllRecurringCharges();
     }
 
-    // Pass only the properties ForecastEngine expects for settings
     const dbSettings = await FinanceModel.getAllSettings();
     const forecastSettings = {
       [SETTING_KEYS.FORECAST.HORIZON]: dbSettings[SETTING_KEYS.FORECAST.HORIZON],
-      [SETTING_KEYS.FORECAST.INFLATION_ENABLED]: dbSettings[SETTING_KEYS.FORECAST.INFLATION_ENABLED],
+      [SETTING_KEYS.FORECAST.INFLATION_ENABLED]:
+        dbSettings[SETTING_KEYS.FORECAST.INFLATION_ENABLED],
       [SETTING_KEYS.FORECAST.INFLATION_RATE]: dbSettings[SETTING_KEYS.FORECAST.INFLATION_RATE],
     };
 
-    // Map DB types to Forecast types
     const forecastTxs: any[] = txs.map((t) => ({ ...t, is_active: t.is_active === 1 }));
     const forecastAccs: any[] = accs.map((a) => ({ ...a }));
     const forecastRcs: any[] = rcs.map((r) => ({ ...r, is_active: r.is_active === 1 }));
@@ -165,10 +156,6 @@ class FinanceService {
     const engine = new ForecastEngine(forecastTxs, forecastAccs, forecastSettings, forecastRcs);
     return engine.generateForecast(months);
   }
-
-  // =========================================================================
-  // BUDGETS
-  // =========================================================================
 
   async getBudgets() {
     return await FinanceModel.getAllBudgets();
@@ -211,10 +198,6 @@ class FinanceService {
     return await FinanceModel.delete('budget', id);
   }
 
-  // =========================================================================
-  // DATA EXPORT/IMPORT
-  // =========================================================================
-
   async exportData() {
     return await FinanceModel.exportData();
   }
@@ -227,12 +210,7 @@ class FinanceService {
     return await FinanceModel.exportAllToCSV();
   }
 
-  // =========================================================================
-  // AI FEATURES
-  // =========================================================================
-
   async getAISettings() {
-    // Return flat structure for compatibility
     const config = await AIConfigService.getEffectiveConfig();
     return {
       enabled: config.enabled,
@@ -240,7 +218,7 @@ class FinanceService {
       model: config.model,
       promptTx: config.prompts.tx,
       promptInsight: config.prompts.insight,
-      promptChat: config.prompts.chat
+      promptChat: config.prompts.chat,
     };
   }
 
@@ -261,7 +239,6 @@ class FinanceService {
       promptChat,
     });
 
-    // Update live service
     await aiService.setConfig(url, model);
     return true;
   }
@@ -273,9 +250,7 @@ class FinanceService {
   }
 
   async getAvailableModels(url?: string) {
-    // Use provided URL if we are testing/listing from settings input
-    if (url)
-      await aiService.setConfig(url, 'llama2'); // dummy model for check
+    if (url) await aiService.setConfig(url, 'llama2');
     else {
       const settings = await this.getAISettings();
       await aiService.setConfig(settings.url, settings.model);

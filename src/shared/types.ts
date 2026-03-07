@@ -8,20 +8,12 @@
  * - Date strings follow ISO 8601 format (YYYY-MM-DD).
  */
 
-// =============================================================================
-// ENUMS & UNIONS
-// =============================================================================
-
 export type TransactionType = 'income' | 'expense' | 'asset' | 'liability' | 'transfer';
 export type TransactionFrequency = 'once' | 'weekly' | 'monthly' | 'yearly';
 export type AccountType = 'bank' | 'wallet' | 'credit_card' | 'loan' | 'investment' | 'other';
 export type AccountStatus = 'active' | 'archived';
 export type CategoryStatus = 'active' | 'archived';
 export type GoalStatus = 'active' | 'completed' | 'paused' | 'cancelled';
-
-// =============================================================================
-// COMMON INTERFACES
-// =============================================================================
 
 export interface PaginatedResponse<T> {
   data: T[];
@@ -31,16 +23,12 @@ export interface PaginatedResponse<T> {
   hasMore: boolean;
 }
 
-// =============================================================================
-// ENTITY INTERFACES (Database Models)
-// =============================================================================
-
 export interface Account {
   id: number;
   name: string;
   type: AccountType;
-  balance: number; // Stored as integer (cents)
-  initial_balance: number; // Stored as integer (cents)
+  balance: number;
+  initial_balance: number;
   currency: string;
   status: AccountStatus;
   deleted_at: string | null;
@@ -66,7 +54,7 @@ export interface Transaction {
   type: TransactionType;
   category: string;
   category_id: number | null;
-  amount: number; // Stored as integer (cents)
+  amount: number;
   description: string | null;
   attachment: string | null;
   frequency: TransactionFrequency;
@@ -74,16 +62,15 @@ export interface Transaction {
   end_date: string | null;
   currency: string;
   exchange_rate: number;
-  to_amount: number | null; // Stored as integer (cents)
+  to_amount: number | null;
   base_currency: string | null;
-  base_amount: number | null; // Stored as integer (cents)
+  base_amount: number | null;
   tags: string | null;
   is_active: number;
   deleted_at: string | null;
   created_at: string;
   updated_at: string;
 
-  // Join fields (not in raw table schema)
   category_name?: string | null;
   account_name?: string | null;
 }
@@ -99,7 +86,7 @@ export interface TransactionWithCategory extends Transaction {
 export interface Budget {
   id: number;
   category: string;
-  amount: number; // Stored as integer (cents)
+  amount: number;
   period: 'weekly' | 'monthly' | 'yearly';
   start_date: string;
   end_date: string;
@@ -111,9 +98,9 @@ export interface Goal {
   id: number;
   name: string;
   description: string | null;
-  target_amount: number; // Stored as integer (cents)
-  current_amount: number; // Stored as integer (cents)
-  monthly_contribution: number | null; // Stored as integer (cents)
+  target_amount: number;
+  current_amount: number;
+  monthly_contribution: number | null;
   target_date: string | null;
   status: GoalStatus;
   priority: number;
@@ -126,8 +113,8 @@ export interface Goal {
 export interface GoalContribution {
   id: number;
   goal_id: number;
-  amount: number; // Stored as integer (cents)
-  date: string; // DB column is 'contributed_at' in schema, but 'date' used in legacy types
+  amount: number;
+  date: string;
   notes: string | null;
   source: string | null;
 }
@@ -136,7 +123,7 @@ export interface RecurringCharge {
   id: number;
   name: string;
   category: string;
-  amount: number; // Stored as integer (cents)
+  amount: number;
   frequency: TransactionFrequency;
   due_day: number | null;
   notes: string | null;
@@ -149,8 +136,8 @@ export interface BillType {
   id: number;
   name: string;
   unit_name: string;
-  cost_per_unit: number; // Stored as integer (cents)
-  category_name: string; // Mapped from DB column 'category_name'
+  cost_per_unit: number;
+  category_name: string;
   account_id: number | null;
   auto_transaction: number;
   icon?: string | null;
@@ -162,7 +149,7 @@ export interface BillReading {
   id: number;
   bill_type_id: number;
   date: string;
-  units_used: number; // Mapped from DB column 'units_used'
+  units_used: number;
   total_cost: number;
   is_paid?: number;
   paid_at?: string | null;
@@ -201,16 +188,7 @@ export interface TransactionStats {
   byCurrency?: Record<string, { income: number; expense: number; transfers: number }>;
 }
 
-// =============================================================================
-// DTOs (Data Transfer Objects)
-// =============================================================================
-
-// Aligned with PaginatedResponse to reduce redundancy
 export type TransactionListDTO = PaginatedResponse<Transaction>;
-
-// =============================================================================
-// PAYLOAD INTERFACES (IPC Inputs)
-// =============================================================================
 
 export interface TransactionPayload {
   account_id: number;
@@ -261,7 +239,7 @@ export interface GoalPayload {
 export interface RecurringChargePayload {
   name: string;
   category: string;
-  amount: number; // Stored as integer (cents)
+  amount: number;
   frequency: TransactionFrequency;
   due_day?: number;
   notes?: string;
@@ -272,7 +250,7 @@ export interface RecurringChargePayload {
 export interface BillTypePayload {
   name: string;
   unit_name: string;
-  cost_per_unit: number; // Stored as integer (cents)
+  cost_per_unit: number;
   category_name?: string;
   account_id?: number;
   auto_transaction?: number;
@@ -284,7 +262,7 @@ export interface BillReadingPayload {
   bill_type_id: number;
   date: string;
   units_used: number;
-  total_cost: number; // Stored as integer (cents)
+  total_cost: number;
   notes?: string;
 }
 

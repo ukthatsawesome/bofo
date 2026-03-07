@@ -17,223 +17,247 @@ import { CURRENCIES } from '../../../../shared/currencies';
 import { notify } from '@/core/lib/notify';
 
 export const SettingsAccounts = () => {
-    const accounts = financeStore.accounts.value;
-    const isLoading = financeStore.isLoading.value;
+  const accounts = financeStore.accounts.value;
+  const isLoading = financeStore.isLoading.value;
 
-    const { sortedData, sortColumn, sortDirection, handleSort } = useSortedData({
-        data: accounts,
-        initialSortColumn: 'name'
+  const { sortedData, sortColumn, sortDirection, handleSort } = useSortedData({
+    data: accounts,
+    initialSortColumn: 'name',
+  });
+
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingAccount, setEditingAccount] = useState<Partial<Account> | undefined>(undefined);
+
+  const currencyOptions = CURRENCIES.map((c) => ({
+    label: `${c.code} - ${c.name}`,
+    value: c.code,
+  }));
+
+  const [formData, setFormData] = useState({
+    name: '',
+    type: 'bank',
+    initial_balance: '0',
+    currency: 'USD',
+  });
+
+  const handleEdit = (acc: Account) => {
+    setEditingAccount(acc);
+    setFormData({
+      name: acc.name,
+      type: acc.type,
+      initial_balance: acc.initial_balance.toString(),
+      currency: acc.currency,
     });
+    setIsModalOpen(true);
+  };
 
-    const [isModalOpen, setIsModalOpen] = useState(false);
-    const [editingAccount, setEditingAccount] = useState<Partial<Account> | undefined>(undefined);
+  const handleNew = () => {
+    setEditingAccount(undefined);
+    setFormData({ name: '', type: 'bank', initial_balance: '0', currency: 'USD' });
+    setIsModalOpen(true);
+  };
 
-    const currencyOptions = CURRENCIES.map(c => ({
-        label: `${c.code} - ${c.name}`,
-        value: c.code
-    }));
+  const handleSave = async (e: Event) => {
+    e.preventDefault();
+    try {
+      const payload = {
+        ...formData,
+        initial_balance: parseFloat(formData.initial_balance),
+        balance: parseFloat(formData.initial_balance),
+      };
 
-    // Form State
-    const [formData, setFormData] = useState({
-        name: '',
-        type: 'bank',
-        initial_balance: '0',
-        currency: 'USD'
-    });
+      if (editingAccount?.id) {
+        await (window as any).api.updateAccount({ ...payload, id: editingAccount.id });
+        notify.success('Account Updated', 'Account has been saved');
+      } else {
+        await (window as any).api.addAccount(payload);
+        notify.success('Account Created', 'New account has been added');
+      }
+      await financeStore.loadAll();
+      setIsModalOpen(false);
+    } catch (error: any) {
+      console.error(error);
+      notify.error('Save Failed', error.message || 'Failed to save account');
+    }
+  };
 
-    const handleEdit = (acc: Account) => {
-        setEditingAccount(acc);
-        setFormData({
-            name: acc.name,
-            type: acc.type,
-            initial_balance: acc.initial_balance.toString(),
-            currency: acc.currency
-        });
-        setIsModalOpen(true);
-    };
-
-    const handleNew = () => {
-        setEditingAccount(undefined);
-        setFormData({ name: '', type: 'bank', initial_balance: '0', currency: 'USD' });
-        setIsModalOpen(true);
-    };
-
-    const handleSave = async (e: Event) => {
-        e.preventDefault();
-        try {
-            const payload = {
-                ...formData,
-                initial_balance: parseFloat(formData.initial_balance),
-                balance: parseFloat(formData.initial_balance)
-            };
-
-            if (editingAccount?.id) {
-                await (window as any).api.updateAccount({ ...payload, id: editingAccount.id });
-                notify.success('Account Updated', 'Account has been saved');
-            } else {
-                await (window as any).api.addAccount(payload);
-                notify.success('Account Created', 'New account has been added');
-            }
-            await financeStore.loadAll();
-            setIsModalOpen(false);
-        } catch (error: any) {
-            console.error(error);
-            notify.error('Save Failed', error.message || 'Failed to save account');
-        }
-    };
-
-    const handleDelete = async (id: number) => {
-        const confirmed = await notify.confirm('Delete Account', 'Are you sure? This will unlink all transactions.', 'warning');
-        if (!confirmed) return;
-
-        try {
-            await (window as any).api.deleteAccount(id);
-            await financeStore.loadAll();
-            notify.success('Account Deleted', 'Account has been removed');
-        } catch (error: any) {
-            notify.error('Delete Failed', error.message);
-        }
-    };
-
-    const handleArchive = async (id: number, isArchived: boolean) => {
-        if (isArchived) {
-            await (window as any).api.unarchiveAccount(id);
-        } else {
-            await (window as any).api.archiveAccount(id);
-        }
-        await financeStore.loadAll();
-    };
-
-    const columns: Column<Account>[] = [
-        {
-            header: 'Name',
-            accessor: 'name',
-            sortable: true,
-            className: 'font-medium text-text-primary'
-        },
-        {
-            header: 'Type',
-            accessor: (a) => <span className="capitalize">{a.type.replace('_', ' ')}</span>,
-            sortable: true,
-            sortKey: 'type'
-        },
-        {
-            header: 'Currency',
-            accessor: 'currency',
-            sortable: true,
-            className: 'text-xs text-text-muted'
-        },
-        {
-            header: 'Balance',
-            accessor: (a) => (
-                <span className={a.balance < 0 ? 'text-danger' : 'text-success'}>
-                    {formatCurrency(a.balance, a.currency)}
-                </span>
-            ),
-            sortable: true,
-            sortKey: 'balance'
-        },
-        {
-            header: 'Status',
-            accessor: (a) => (
-                <span className={clsx(
-                    "px-2 py-0.5 rounded text-xs",
-                    a.status === 'archived' ? "bg-surface-active text-text-muted" : "bg-success/10 text-success"
-                )}>
-                    {a.status === 'archived' ? 'Archived' : 'Active'}
-                </span>
-            ),
-            sortable: true,
-            sortKey: 'status'
-        },
-        {
-            header: 'Actions',
-            accessor: (a) => (
-                <div className="flex gap-1 justify-end">
-                    <IconButton icon={Edit2} variant="primary" tooltip="Edit" onClick={() => handleEdit(a)} />
-                    <IconButton
-                        icon={a.status === 'archived' ? ArchiveRestore : Archive}
-                        variant="ghost"
-                        tooltip={a.status === 'archived' ? 'Restore' : 'Archive'}
-                        onClick={() => handleArchive(a.id, a.status === 'archived')}
-                    />
-                    <IconButton icon={Trash2} variant="danger" tooltip="Delete" onClick={() => handleDelete(a.id)} />
-                </div>
-            ),
-            className: 'text-right'
-        }
-    ];
-
-    const accountTypes = [
-        { label: 'Bank Account', value: 'bank' },
-        { label: 'Wallet', value: 'wallet' },
-        { label: 'Credit Card', value: 'credit_card' },
-        { label: 'Loan', value: 'loan' },
-        { label: 'Investment', value: 'investment' },
-    ];
-
-    return (
-        <div className="space-y-6">
-            <UiCard
-                title={undefined}
-                className="overflow-hidden"
-                actions={
-                    <UiButton icon={<Plus size={18} />} onClick={handleNew} variant="primary" size="sm">
-                        Add Account
-                    </UiButton>
-                }
-            >
-                <DataTable
-                    data={sortedData}
-                    columns={columns}
-                    keyField="id"
-                    isLoading={isLoading}
-                    emptyMessage="No accounts connected. Add one to get started!"
-                    sortColumn={sortColumn}
-                    sortDirection={sortDirection}
-                    onSort={handleSort}
-                />
-            </UiCard>
-
-            {/* @ts-ignore */}
-            <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={editingAccount ? "Edit Account" : "New Account"}>
-                <form onSubmit={handleSave} className="space-y-4">
-                    <Input
-                        label="Account Name"
-                        value={formData.name}
-                        onInput={(e) => setFormData({ ...formData, name: (e.target as HTMLInputElement).value })}
-                        required
-                    />
-
-                    <UiSelect
-                        label="Type"
-                        options={accountTypes}
-                        value={formData.type}
-                        onChange={(e) => setFormData({ ...formData, type: (e.target as HTMLSelectElement).value })}
-                    />
-
-                    <div className="grid grid-cols-2 gap-4">
-                        <Input
-                            label="Initial Balance"
-                            type="number"
-                            step="0.01"
-                            value={formData.initial_balance}
-                            onInput={(e) => setFormData({ ...formData, initial_balance: (e.target as HTMLInputElement).value })}
-                            required
-                        />
-                        <UiSelect
-                            label="Currency"
-                            options={currencyOptions}
-                            value={formData.currency}
-                            onChange={(e) => setFormData({ ...formData, currency: (e.target as HTMLSelectElement).value })}
-                        />
-                    </div>
-
-                    <div className="flex justify-end pt-4">
-                        <UiButton type="submit">Save Account</UiButton>
-                    </div>
-                </form>
-            </Modal>
-        </div>
+  const handleDelete = async (id: number) => {
+    const confirmed = await notify.confirm(
+      'Delete Account',
+      'Are you sure? This will unlink all transactions.',
+      'warning'
     );
+    if (!confirmed) return;
+
+    try {
+      await (window as any).api.deleteAccount(id);
+      await financeStore.loadAll();
+      notify.success('Account Deleted', 'Account has been removed');
+    } catch (error: any) {
+      notify.error('Delete Failed', error.message);
+    }
+  };
+
+  const handleArchive = async (id: number, isArchived: boolean) => {
+    if (isArchived) {
+      await (window as any).api.unarchiveAccount(id);
+    } else {
+      await (window as any).api.archiveAccount(id);
+    }
+    await financeStore.loadAll();
+  };
+
+  const columns: Column<Account>[] = [
+    {
+      header: 'Name',
+      accessor: 'name',
+      sortable: true,
+      className: 'font-medium text-text-primary',
+    },
+    {
+      header: 'Type',
+      accessor: (a) => <span className="capitalize">{a.type.replace('_', ' ')}</span>,
+      sortable: true,
+      sortKey: 'type',
+    },
+    {
+      header: 'Currency',
+      accessor: 'currency',
+      sortable: true,
+      className: 'text-xs text-text-muted',
+    },
+    {
+      header: 'Balance',
+      accessor: (a) => (
+        <span className={a.balance < 0 ? 'text-danger' : 'text-success'}>
+          {formatCurrency(a.balance, a.currency)}
+        </span>
+      ),
+      sortable: true,
+      sortKey: 'balance',
+    },
+    {
+      header: 'Status',
+      accessor: (a) => (
+        <span
+          className={clsx(
+            'px-2 py-0.5 rounded text-xs',
+            a.status === 'archived'
+              ? 'bg-surface-active text-text-muted'
+              : 'bg-success/10 text-success'
+          )}
+        >
+          {a.status === 'archived' ? 'Archived' : 'Active'}
+        </span>
+      ),
+      sortable: true,
+      sortKey: 'status',
+    },
+    {
+      header: 'Actions',
+      accessor: (a) => (
+        <div className="flex gap-1 justify-end">
+          <IconButton icon={Edit2} variant="primary" tooltip="Edit" onClick={() => handleEdit(a)} />
+          <IconButton
+            icon={a.status === 'archived' ? ArchiveRestore : Archive}
+            variant="ghost"
+            tooltip={a.status === 'archived' ? 'Restore' : 'Archive'}
+            onClick={() => handleArchive(a.id, a.status === 'archived')}
+          />
+          <IconButton
+            icon={Trash2}
+            variant="danger"
+            tooltip="Delete"
+            onClick={() => handleDelete(a.id)}
+          />
+        </div>
+      ),
+      className: 'text-right',
+    },
+  ];
+
+  const accountTypes = [
+    { label: 'Bank Account', value: 'bank' },
+    { label: 'Wallet', value: 'wallet' },
+    { label: 'Credit Card', value: 'credit_card' },
+    { label: 'Loan', value: 'loan' },
+    { label: 'Investment', value: 'investment' },
+  ];
+
+  return (
+    <div className="space-y-6">
+      <UiCard
+        title={undefined}
+        className="overflow-hidden"
+        actions={
+          <UiButton icon={<Plus size={18} />} onClick={handleNew} variant="primary" size="sm">
+            Add Account
+          </UiButton>
+        }
+      >
+        <DataTable
+          data={sortedData}
+          columns={columns}
+          keyField="id"
+          isLoading={isLoading}
+          emptyMessage="No accounts connected. Add one to get started!"
+          sortColumn={sortColumn}
+          sortDirection={sortDirection}
+          onSort={handleSort}
+        />
+      </UiCard>
+
+      {/* @ts-ignore */}
+      <Modal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        title={editingAccount ? 'Edit Account' : 'New Account'}
+      >
+        <form onSubmit={handleSave} className="space-y-4">
+          <Input
+            label="Account Name"
+            value={formData.name}
+            onInput={(e) =>
+              setFormData({ ...formData, name: (e.target as HTMLInputElement).value })
+            }
+            required
+          />
+
+          <UiSelect
+            label="Type"
+            options={accountTypes}
+            value={formData.type}
+            onChange={(e) =>
+              setFormData({ ...formData, type: (e.target as HTMLSelectElement).value })
+            }
+          />
+
+          <div className="grid grid-cols-2 gap-4">
+            <Input
+              label="Initial Balance"
+              type="number"
+              step="0.01"
+              value={formData.initial_balance}
+              onInput={(e) =>
+                setFormData({ ...formData, initial_balance: (e.target as HTMLInputElement).value })
+              }
+              required
+            />
+            <UiSelect
+              label="Currency"
+              options={currencyOptions}
+              value={formData.currency}
+              onChange={(e) =>
+                setFormData({ ...formData, currency: (e.target as HTMLSelectElement).value })
+              }
+            />
+          </div>
+
+          <div className="flex justify-end pt-4">
+            <UiButton type="submit">Save Account</UiButton>
+          </div>
+        </form>
+      </Modal>
+    </div>
+  );
 };

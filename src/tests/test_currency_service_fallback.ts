@@ -1,26 +1,24 @@
-
 import { CurrencyService } from '../main/services/currencyService';
 
 async function main() {
-    try {
-        console.log("Testing CurrencyService.fetchRates('frankfurter', 'NPR')...");
-        // This should trigger the fallback to 'exchangerate-api' internally
-        const rates = await CurrencyService.fetchRates('frankfurter', 'NPR', null, false);
+  try {
+    console.log("Testing CurrencyService.fetchRates('frankfurter', 'NPR')...");
 
-        console.log(`Success! Fetched ${rates.length} rates.`);
-        console.log(`Sample rate (NPR -> USD):`, rates.find(r => r.to === 'USD')?.rate);
+    const rates = await CurrencyService.fetchRates('frankfurter', 'NPR', null, false);
 
-        if (rates.length > 0) {
-            console.log("Fallback logic VERIFIED.");
-        } else {
-            console.error("FAILED: No rates returned.");
-            process.exit(1);
-        }
+    console.log(`Success! Fetched ${rates.length} rates.`);
+    console.log(`Sample rate (NPR -> USD):`, rates.find((r) => r.to === 'USD')?.rate);
 
-    } catch (e) {
-        console.error("FAILED with error:", e);
-        process.exit(1);
+    if (rates.length > 0) {
+      console.log('Fallback logic VERIFIED.');
+    } else {
+      console.error('FAILED: No rates returned.');
+      process.exit(1);
     }
+  } catch (e) {
+    console.error('FAILED with error:', e);
+    process.exit(1);
+  }
 }
 
 main();

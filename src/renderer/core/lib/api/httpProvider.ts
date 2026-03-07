@@ -13,18 +13,13 @@ export class HttpApiProvider {
   private static MAX_AUTH_RETRIES = 2;
 
   constructor() {
-    // Defaults for Dev environment
-    // Detect default host based on current location
     let defaultHost = 'http://localhost:5174';
     if (typeof location !== 'undefined' && location.hostname) {
       if (location.port === '5173') {
-        // In dev mode (Vite), API is usually on the next port
         defaultHost = `http://${location.hostname}:5174`;
       } else if (location.port === '5174') {
-        // If visiting via the backend server itself
         defaultHost = location.origin;
       } else if (location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
-        // If visiting via an IP, try same IP with 5174
         defaultHost = `http://${location.hostname}:5174`;
       }
     }
@@ -32,15 +27,11 @@ export class HttpApiProvider {
     this.host = localStorage.getItem('bofo_remote_host') || defaultHost;
     this.key = localStorage.getItem('bofo_remote_key') || '';
 
-    // Proxy to handle all methods dynamically
     return new Proxy(this, {
       get: (target: any, prop: string | symbol) => {
-        if (prop in target) return target[prop as keyof HttpApiProvider]; // Return explicit methods if defined
+        if (prop in target) return target[prop as keyof HttpApiProvider];
 
-        // Default handling for all other API methods
         return async (data: any) => {
-          // Convert camelCase method names to kebab-case channel names
-          // e.g., getSettings -> get-settings, parseTransactionAI -> parse-transaction-ai
           const channel = target._toKebabCase(String(prop));
           return await target._request(channel, data);
         };
@@ -70,7 +61,6 @@ export class HttpApiProvider {
    * Internal request handler
    */
   async _request(channel: string, data?: any): Promise<any> {
-    // Ensure we have a valid config before proceeding
     if (!this.validConfig()) {
       const success = await this.ensureConfig();
       if (!success) return null;
@@ -87,10 +77,8 @@ export class HttpApiProvider {
       });
 
       if (response.status === 401) {
-        // Key is invalid. Force a re-config.
         console.warn('[HttpApi] 401 Unauthorized. Prompting for new key...');
 
-        // Prevent infinite retry loops
         if (this._authRetryCount >= HttpApiProvider.MAX_AUTH_RETRIES) {
           console.error('[HttpApi] Max auth retries reached. Giving up.');
           this._authRetryCount = 0;
@@ -100,7 +88,6 @@ export class HttpApiProvider {
 
         const success = await this.ensureConfig(true);
         if (success) {
-          // Retry once with new credentials
           return await this._request(channel, data);
         }
         return null;
@@ -110,7 +97,6 @@ export class HttpApiProvider {
         throw new Error(`HTTP Error: ${response.status} ${response.statusText}`);
       }
 
-      // Reset retry counter on successful response
       this._authRetryCount = 0;
       return await response.json();
     } catch (err: any) {
@@ -133,7 +119,6 @@ export class HttpApiProvider {
   async ensureConfig(force = false): Promise<boolean> {
     if (!force && this.validConfig()) return true;
 
-    // Use existing prompt if one is already in progress
     if (this._promptLock) return await this._promptLock;
 
     this._promptLock = (async () => {
@@ -166,10 +151,6 @@ export class HttpApiProvider {
     return true;
   }
 
-  // =========================================================================
-  // SPECIALIZED ADAPTERS (Overrides for Web)
-  // =========================================================================
-
   /**
    * Adapter for exportData
    * Electron: Invokes 'export-data' (Backend opens dialog)
@@ -177,7 +158,6 @@ export class HttpApiProvider {
    */
   async exportData(): Promise<boolean> {
     try {
-      // Use the web-compatible endpoint we created
       const data = await this._request('get-backup-data');
       if (data) {
         this._triggerDownload(data, `bofo-backup-${new Date().toISOString().split('T')[0]}.json`);
@@ -229,7 +209,6 @@ export class HttpApiProvider {
     });
   }
 
-  // Helper to download JSON in browser
   _triggerDownload(data: any, filename: string): void {
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -242,9 +221,8 @@ export class HttpApiProvider {
     URL.revokeObjectURL(url);
   }
 
-  // Stubs for listeners (not supported over simple HTTP yet)
   onChatSandboxChunk(): () => void {
     console.warn('[HttpApi] Streaming is not supported in Web mode yet.');
-    return () => { };
+    return () => {};
   }
 }

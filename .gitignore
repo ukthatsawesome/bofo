@@ -91,3 +91,8 @@ seed*.log
 
 # Old dist backup
 # dist_old/
+
+remove-comments.js
+diff.patch
+
+

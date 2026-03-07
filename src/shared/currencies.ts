@@ -51,7 +51,6 @@ export const CURRENCIES: Currency[] = [
   { code: 'LKR', name: 'Sri Lankan Rupee', symbol: 'Rs' },
 ];
 
-// Predefined open-source currency API providers
 export const CURRENCY_API_PROVIDERS: CurrencyApiProvider[] = [
   {
     id: 'frankfurter',
@@ -82,7 +81,6 @@ export const CURRENCY_API_PROVIDERS: CurrencyApiProvider[] = [
   },
 ];
 
-// Helper functions
 export function getCurrencyByCode(code: string): Currency | undefined {
   return CURRENCIES.find((c) => c.code === code);
 }

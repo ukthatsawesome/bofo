@@ -1,7 +1,6 @@
 export const APP_NAME = 'Bofo';
 export const VERSION = '1.1.2';
 
-// AI Configuration - Re-export from centralized defaults (single source of truth)
 export { DEFAULT_AI_URL as DEFAULT_OLLAMA_URL } from './settings/defaults';
 export { DEFAULT_AI_MODEL } from './settings/defaults';
 export { DEFAULTS } from './settings/defaults';
@@ -28,4 +27,3 @@ export const ACCOUNT_TYPES = {
   LOAN: 'loan',
   INVESTMENT: 'investment',
 } as const;
-

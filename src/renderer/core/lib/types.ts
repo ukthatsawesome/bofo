@@ -19,13 +19,9 @@ import type {
   AuditLog,
 } from '../../../shared/types';
 
-
 export interface API {
-  // Transactions
   getTransactions: (options?: any) => Promise<TransactionListDTO>;
-  getTransactionsPaginated: (
-    options: any
-  ) => Promise<TransactionListDTO>;
+  getTransactionsPaginated: (options: any) => Promise<TransactionListDTO>;
   getTransaction: (id: number) => Promise<Transaction>;
   getTransactionCount: (options: any) => Promise<number>;
   addTransaction: (data: Partial<Transaction>) => Promise<any>;
@@ -33,7 +29,6 @@ export interface API {
   deleteTransaction: (id: number) => Promise<any>;
   calculateForecast: (data: any) => Promise<any>;
 
-  // Categories
   getCategories: () => Promise<Category[]>;
   isCategoryInUse: (name: string) => Promise<boolean>;
   addCategory: (data: Partial<Category>) => Promise<any>;
@@ -42,7 +37,6 @@ export interface API {
   archiveCategory: (id: number) => Promise<any>;
   unarchiveCategory: (id: number) => Promise<any>;
 
-  // Accounts
   getAccounts: () => Promise<Account[]>;
   addAccount: (data: Partial<Account>) => Promise<any>;
   updateAccount: (data: Partial<Account>) => Promise<any>;
@@ -51,12 +45,10 @@ export interface API {
   unarchiveAccount: (id: number) => Promise<any>;
   isAccountInUse: (id: number) => Promise<boolean>;
 
-  // Settings
   getSettings: () => Promise<Record<string, string>>;
   updateSetting: (data: { key: string; value: string }) => Promise<any>;
   saveSettings: (settings: Record<string, any>) => Promise<any>;
 
-  // Budgets
   getBudgets: () => Promise<Budget[]>;
   setBudget: (
     category: string,
@@ -75,18 +67,21 @@ export interface API {
   ) => Promise<any>;
   deleteBudget: (id: number) => Promise<any>;
 
-  // Goals
   getGoals: () => Promise<Goal[]>;
   getActiveGoals: () => Promise<Goal[]>;
   getGoal: (id: number) => Promise<Goal>;
   createGoal: (data: Partial<Goal>) => Promise<any>;
   updateGoal: (id: number, data: Partial<Goal>) => Promise<any>;
   deleteGoal: (id: number) => Promise<any>;
-  contributeToGoal: (goalId: number, amount: number, source: string | null, notes: string | null) => Promise<any>;
+  contributeToGoal: (
+    goalId: number,
+    amount: number,
+    source: string | null,
+    notes: string | null
+  ) => Promise<any>;
   getGoalContributions: (goalId: number) => Promise<GoalContribution[]>;
   getGoalsSummary: () => Promise<any>;
 
-  // Recurring Charges
   getRecurringCharges: () => Promise<RecurringCharge[]>;
   getActiveRecurringCharges: () => Promise<RecurringCharge[]>;
   createRecurringCharge: (data: Partial<RecurringCharge>) => Promise<any>;
@@ -94,21 +89,17 @@ export interface API {
   deleteRecurringCharge: (id: number) => Promise<any>;
   getMonthlyRecurringTotal: () => Promise<number>;
 
-  // Financial Summary
   getAvailableForGoals: () => Promise<any>;
 
-  // Data Export/Import
   exportData: () => Promise<any>;
   importData: () => Promise<any>;
   exportCSV: () => Promise<boolean>;
   exportExcel: () => Promise<boolean>;
 
-  // Auto-Backup
   pickBackupDirectory: () => Promise<string | null>;
   runBackupNow: (directory?: string) => Promise<any>;
 
-  // AI
-  aiChat: (message: string) => Promise<string>,
+  aiChat: (message: string) => Promise<string>;
   getAISettings: () => Promise<any>;
   getAIDefaults: () => Promise<any>;
   saveAISettings: (settings: any) => Promise<any>;
@@ -121,7 +112,6 @@ export interface API {
   chatSandbox: (text: string, context: any) => Promise<string>;
   onChatSandboxChunk: (callback: (chunk: any) => void) => () => void;
 
-  // Bills
   getBillTypes: () => Promise<(BillType & { account_name?: string })[]>;
   addBillType: (data: Partial<BillType>) => Promise<any>;
   updateBillType: (args: { id: number; data: Partial<BillType> }) => Promise<any>;
@@ -133,7 +123,6 @@ export interface API {
   deleteBillReading: (id: number) => Promise<any>;
   getBillProjections: (months?: number) => Promise<any[]>;
 
-  // Exchange Rates
   getExchangeRates: () => Promise<ExchangeRate[]>;
   getExchangeRate: (from: string, to: string) => Promise<number | null>;
   setExchangeRate: (data: {
@@ -152,9 +141,7 @@ export interface API {
     hoursSinceSync: number;
     rateCount: number;
   }>;
-  getTotalBalance: (
-    baseCurrency: string
-  ) => Promise<{
+  getTotalBalance: (baseCurrency: string) => Promise<{
     total: number;
     convertedCount: number;
     unconvertedCount: number;
@@ -172,8 +159,6 @@ export interface API {
   }) => Promise<{ success: boolean; message: string }>;
   getCurrencyProviders: () => Promise<any[]>;
 
-
-  // Remote Access
   getHostInfo: () => Promise<any>;
   restartWebServer: () => void;
   onNativeThemeChanged: (callback: (isDark: boolean) => void) => () => void;
@@ -181,7 +166,6 @@ export interface API {
   getDbStatus: () => Promise<string>;
   version: string;
 
-  // Analytics
   getSummaryStats: (baseCurrency?: string) => Promise<SummaryStats>;
   getDashboardData: (months?: number) => Promise<DashboardData>;
   getCategorySpending: (startDate: string, endDate: string) => Promise<CategorySpending[]>;
@@ -194,10 +178,8 @@ export interface API {
   }>;
   getBudgetSummary: () => Promise<{ totalAmount: number; usedAmount: number }>;
 
-  // Audit
   getAuditLogs: (options?: any) => Promise<PaginatedResponse<AuditLog>>;
 
-  // Anomaly Detection
   detectAnomalies: (data: { transaction: any }) => Promise<any>;
   getCategoryStats: () => Promise<any[]>;
 }
@@ -210,7 +192,7 @@ export interface Lucide {
 declare global {
   interface Window {
     api: API;
-    Formatter: any; // Ideally we type this properly
+    Formatter: any;
     StateManager: any;
     lucide: Lucide;
   }

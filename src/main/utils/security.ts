@@ -7,7 +7,7 @@ import * as fs from 'fs';
  * 1. It is a valid absolute path (or resolvable to one).
  * 2. It does not use '..' to traverse up in a way that is unexpected (though '..' in absolute paths is resolved by normalize).
  * 3. It is not a sensitive system directory (basic check).
- * 
+ *
  * @param inputPath - The path to validate
  * @param type - 'file' or 'dir' - check existence or treat as such
  * @returns boolean - True if safe, False if unsafe
@@ -17,20 +17,12 @@ export function validateSafePath(inputPath: string, type: 'file' | 'dir' = 'dir'
     return false;
   }
 
-  // Normalize path to resolve '..' segments
   const normalized = path.normalize(inputPath);
 
-  // Must be absolute path
   if (!path.isAbsolute(normalized)) {
-    // Attempt to resolve it? For security, we usually demand absolute paths from UI or resolve relative to safe root.
-    // For backup dirs, user usually picks a full path.
-    // If strict, return false.
     return false;
   }
 
-  // Prevent root-level writes if that's a concern, or sensitive dirs.
-  // Windows: C:\Windows, C:\Program Files
-  // Linux/Mac: /etc, /usr, /var
   const lower = normalized.toLowerCase();
 
   const sensitivePaths = [
@@ -41,16 +33,14 @@ export function validateSafePath(inputPath: string, type: 'file' | 'dir' = 'dir'
     '/usr',
     '/var',
     '/bin',
-    '/sbin'
+    '/sbin',
   ];
 
-  if (sensitivePaths.some(p => lower.startsWith(p))) {
+  if (sensitivePaths.some((p) => lower.startsWith(p))) {
     return false;
   }
 
-  // For specific path traversal attack strings that might bypass normalization (rare in node path, but good to be safe)
   if (inputPath.includes('..') && !path.isAbsolute(inputPath)) {
-    // If it was relative and had .., we already returned false above, but explicit check:
     return false;
   }
 

@@ -1,24 +1,33 @@
 import { contextBridge, ipcRenderer, IpcRendererEvent } from 'electron';
 import {
-  TransactionPayload, CategoryPayload, AccountPayload, AppSettings,
-  GoalPayload, RecurringChargePayload, BillTypePayload, BillReadingPayload,
-  AISettings, TransactionFilter,
+  TransactionPayload,
+  CategoryPayload,
+  AccountPayload,
+  AppSettings,
+  GoalPayload,
+  RecurringChargePayload,
+  BillTypePayload,
+  BillReadingPayload,
+  AISettings,
+  TransactionFilter,
 } from '../shared/types';
 
 const invokeWithTimeout = async (channel: string, args: any[] = [], timeoutMs: number = 5000) => {
   let timeoutId: any;
 
-  const timeoutPromise = timeoutMs > 0
-    ? new Promise((_, reject) => {
-      timeoutId = setTimeout(() => reject(new Error(`Request Timed Out for channel: ${channel}`)), timeoutMs);
-    })
-    : null;
+  const timeoutPromise =
+    timeoutMs > 0
+      ? new Promise((_, reject) => {
+          timeoutId = setTimeout(
+            () => reject(new Error(`Request Timed Out for channel: ${channel}`)),
+            timeoutMs
+          );
+        })
+      : null;
 
   try {
     const ipcCall = ipcRenderer.invoke(channel, ...args);
-    const result = timeoutPromise
-      ? await Promise.race([ipcCall, timeoutPromise])
-      : await ipcCall;
+    const result = timeoutPromise ? await Promise.race([ipcCall, timeoutPromise]) : await ipcCall;
 
     if (result && typeof result === 'object' && result.error === true) {
       const error = new Error(result.message || 'Unknown IPC Error');
@@ -33,45 +42,47 @@ const invokeWithTimeout = async (channel: string, args: any[] = [], timeoutMs: n
 };
 
 contextBridge.exposeInMainWorld('api', {
-  // Transactions
-  getTransactions: (options?: TransactionFilter) => invokeWithTimeout('get-transactions', [options]),
+  getTransactions: (options?: TransactionFilter) =>
+    invokeWithTimeout('get-transactions', [options]),
   getTransaction: (id: number) => invokeWithTimeout('get-transaction', [id]),
   getTransactionsPaginated: (options: { limit: number; offset: number; filters?: any }) =>
     invokeWithTimeout('get-transactions-paginated', [options]),
-  getTransactionCount: (options: { filters?: any }) => invokeWithTimeout('get-transaction-count', [options]),
+  getTransactionCount: (options: { filters?: any }) =>
+    invokeWithTimeout('get-transaction-count', [options]),
   addTransaction: (data: TransactionPayload) => invokeWithTimeout('add-transaction', [data]),
   updateTransaction: (id: number, data: Partial<TransactionPayload>) =>
     invokeWithTimeout('update-transaction', [{ id, data }]),
   deleteTransaction: (id: number) => invokeWithTimeout('delete-transaction', [id]),
-  getTransactionStats: (options: { startDate: string; endDate: string }) => invokeWithTimeout('get-transaction-stats', [options]),
-  calculateForecast: (data: { accounts: any[]; transactions: any[]; months: number }) => invokeWithTimeout('calculate-forecast', [data]),
+  getTransactionStats: (options: { startDate: string; endDate: string }) =>
+    invokeWithTimeout('get-transaction-stats', [options]),
+  calculateForecast: (data: { accounts: any[]; transactions: any[]; months: number }) =>
+    invokeWithTimeout('calculate-forecast', [data]),
 
-  // Categories
   getCategories: () => invokeWithTimeout('get-categories'),
   isCategoryInUse: (name: string) => invokeWithTimeout('is-category-in-use', [name]),
   addCategory: (data: CategoryPayload) => invokeWithTimeout('add-category', [data]),
-  updateCategory: (id: number, data: Partial<CategoryPayload>) => invokeWithTimeout('update-category', [{ id, data }]),
+  updateCategory: (id: number, data: Partial<CategoryPayload>) =>
+    invokeWithTimeout('update-category', [{ id, data }]),
   deleteCategory: (id: number) => invokeWithTimeout('delete-category', [id]),
   archiveCategory: (id: number) => invokeWithTimeout('archive-category', [id]),
   unarchiveCategory: (id: number) => invokeWithTimeout('unarchive-category', [id]),
 
-  // Accounts
   getAccounts: () => invokeWithTimeout('get-accounts'),
   addAccount: (data: AccountPayload) => invokeWithTimeout('add-account', [data]),
-  updateAccount: (data: Partial<AccountPayload> & { id: number }) => invokeWithTimeout('update-account', [data]),
+  updateAccount: (data: Partial<AccountPayload> & { id: number }) =>
+    invokeWithTimeout('update-account', [data]),
   deleteAccount: (id: number) => invokeWithTimeout('delete-account', [id]),
   archiveAccount: (id: number) => invokeWithTimeout('archive-account', [id]),
   unarchiveAccount: (id: number) => invokeWithTimeout('unarchive-account', [id]),
   isAccountInUse: (id: number) => invokeWithTimeout('is-account-in-use', [id]),
 
-  // Settings
   getSettings: () => invokeWithTimeout('get-settings'),
-  updateSetting: (data: { key: string; value: string }) => invokeWithTimeout('update-setting', [data]),
+  updateSetting: (data: { key: string; value: string }) =>
+    invokeWithTimeout('update-setting', [data]),
   saveSettings: (settings: AppSettings) => invokeWithTimeout('save-settings', [settings]),
   getEffectiveConfig: () => invokeWithTimeout('get-effective-config'),
   generateSecureKey: () => invokeWithTimeout('generate-secure-key'),
 
-  // Budgets
   getBudgets: () => invokeWithTimeout('get-budgets'),
   setBudget: (
     category: string,
@@ -91,40 +102,36 @@ contextBridge.exposeInMainWorld('api', {
   ) => invokeWithTimeout('update-budget', [{ id, category, amount, period, startDate, endDate }]),
   deleteBudget: (id: number) => invokeWithTimeout('delete-budget', [id]),
 
-  // Goals
   getGoals: () => invokeWithTimeout('get-goals'),
   getActiveGoals: () => invokeWithTimeout('get-active-goals'),
   getGoal: (id: number) => invokeWithTimeout('get-goal', [id]),
   createGoal: (data: GoalPayload) => invokeWithTimeout('create-goal', [data]),
-  updateGoal: (id: number, data: Partial<GoalPayload>) => invokeWithTimeout('update-goal', [{ id, data }]),
+  updateGoal: (id: number, data: Partial<GoalPayload>) =>
+    invokeWithTimeout('update-goal', [{ id, data }]),
   deleteGoal: (id: number) => invokeWithTimeout('delete-goal', [id]),
   contributeToGoal: (goalId: number, amount: number, source: string, notes: string) =>
     invokeWithTimeout('contribute-to-goal', [{ goalId, amount, source, notes }]),
   getGoalContributions: (goalId: number) => invokeWithTimeout('get-goal-contributions', [goalId]),
   getGoalsSummary: () => invokeWithTimeout('get-goals-summary'),
 
-  // Recurring Charges
   getRecurringCharges: () => invokeWithTimeout('get-recurring-charges'),
   getActiveRecurringCharges: () => invokeWithTimeout('get-active-recurring-charges'),
-  createRecurringCharge: (data: RecurringChargePayload) => invokeWithTimeout('create-recurring-charge', [data]),
+  createRecurringCharge: (data: RecurringChargePayload) =>
+    invokeWithTimeout('create-recurring-charge', [data]),
   updateRecurringCharge: (id: number, data: Partial<RecurringChargePayload>) =>
     invokeWithTimeout('update-recurring-charge', [{ id, data }]),
   deleteRecurringCharge: (id: number) => invokeWithTimeout('delete-recurring-charge', [id]),
   getMonthlyRecurringTotal: () => invokeWithTimeout('get-monthly-recurring-total'),
 
-  // Financial Summary
   getAvailableForGoals: () => invokeWithTimeout('get-available-for-goals'),
 
-  // Data Export/Import
   exportData: () => invokeWithTimeout('export-data', [], 0),
   importData: () => invokeWithTimeout('import-data', [], 0),
   exportExcel: () => invokeWithTimeout('export-excel', [], 0),
 
-  // Auto-Backup
   pickBackupDirectory: () => invokeWithTimeout('pick-backup-directory'),
   runBackupNow: () => invokeWithTimeout('run-backup-now'),
 
-  // AI
   aiChat: (message: string) => invokeWithTimeout('ai-chat', [message]),
   getAISettings: () => invokeWithTimeout('get-ai-settings'),
   getAIDefaults: () => invokeWithTimeout('get-ai-defaults'),
@@ -143,12 +150,13 @@ contextBridge.exposeInMainWorld('api', {
     return () => ipcRenderer.removeListener('chat-sandbox-chunk', listener);
   },
 
-  // Bills
   getBillTypes: () => invokeWithTimeout('get-bill-types'),
   addBillType: (data: BillTypePayload) => invokeWithTimeout('add-bill-type', [data]),
-  updateBillType: (data: Partial<BillTypePayload> & { id: number }) => invokeWithTimeout('update-bill-type', [data]),
+  updateBillType: (data: Partial<BillTypePayload> & { id: number }) =>
+    invokeWithTimeout('update-bill-type', [data]),
   deleteBillType: (id: number) => invokeWithTimeout('delete-bill-type', [id]),
-  getBillReadings: (filters: { billTypeId?: number; year?: number }) => invokeWithTimeout('get-bill-readings', [filters]),
+  getBillReadings: (filters: { billTypeId?: number; year?: number }) =>
+    invokeWithTimeout('get-bill-readings', [filters]),
   getBillReadingsPaginated: (options: { limit: number; offset: number; filters?: any }) =>
     invokeWithTimeout('get-bill-readings-paginated', [options]),
   addBillReading: (data: BillReadingPayload) => invokeWithTimeout('add-bill-reading', [data]),
@@ -157,7 +165,6 @@ contextBridge.exposeInMainWorld('api', {
   deleteBillReading: (id: number) => invokeWithTimeout('delete-bill-reading', [id]),
   getBillProjections: (months?: number) => invokeWithTimeout('get-bill-projections', [months]),
 
-  // Exchange Rates
   getExchangeRates: () => invokeWithTimeout('get-exchange-rates'),
   getExchangeRate: (from: string, to: string) =>
     invokeWithTimeout('get-exchange-rate', [{ from, to }]),
@@ -177,12 +184,11 @@ contextBridge.exposeInMainWorld('api', {
     invokeWithTimeout('test-currency-api', [data]),
   getCurrencyProviders: () => invokeWithTimeout('get-currency-providers'),
 
-  // Remote Access
   getHostInfo: () => invokeWithTimeout('get-host-info'),
   restartWebServer: () => ipcRenderer.send('restart-web-server'),
 
-  // Analytics
-  getSummaryStats: (baseCurrency?: string) => invokeWithTimeout('get-summary-stats', [baseCurrency]),
+  getSummaryStats: (baseCurrency?: string) =>
+    invokeWithTimeout('get-summary-stats', [baseCurrency]),
   getDashboardData: (months?: number) => invokeWithTimeout('get-dashboard-data', [months]),
   getCategorySpending: (startDate: string, endDate: string) =>
     invokeWithTimeout('get-category-spending', [{ startDate, endDate }]),
@@ -192,17 +198,18 @@ contextBridge.exposeInMainWorld('api', {
     return () => ipcRenderer.removeListener('native-theme-changed', listener);
   },
   onDbStatus: (callback: (status: string, message?: string) => void) => {
-    const listener = (_event: IpcRendererEvent, status: string, message?: string) => callback(status, message);
+    const listener = (_event: IpcRendererEvent, status: string, message?: string) =>
+      callback(status, message);
     ipcRenderer.on('app:db-status', listener);
     return () => ipcRenderer.removeListener('app:db-status', listener);
   },
   getDbStatus: () => invokeWithTimeout('get-db-status'),
 
-  // Audit
-  getAuditLogs: (options: { limit?: number; offset?: number; source?: string }) => invokeWithTimeout('get-audit-logs', [options]),
+  getAuditLogs: (options: { limit?: number; offset?: number; source?: string }) =>
+    invokeWithTimeout('get-audit-logs', [options]),
 
-  // Anomaly Detection
-  detectAnomalies: (data: { transaction: TransactionPayload }) => invokeWithTimeout('detect-anomalies', [data]),
+  detectAnomalies: (data: { transaction: TransactionPayload }) =>
+    invokeWithTimeout('detect-anomalies', [data]),
   getCategoryStats: () => invokeWithTimeout('get-category-stats'),
   seedDatabase: () => invokeWithTimeout('seed-db'),
 

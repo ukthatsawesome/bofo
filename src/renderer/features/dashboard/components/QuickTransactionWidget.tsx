@@ -6,31 +6,28 @@ import { UiCard } from '@/components/ui/UiCard';
 import { TransactionForm } from '@/features/transactions/components/TransactionForm';
 
 interface QuickTransactionWidgetProps {
-    className?: string;
+  className?: string;
 }
 
 export const QuickTransactionWidget = ({ className }: QuickTransactionWidgetProps) => {
-    // Key to force re-render/reset of the form after successful submission
-    const [formKey, setFormKey] = useState(0);
+  const [formKey, setFormKey] = useState(0);
 
-    const handleSubmit = async (data: any) => {
-        // financeStore.addTransaction handles the API call and notifications
-        await financeStore.addTransaction({
-            ...data,
-            is_active: 1
-        });
+  const handleSubmit = async (data: any) => {
+    await financeStore.addTransaction({
+      ...data,
+      is_active: 1,
+    });
 
-        // Reset form by changing key
-        setFormKey(prev => prev + 1);
-    };
+    setFormKey((prev) => prev + 1);
+  };
 
-    return (
-        <UiCard title="Quick Transaction" icon={<DollarSign size={20} />} className={className}>
-            <TransactionForm
-                key={formKey}
-                onSubmit={handleSubmit}
-            // No onCancel prop provided, so the button will be hidden
-            />
-        </UiCard>
-    );
+  return (
+    <UiCard title="Quick Transaction" icon={<DollarSign size={20} />} className={className}>
+      <TransactionForm
+        key={formKey}
+        onSubmit={handleSubmit}
+        // No onCancel prop provided, so the button will be hidden
+      />
+    </UiCard>
+  );
 };

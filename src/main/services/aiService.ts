@@ -73,7 +73,6 @@ class AIService {
   };
 
   constructor() {
-    // Use centralized defaults from AIConfig
     this.baseUrl = AI_DEFAULTS.URL;
     this.model = AI_DEFAULTS.MODEL;
 
@@ -165,7 +164,6 @@ OR
     const raw = (url || '').trim();
     if (!raw) return AI_DEFAULTS.URL;
 
-    // Accept users entering either host root or /api endpoint.
     const withoutTrailingSlash = raw.replace(/\/+$/, '');
     return withoutTrailingSlash.replace(/\/api$/i, '');
   }
@@ -192,7 +190,7 @@ OR
       Logger.info('[AI] Configuration synced from AIConfigService');
     } catch (error) {
       Logger.warn('[AI] Failed to sync config, using defaults:', error);
-      // Fall back to defaults
+
       this.baseUrl = this._normalizeBaseUrl(AI_DEFAULTS.URL);
       this.model = AI_DEFAULTS.MODEL;
     }
@@ -201,10 +199,6 @@ OR
   setTimeoutConfig(options: Partial<typeof this.config>): void {
     Object.assign(this.config, options);
   }
-
-  // =========================================================================
-  // CIRCUIT BREAKER & RELIABILITY
-  // =========================================================================
 
   private _resetCircuit(): void {
     this._circuit = { failures: 0, lastFailure: 0, isOpen: false };
@@ -265,8 +259,7 @@ OR
       if ((error as Error).name === 'AbortError') {
         throw new Error(`Request timed out after ${timeout / 1000}s`);
       }
-      // Retry once by swapping loopback host (localhost <-> 127.0.0.1).
-      // This helps when one form resolves/reaches differently in Electron runtime.
+
       const fallbackUrl = this._getLoopbackFallbackUrl(url);
       if (fallbackUrl) {
         try {
@@ -277,7 +270,7 @@ OR
             signal: retryController.signal,
           });
           clearTimeout(retryTimeoutId);
-          // Persist the working host back to baseUrl for subsequent requests
+
           const fallbackOrigin = new URL(fallbackUrl).origin;
           this.baseUrl = this._normalizeBaseUrl(fallbackOrigin);
           Logger.info(`[AI] Loopback fallback succeeded via ${fallbackOrigin}`);
@@ -285,7 +278,9 @@ OR
         } catch (retryError) {
           const primaryMsg = (error as any)?.cause?.message || (error as Error).message;
           const retryMsg = (retryError as any)?.cause?.message || (retryError as Error).message;
-          throw new Error(`Fetch failed (${url} -> ${primaryMsg}); fallback failed (${fallbackUrl} -> ${retryMsg})`);
+          throw new Error(
+            `Fetch failed (${url} -> ${primaryMsg}); fallback failed (${fallbackUrl} -> ${retryMsg})`
+          );
         }
       }
       throw error;
@@ -333,10 +328,6 @@ OR
     throw lastError;
   }
 
-  // =========================================================================
-  // API CALLS
-  // =========================================================================
-
   private async _callApi(
     endpoint: string,
     body: Record<string, unknown>,
@@ -371,7 +362,6 @@ OR
     if (!isStreaming) {
       return await this._withRetry(makeRequest);
     } else {
-      // Streaming requests don't retry
       try {
         const result = await makeRequest();
         this._recordSuccess();
@@ -394,11 +384,7 @@ OR
   async checkConnection(): Promise<boolean> {
     try {
       const baseUrl = this._normalizeBaseUrl(this.baseUrl);
-      const response = await this._fetchWithTimeout(
-        `${baseUrl}/api/tags`,
-        { method: 'GET' },
-        5000
-      );
+      const response = await this._fetchWithTimeout(`${baseUrl}/api/tags`, { method: 'GET' }, 5000);
       const isOk = response.ok;
       this._health.lastCheck = Date.now();
       this._health.isConnected = isOk;
@@ -450,22 +436,24 @@ OR
   ): Promise<ParsedTransaction> {
     const template = promptTemplate || this.promptTx || this.DEFAULTS.promptTx;
 
-    // Build corrections section for few-shot learning
     let correctionsSection = '';
     if (corrections.length > 0) {
       correctionsSection = '\n\nLEARN FROM PAST CORRECTIONS (prioritize these patterns):\n';
       correctionsSection += corrections
-        .map((c, i) => `${i + 1}. "${c.description}" was "${c.original}" → should be "${c.corrected}"`)
+        .map(
+          (c, i) => `${i + 1}. "${c.description}" was "${c.original}" → should be "${c.corrected}"`
+        )
         .join('\n');
       correctionsSection += '\n';
     }
 
-    const prompt = this._replaceTemplate(template, {
-      input: text,
-      date: DateUtils.today(),
-      categories: categories.join(', '),
-      accounts: accountNames.join(', '),
-    }) + correctionsSection;
+    const prompt =
+      this._replaceTemplate(template, {
+        input: text,
+        date: DateUtils.today(),
+        categories: categories.join(', '),
+        accounts: accountNames.join(', '),
+      }) + correctionsSection;
 
     try {
       const response = await this._callApi('generate', { prompt, format: 'json' });
@@ -492,7 +480,7 @@ OR
       return data.response.replace(/^"|"$/g, '').trim();
     } catch (error: any) {
       Logger.warn('[AI] Insight generation failed, using fallback:', error.message);
-      // Simple fallback logic since we don't have the full FallbackGenerator linked here
+
       return 'Keep tracking your spending to stay on top of your goals!';
     }
   }

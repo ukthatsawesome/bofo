@@ -2,22 +2,17 @@
  * Database Type Definitions
  *
  * This module serves as the central type authority for the database layer.
- * It re-exports shared application types and defines internal database-specific 
+ * It re-exports shared application types and defines internal database-specific
  * interfaces (migrations, helpers, configuration).
  *
  * @module types
  */
 
-// Mock types to replace missing @types/sqlite3
 export type Database = any;
 export interface RunResult {
   lastID: number;
   changes: number;
 }
-
-// =============================================================================
-// SHARED TYPES RE-EXPORT
-// =============================================================================
 
 import type {
   Account,
@@ -54,10 +49,6 @@ export type {
   TransactionType,
   TransactionWithCategory,
 };
-
-// =============================================================================
-// DATABASE HELPER TYPES
-// =============================================================================
 
 /**
  * The result object returned by a successful database `run` operation.
@@ -97,10 +88,6 @@ export interface DbHelpers {
    */
   all: <T = unknown>(sql: string, params?: unknown[]) => Promise<T[]>;
 }
-
-// =============================================================================
-// MIGRATION TYPES
-// =============================================================================
 
 /**
  * Defines a database migration step.
@@ -143,10 +130,6 @@ export interface ColumnInfo {
   /** Whether the column is part of the primary key (1 = true, 0 = false) */
   pk: number;
 }
-
-// =============================================================================
-// UTILITY TYPES
-// =============================================================================
 
 /**
  * A union type of all valid table names in the database schema.
@@ -194,9 +177,4 @@ export interface MigrationContext {
   log: (message: string) => void;
 }
 
-// =============================================================================
-// SQLITE3 TYPE RE-EXPORTS
-// =============================================================================
-
 /** Re-export core sqlite3 types for convenience within the DB module */
-// export type { Database, RunResult }; // Removed to avoid conflict with local definition

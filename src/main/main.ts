@@ -15,7 +15,6 @@ import { RemoteConfigService } from './config/RemoteConfig';
 import { dbInitialized, closeDatabase } from './database/db';
 import { SETTING_KEYS } from '../shared/settings/keys';
 
-// Single instance lock
 const gotTheLock = app.requestSingleInstanceLock();
 if (!gotTheLock) {
   app.quit();
@@ -119,13 +118,10 @@ app.whenReady().then(async () => {
     app.setAppUserModelId('com.bofo.finance');
   }
 
-  // Phase 1: Create Window IMMEDIATELY (Non-blocking)
   createWindow();
 
-  // Phase 2: Async DB Initialization
   let dbStatus = 'initializing';
 
-  // Register status check handler
   ipcMain.handle('get-db-status', () => {
     Logger.info(`[IPC] get-db-status requested. Returning: ${dbStatus}`);
     return dbStatus;
@@ -135,7 +131,6 @@ app.whenReady().then(async () => {
     const windows = BrowserWindow.getAllWindows();
     const win = windows[0];
 
-    // Inform renderer we are connecting (if it's listening)
     if (win) {
       win.webContents.on('did-finish-load', () => {
         win.webContents.send('app:db-status', dbStatus);
@@ -153,7 +148,7 @@ app.whenReady().then(async () => {
   } catch (err) {
     dbStatus = 'error';
     Logger.error('[Main] Database failed to initialize:', err);
-    // Send error to UI
+
     const windows = BrowserWindow.getAllWindows();
     if (windows.length > 0) {
       windows[0].webContents.send('app:db-status', 'error', (err as Error).message);
@@ -161,26 +156,18 @@ app.whenReady().then(async () => {
   }
 
   try {
-    // Phase 1: Initialize Router & Handlers
-    // We now use a unified registration entry point that sets up all Controllers.
     registerIpcHandlers();
     Logger.info('[Main] IPC Handlers registered successfully.');
-
   } catch (err) {
     Logger.error('[Main] Failed to register IPC handlers:', err);
   }
 
-  // Listen for web server control
   ipcMain.on('restart-web-server', () => {
     restartWebServer();
   });
 
-  // Initialize Remote Config (generates secure key if needed)
   const isDev = !app.isPackaged;
   await RemoteConfigService.getEffectiveConfig();
-
-  // In dev, we might want to start it too, or handled by settings
-  // startWebServer logic handles the check.
 
   nativeTheme.on('updated', () => {
     const isDark = nativeTheme.shouldUseDarkColors;
@@ -190,12 +177,9 @@ app.whenReady().then(async () => {
   });
 
   setupMenu();
-  // createWindow(); // Moved to Phase 1
 
-  // Start web server if enabled in settings
   startWebServer();
 
-  // Optional: Sync exchange rates on startup if enabled and stale
   performStartupRateSync();
 
   app.on('activate', () => {
@@ -213,13 +197,10 @@ async function performStartupRateSync(): Promise<void> {
     const { FinanceModel } = await import('./models/finance');
     const settings = await FinanceModel.getAllSettings();
 
-    // Check if auto-sync on startup is enabled (opt-in)
-    // Note: settings values are strings in the DB
     if (settings[SETTING_KEYS.CURRENCY.AUTO_SYNC] !== 'true') {
       return;
     }
 
-    // Check if rates are stale
     const syncStatus = await FinanceModel.getRateSyncStatus();
     if (!syncStatus.isStale) {
       Logger.info('[Main] Exchange rates are up to date, skipping startup sync');
@@ -256,7 +237,6 @@ app.on('before-quit', async (event) => {
   if (isShuttingDown) return;
   isShuttingDown = true;
 
-  // Prevent default quit to allow graceful shutdown
   event.preventDefault();
 
   try {

@@ -4,8 +4,8 @@ import * as path from 'path';
 
 describe('Security Utils - validateSafePath', () => {
   it('should return true for valid absolute paths', () => {
-    // Adjust for OS
-    const safePath = process.platform === 'win32' ? 'C:\\Users\\Guest\\Documents' : '/home/guest/docs';
+    const safePath =
+      process.platform === 'win32' ? 'C:\\Users\\Guest\\Documents' : '/home/guest/docs';
     expect(validateSafePath(safePath, 'dir')).toBe(true);
   });
 
@@ -25,12 +25,6 @@ describe('Security Utils - validateSafePath', () => {
   });
 
   it('should handle traversal attempts in absolute paths', () => {
-    // path.normalize resolves this, so if it resolves to a safe path, it might be technically "true" 
-    // BUT we might want to block excessive usage of .. if it indicates weirdness.
-    // Our util implementation relies on path.normalize(). 
-    // If user inputs "C:\Users\Guest\..\..\Windows", normalize makes it "C:\Windows".
-    // Then sensitive check kicks in.
-
     if (process.platform === 'win32') {
       const sneaky = 'C:\\Users\\Guest\\..\\..\\Windows\\System32';
       expect(validateSafePath(sneaky, 'dir')).toBe(false);

@@ -26,7 +26,15 @@ import {
   isDev,
   log,
 } from './encryption';
-import type { Database, DbHelpers, Migration, AppliedMigration, ColumnInfo, RunResult, DbRunResult } from './types';
+import type {
+  Database,
+  DbHelpers,
+  Migration,
+  AppliedMigration,
+  ColumnInfo,
+  RunResult,
+  DbRunResult,
+} from './types';
 import type { App } from 'electron';
 import {
   addColumnIfNotExists,
@@ -40,21 +48,11 @@ import { DEFAULT_CATEGORIES } from '../../shared/categories';
 import { DEFAULT_SETTINGS } from '../../shared/settings/defaults';
 import { SETTING_KEYS } from '../../shared/settings/keys';
 
-
-// =============================================================================
-// TYPES & INTERFACES
-// =============================================================================
-
 interface TableDefinition {
   name: string;
   sql: string;
 }
 
-// =============================================================================
-// ENGINE & ENVIRONMENT SETUP
-// =============================================================================
-
-// Use SQLCipher instead of plain sqlite3
 let sqlite3: any;
 try {
   sqlite3 = require('@journeyapps/sqlcipher').verbose();
@@ -66,7 +64,6 @@ try {
   sqlite3 = require('sqlite3').verbose();
 }
 
-// Get Electron app reference
 let app: App | null;
 try {
   app = require('electron').app;
@@ -75,10 +72,6 @@ try {
 }
 
 log(`[DB] Environment: ${isDev ? 'DEVELOPMENT' : 'PRODUCTION'}`);
-
-// =============================================================================
-// PATH & ENCRYPTION CONFIGURATION
-// =============================================================================
 
 const getDatabasePath = (): string => {
   if (process.env.DATABASE_PATH) {
@@ -101,10 +94,6 @@ log(`[DB] Path: ${dbPath}`);
 
 const encryptionKey = getOrCreateEncryptionKey();
 
-// =============================================================================
-// PLAINTEXT MIGRATION CHECK (Synchronous)
-// =============================================================================
-
 const isEnc = isDatabaseEncrypted(dbPath);
 const needsMigration = isEnc === false && fs.existsSync(dbPath);
 const backupPath = dbPath + '.plaintext.bak';
@@ -125,11 +114,6 @@ if (needsMigration) {
   log(`[DB] Migration skipped. (isEncrypted: ${isEnc})`);
 }
 
-// =============================================================================
-// DATABASE CONNECTION
-// =============================================================================
-
-// Promise for database initialization
 let dbResolve: () => void;
 let dbReject: (error: Error) => void;
 let dbReady = false;
@@ -138,7 +122,6 @@ const dbInitialized = new Promise<void>((resolve, reject) => {
   dbReject = reject;
 });
 
-// Create database connection
 export const dbInstance = new sqlite3.Database(dbPath, async (err: Error | null) => {
   if (err) {
     log(`[DB] FAILED to open: ${err.message}`);
@@ -163,10 +146,6 @@ export const dbInstance = new sqlite3.Database(dbPath, async (err: Error | null)
     dbReject(error as Error);
   }
 });
-
-// =============================================================================
-// DATABASE HELPERS (Promisified)
-// =============================================================================
 
 function createDbHelpers(db: Database): DbHelpers {
   return {
@@ -202,10 +181,6 @@ function createDbHelpers(db: Database): DbHelpers {
 export const dbHelpers = createDbHelpers(dbInstance);
 const { run, get, all } = dbHelpers;
 
-// =============================================================================
-// ENCRYPTION CONFIGURATION
-// =============================================================================
-
 /**
  * Configure SQLCipher encryption settings
  */
@@ -227,16 +202,13 @@ async function configureEncryption(): Promise<void> {
   };
 
   try {
-    // Execute pragmas sequentially
     for (const pragma of pragmas) {
       await executePragma(pragma);
     }
 
-    // Enable foreign keys
     await executePragma('PRAGMA foreign_keys = ON');
     log('[DB] Foreign key enforcement enabled');
 
-    // Verify database access (decrypt check)
     await new Promise<void>((resolve, reject) => {
       dbInstance.get('SELECT count(*) FROM sqlite_master', (err: Error | null) => {
         if (err) reject(new Error(`Encryption verification failed: ${err.message}`));
@@ -249,10 +221,6 @@ async function configureEncryption(): Promise<void> {
   }
 }
 
-// =============================================================================
-// PLAINTEXT BACKUP MIGRATION
-// =============================================================================
-
 /**
  * Migrate data from plaintext backup to new encrypted database.
  * Refactored to use async/await instead of db.serialize() callback hell.
@@ -260,14 +228,11 @@ async function configureEncryption(): Promise<void> {
 async function migrateFromBackup(backupFile: string): Promise<void> {
   log('[DB] Importing data from plaintext backup...');
 
-  // Use local helpers to ensure we are operating on the current connection
   const { run: localRun, all: localAll } = createDbHelpers(dbInstance);
 
   try {
-    // Attach plaintext backup with empty key
     await localRun(`ATTACH DATABASE ? AS backup KEY ''`, [backupFile]);
 
-    // Get all tables from backup
     const tables = await localAll<TableDefinition>(
       "SELECT name, sql FROM backup.sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"
     );
@@ -279,17 +244,14 @@ async function migrateFromBackup(backupFile: string): Promise<void> {
 
       log(`[DB] Migrating table: ${table.name}`);
 
-      // Create table structure in main database
       await localRun(table.sql);
 
-      // Copy data
       await localRun(`INSERT INTO main.${table.name} SELECT * FROM backup.${table.name}`);
     }
 
     await localRun('COMMIT');
     log('[DB] Data migration committed successfully.');
 
-    // Detach backup
     await localRun('DETACH DATABASE backup');
     log('[DB] Detached backup database.');
   } catch (err) {
@@ -298,10 +260,6 @@ async function migrateFromBackup(backupFile: string): Promise<void> {
     throw err;
   }
 }
-
-// =============================================================================
-// INITIAL SCHEMA DEFINITION
-// =============================================================================
 
 /**
  * Defines the initial database schema.
@@ -569,10 +527,6 @@ CREATE INDEX IF NOT EXISTS idx_bill_types_deleted ON bill_types(deleted_at);
 CREATE INDEX IF NOT EXISTS idx_transactions_base_currency ON transactions(base_currency);
 `;
 
-// =============================================================================
-// MIGRATION DEFINITIONS
-// =============================================================================
-
 /**
  * All database migrations.
  * Each migration has an ID, name, and up() function.
@@ -685,9 +639,11 @@ const MIGRATIONS: Migration[] = [
       const excludedKeys: string[] = [
         SETTING_KEYS.CURRENCY.BASE,
         SETTING_KEYS.CURRENCY.PRECISION,
-        SETTING_KEYS.CURRENCY.SYMBOL_PLACEMENT
+        SETTING_KEYS.CURRENCY.SYMBOL_PLACEMENT,
       ];
-      const currencySettings = DEFAULT_SETTINGS.filter(s => s.category === 'currency' && !excludedKeys.includes(s.key));
+      const currencySettings = DEFAULT_SETTINGS.filter(
+        (s) => s.category === 'currency' && !excludedKeys.includes(s.key)
+      );
 
       for (const setting of currencySettings) {
         await run(`INSERT OR IGNORE INTO settings (key, value, category) VALUES (?, ?, ?)`, [
@@ -1129,11 +1085,7 @@ const MIGRATIONS: Migration[] = [
     up: async () => {
       log('[Migration 20] Starting Audit System Upgrade...');
 
-      const triggers = [
-        'trg_audit_tx_insert',
-        'trg_audit_tx_update',
-        'trg_audit_tx_delete'
-      ];
+      const triggers = ['trg_audit_tx_insert', 'trg_audit_tx_update', 'trg_audit_tx_delete'];
 
       for (const trigger of triggers) {
         await run(`DROP TRIGGER IF EXISTS ${trigger}`);
@@ -1158,11 +1110,17 @@ const MIGRATIONS: Migration[] = [
 
       log('[Migration 20] Created audit_logs table.');
 
-      await addColumnIfNotExists({ run, get, all }, 'transaction_history', 'source', "TEXT DEFAULT 'USER'", log);
-      await addColumnIfNotExists({ run, get, all }, 'transaction_history', 'metadata', "JSON", log);
+      await addColumnIfNotExists(
+        { run, get, all },
+        'transaction_history',
+        'source',
+        "TEXT DEFAULT 'USER'",
+        log
+      );
+      await addColumnIfNotExists({ run, get, all }, 'transaction_history', 'metadata', 'JSON', log);
 
       log('[Migration 20] Upgraded transaction_history table.');
-    }
+    },
   },
   {
     id: 21,
@@ -1201,7 +1159,7 @@ const MIGRATIONS: Migration[] = [
       ]);
 
       log('[Migration 21] Currency columns added.');
-    }
+    },
   },
   {
     id: 22,
@@ -1224,7 +1182,9 @@ const MIGRATIONS: Migration[] = [
           const cols = await getColumnNames(all, table);
           if (cols.includes(col)) {
             try {
-              await run(`UPDATE "${table}" SET "${col}" = CAST(ROUND("${col}" * 100) AS INTEGER) WHERE "${col}" IS NOT NULL`);
+              await run(
+                `UPDATE "${table}" SET "${col}" = CAST(ROUND("${col}" * 100) AS INTEGER) WHERE "${col}" IS NOT NULL`
+              );
               log(`[Migration 22] Converted ${table}.${col} to Integer.`);
             } catch (e) {
               log(`[Migration 22] Failed to convert ${table}.${col}: ${(e as Error).message}`);
@@ -1236,7 +1196,7 @@ const MIGRATIONS: Migration[] = [
       const triggersToDrop = [
         'trg_balance_after_insert',
         'trg_balance_after_update',
-        'trg_balance_after_delete'
+        'trg_balance_after_delete',
       ];
       for (const t of triggersToDrop) await run(`DROP TRIGGER IF EXISTS ${t}`);
 
@@ -1254,7 +1214,10 @@ const MIGRATIONS: Migration[] = [
           END) FROM transactions WHERE (account_id = accounts.id OR to_account_id = accounts.id) AND is_active = 1), 0)
       `;
 
-      await createTrigger(run, 'trg_balance_after_insert', `
+      await createTrigger(
+        run,
+        'trg_balance_after_insert',
+        `
           CREATE TRIGGER trg_balance_after_insert
           AFTER INSERT ON transactions
           WHEN NEW.is_active = 1
@@ -1262,25 +1225,34 @@ const MIGRATIONS: Migration[] = [
               UPDATE accounts SET balance = (${balanceCalcSql('NEW.account_id')}) WHERE id = NEW.account_id;
               UPDATE accounts SET balance = (${balanceCalcSql('NEW.to_account_id')}) WHERE id = NEW.to_account_id AND NEW.to_account_id IS NOT NULL;
           END
-      `);
+      `
+      );
 
-      await createTrigger(run, 'trg_balance_after_update', `
+      await createTrigger(
+        run,
+        'trg_balance_after_update',
+        `
           CREATE TRIGGER trg_balance_after_update
           AFTER UPDATE ON transactions
           BEGIN
               UPDATE accounts SET balance = (${balanceCalcSql('accounts.id')}) WHERE id IN (OLD.account_id, NEW.account_id) AND id IS NOT NULL;
               UPDATE accounts SET balance = (${balanceCalcSql('accounts.id')}) WHERE id IN (OLD.to_account_id, NEW.to_account_id) AND id IS NOT NULL;
           END
-      `);
+      `
+      );
 
-      await createTrigger(run, 'trg_balance_after_delete', `
+      await createTrigger(
+        run,
+        'trg_balance_after_delete',
+        `
           CREATE TRIGGER trg_balance_after_delete
           AFTER DELETE ON transactions
           BEGIN
               UPDATE accounts SET balance = (${balanceCalcSql('OLD.account_id')}) WHERE id = OLD.account_id;
               UPDATE accounts SET balance = (${balanceCalcSql('OLD.to_account_id')}) WHERE id = OLD.to_account_id AND OLD.to_account_id IS NOT NULL;
           END
-      `);
+      `
+      );
 
       log('[Migration 22] Triggers updated for Integer arithmetic.');
     },
@@ -1294,11 +1266,14 @@ const MIGRATIONS: Migration[] = [
       const oldTriggers = [
         'trg_balance_after_insert',
         'trg_balance_after_update',
-        'trg_balance_after_delete'
+        'trg_balance_after_delete',
       ];
       for (const t of oldTriggers) await run(`DROP TRIGGER IF EXISTS ${t}`);
 
-      await createTrigger(run, 'trg_balance_inc_insert', `
+      await createTrigger(
+        run,
+        'trg_balance_inc_insert',
+        `
         CREATE TRIGGER trg_balance_inc_insert
         AFTER INSERT ON transactions
         WHEN NEW.is_active = 1
@@ -1312,9 +1287,13 @@ const MIGRATIONS: Migration[] = [
             UPDATE accounts SET balance = balance + COALESCE(NEW.to_amount, NEW.amount) 
             WHERE id = NEW.to_account_id AND NEW.type = 'transfer' AND NEW.to_account_id IS NOT NULL;
         END
-      `);
+      `
+      );
 
-      await createTrigger(run, 'trg_balance_inc_delete', `
+      await createTrigger(
+        run,
+        'trg_balance_inc_delete',
+        `
         CREATE TRIGGER trg_balance_inc_delete
         AFTER DELETE ON transactions
         WHEN OLD.is_active = 1
@@ -1328,9 +1307,13 @@ const MIGRATIONS: Migration[] = [
             UPDATE accounts SET balance = balance - COALESCE(OLD.to_amount, OLD.amount) 
             WHERE id = OLD.to_account_id AND OLD.type = 'transfer' AND OLD.to_account_id IS NOT NULL;
         END
-      `);
+      `
+      );
 
-      await createTrigger(run, 'trg_balance_inc_update', `
+      await createTrigger(
+        run,
+        'trg_balance_inc_update',
+        `
         CREATE TRIGGER trg_balance_inc_update
         AFTER UPDATE ON transactions
         BEGIN
@@ -1352,7 +1335,8 @@ const MIGRATIONS: Migration[] = [
             UPDATE accounts SET balance = balance + COALESCE(NEW.to_amount, NEW.amount) 
             WHERE id = NEW.to_account_id AND NEW.type = 'transfer' AND NEW.to_account_id IS NOT NULL AND NEW.is_active = 1;
         END
-      `);
+      `
+      );
 
       log('[Migration 23] Optimized incremental triggers created.');
     },
@@ -1364,39 +1348,39 @@ const MIGRATIONS: Migration[] = [
       log('[Migration 24] Normalizing settings keys...');
 
       const mappings: Record<string, string> = {
-        'budget_period': 'budget.period',
-        'budget_rollover': 'budget.rollover',
-        'forecast_horizon': 'forecast.horizon',
-        'forecast_uncertain_income': 'forecast.uncertain_income',
-        'forecast_inflation_enabled': 'forecast.inflation_enabled',
-        'forecast_inflation_rate': 'forecast.inflation_rate',
-        'forecast_include_recurring': 'forecast.include_recurring',
-        'currency_base': 'currency.base',
-        'currency_precision': 'currency.precision',
-        'currency_symbol_placement': 'currency.symbol_placement',
-        'currency_api_provider': 'currency.api_provider',
-        'currency_api_url': 'currency.custom_url',
-        'currency_custom_url': 'currency.custom_url',
-        'currency_auto_sync': 'currency.auto_sync_on_startup',
-        'exchange_rate_sync_on_startup': 'currency.auto_sync_on_startup',
-        'currency_last_sync': 'currency.last_sync',
-        'theme': 'appearance.theme',
-        'landing_view': 'appearance.landing_view',
-        'backup_on_close': 'safety.backup_on_close',
-        'remote_access_enabled': 'remote.enabled',
-        'remote_access_port': 'remote.port',
-        'remote_access_key': 'remote.key',
-        'ai_enabled': 'ai.enabled',
-        'ai_url': 'ai.url',
-        'ai_model': 'ai.model',
-        'ai_prompt_tx': 'ai.prompt.tx',
-        'ai_prompt_insight': 'ai.prompt.insight',
-        'ai_prompt_chat': 'ai.prompt.chat',
-        'remote_access_origins': 'remote.origins',
-        'remote_access_external': 'remote.external',
-        'auto_backup_last': 'safety.last_backup_run',
-        'auto_backup_enabled': 'safety.auto_backup_enabled',
-        'auto_backup_directory': 'safety.auto_backup_directory'
+        budget_period: 'budget.period',
+        budget_rollover: 'budget.rollover',
+        forecast_horizon: 'forecast.horizon',
+        forecast_uncertain_income: 'forecast.uncertain_income',
+        forecast_inflation_enabled: 'forecast.inflation_enabled',
+        forecast_inflation_rate: 'forecast.inflation_rate',
+        forecast_include_recurring: 'forecast.include_recurring',
+        currency_base: 'currency.base',
+        currency_precision: 'currency.precision',
+        currency_symbol_placement: 'currency.symbol_placement',
+        currency_api_provider: 'currency.api_provider',
+        currency_api_url: 'currency.custom_url',
+        currency_custom_url: 'currency.custom_url',
+        currency_auto_sync: 'currency.auto_sync_on_startup',
+        exchange_rate_sync_on_startup: 'currency.auto_sync_on_startup',
+        currency_last_sync: 'currency.last_sync',
+        theme: 'appearance.theme',
+        landing_view: 'appearance.landing_view',
+        backup_on_close: 'safety.backup_on_close',
+        remote_access_enabled: 'remote.enabled',
+        remote_access_port: 'remote.port',
+        remote_access_key: 'remote.key',
+        ai_enabled: 'ai.enabled',
+        ai_url: 'ai.url',
+        ai_model: 'ai.model',
+        ai_prompt_tx: 'ai.prompt.tx',
+        ai_prompt_insight: 'ai.prompt.insight',
+        ai_prompt_chat: 'ai.prompt.chat',
+        remote_access_origins: 'remote.origins',
+        remote_access_external: 'remote.external',
+        auto_backup_last: 'safety.last_backup_run',
+        auto_backup_enabled: 'safety.auto_backup_enabled',
+        auto_backup_directory: 'safety.auto_backup_directory',
       };
 
       for (const [oldKey, newKey] of Object.entries(mappings)) {
@@ -1425,21 +1409,19 @@ const MIGRATIONS: Migration[] = [
     up: async () => {
       log('[Migration 25] Removing balance triggers - using application code instead...');
 
-      // Drop the incremental balance triggers
       const triggersToDrop = [
         'trg_balance_inc_insert',
         'trg_balance_inc_delete',
-        'trg_balance_inc_update'
+        'trg_balance_inc_update',
       ];
       for (const t of triggersToDrop) {
         await run(`DROP TRIGGER IF EXISTS ${t}`);
       }
 
-      // Also drop the old recalculation triggers from migration 9 and 22
       const oldTriggers = [
         'trg_balance_after_insert',
         'trg_balance_after_update',
-        'trg_balance_after_delete'
+        'trg_balance_after_delete',
       ];
       for (const t of oldTriggers) {
         await run(`DROP TRIGGER IF EXISTS ${t}`);
@@ -1447,12 +1429,8 @@ const MIGRATIONS: Migration[] = [
 
       log('[Migration 25] All balance triggers removed. Application will handle balance sync.');
     },
-  }
+  },
 ];
-
-// =============================================================================
-// STARTUP TIMING INFRASTRUCTURE
-// =============================================================================
 
 const startupTimings: { step: string; duration: number }[] = [];
 let lastTimestamp = Date.now();
@@ -1472,10 +1450,6 @@ function printTimingSummary(): void {
     console.log('[DB:Perf] Startup breakdown:', startupTimings);
   }
 }
-
-// =============================================================================
-// DATABASE BOOTSTRAP
-// =============================================================================
 
 /**
  * Check if database is already initialized (has migrations applied)
@@ -1539,7 +1513,6 @@ async function bootstrapDb(): Promise<void> {
 
     log('[DB] Database bootstrapping complete.');
     printTimingSummary();
-
   } catch (error) {
     log(`[DB] Database bootstrap failed: ${(error as Error).message}`);
     throw error;
@@ -1574,10 +1547,6 @@ async function processMigrations(): Promise<void> {
   }
 }
 
-// =============================================================================
-// SEEDING FUNCTIONS
-// =============================================================================
-
 /**
  * Seed default categories
  */
@@ -1587,9 +1556,7 @@ async function seedCategories(): Promise<void> {
   );
 
   for (const category of DEFAULT_CATEGORIES) {
-    if (
-      !['income', 'expense', 'asset', 'liability', 'transfer'].includes(category.type)
-    ) continue;
+    if (!['income', 'expense', 'asset', 'liability', 'transfer'].includes(category.type)) continue;
 
     statement.run([category.type, category.name, category.is_default]);
   }
@@ -1611,10 +1578,6 @@ async function seedSettings(): Promise<void> {
   statement.finalize();
   log(`[DB] Seeded ${DEFAULT_SETTINGS.length} default settings.`);
 }
-
-// =============================================================================
-// EXPORTS
-// =============================================================================
 
 /**
  * Gracefully close the database connection.

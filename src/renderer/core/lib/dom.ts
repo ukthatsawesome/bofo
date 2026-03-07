@@ -32,7 +32,6 @@ export const UIUtils = {
     }
   },
 
-  // Higher order helper for list rendering
   renderList<T>(
     containerId: string,
     items: T[],

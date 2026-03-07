@@ -1,7 +1,5 @@
 import Chart, { ChartType, ChartData, ChartOptions, ScaleOptions } from 'chart.js/auto';
 
-// ==================== TYPES & INTERFACES ====================
-
 export interface IFormatter {
   currency(value: number, currency: string): string;
 }
@@ -40,8 +38,6 @@ interface SecondaryDatasetConfig {
 
 type ChartTypeKey = 'dashboard' | 'line' | 'forecast';
 
-// ==================== CHART MANAGER ====================
-
 export class ChartManager {
   private charts: Record<string, Chart>;
   private chartTypes: Record<string, ChartTypeKey>;
@@ -64,8 +60,6 @@ export class ChartManager {
     }
     this.destroyAll();
   }
-
-  /* ==================== THEME LISTENER ==================== */
 
   private _setupThemeListener(): void {
     this.observer = new MutationObserver((mutations) => {
@@ -91,10 +85,8 @@ export class ChartManager {
 
       if (!chart || !type) return;
 
-      // Update options (scales, legend, etc.)
       chart.options = { ...chart.options, ...this._baseOptions(s) };
 
-      // Update specific dataset colors based on chart type
       switch (type) {
         case 'dashboard':
           this._updateDashboardColors(chart, s);
@@ -107,23 +99,20 @@ export class ChartManager {
           break;
       }
 
-      chart.update('none'); // Efficient update without re-render
+      chart.update('none');
     });
   }
 
   private _updateDashboardColors(chart: Chart, s: ThemeStyles): void {
     if (chart.data.datasets.length < 3) return;
 
-    // Dataset 0: Net Worth (Line)
     const ds0 = chart.data.datasets[0] as any;
     ds0.borderColor = s.brandPrimary;
     ds0.pointBackgroundColor = s.brandPrimary;
 
-    // Dataset 1: Income (Bar)
     const ds1 = chart.data.datasets[1] as any;
     ds1.backgroundColor = this._getCssColor('--success', s.isLight ? 0.6 : 0.4);
 
-    // Dataset 2: Expenses (Bar)
     const ds2 = chart.data.datasets[2] as any;
     ds2.backgroundColor = this._getCssColor('--danger', s.isLight ? 0.6 : 0.4);
   }
@@ -131,12 +120,10 @@ export class ChartManager {
   private _updateLineColors(chart: Chart, s: ThemeStyles): void {
     if (chart.data.datasets.length < 1) return;
 
-    // Dataset 0: Balance
     const ds0 = chart.data.datasets[0] as any;
     ds0.borderColor = s.brandPrimary;
     ds0.backgroundColor = s.chartAreaBg;
 
-    // Dataset 1: Net Worth (Optional)
     if (chart.data.datasets.length > 1) {
       const ds1 = chart.data.datasets[1] as any;
       ds1.borderColor = s.brandSecondary;
@@ -147,17 +134,11 @@ export class ChartManager {
   private _updateForecastColors(chart: Chart, s: ThemeStyles): void {
     if (chart.data.datasets.length < 1) return;
 
-    // Dataset 0: Liquid Balance
     const ds0 = chart.data.datasets[0] as any;
     ds0.borderColor = s.brandPrimary;
     ds0.pointBackgroundColor = s.brandPrimary;
     ds0.pointBorderColor = this._getCssColor('--bg-panel');
 
-    // Note: We don't update the gradient callback here because it executes 
-    // on every render and should pick up fresh colors if we reconstructed it 
-    // correctly. But since the original implementation closed over 's', 
-    // we need to replace the callback or ensure it uses 'this'.
-    // Here we will update the backgroundColor callback to close over the NEW 's'.
     ds0.backgroundColor = (context: any) => {
       const chart = context.chart;
       const { ctx: canvasCtx, chartArea } = chart;
@@ -165,24 +146,17 @@ export class ChartManager {
 
       const gradient = canvasCtx.createLinearGradient(0, chartArea.bottom, 0, chartArea.top);
       gradient.addColorStop(0, 'transparent');
-      gradient.addColorStop(
-        1,
-        this._getCssColor('--brand-primary', s.isLight ? 0.15 : 0.2)
-      );
+      gradient.addColorStop(1, this._getCssColor('--brand-primary', s.isLight ? 0.15 : 0.2));
       return gradient;
     };
 
-    // Dataset 1: Net Worth
     if (chart.data.datasets.length > 1) {
       const ds1 = chart.data.datasets[1] as any;
       ds1.borderColor = s.brandSecondary;
     }
   }
 
-  /* ==================== THEME HELPERS ==================== */
-
   private _getCssColor(variable: string, alpha = 1): string {
-    // Get the value from the root element style
     const value = getComputedStyle(document.documentElement).getPropertyValue(variable).trim();
     return `rgba(${value} / ${alpha})`;
   }
@@ -203,8 +177,6 @@ export class ChartManager {
       chartAreaBg: this._getCssColor('--brand-primary', isLight ? 0.08 : 0.15),
     };
   }
-
-  /* ==================== HELPERS ==================== */
 
   public destroyChart(canvasId: string): void {
     if (this.charts[canvasId]) {
@@ -269,8 +241,6 @@ export class ChartManager {
     };
   }
 
-  /* ==================== DASHBOARD ==================== */
-
   renderDashboardChart(
     canvasId: string,
     data: ChartDataInput,
@@ -325,8 +295,6 @@ export class ChartManager {
     return this.charts[canvasId];
   }
 
-  /* ==================== LINE CHART ==================== */
-
   renderLineChart(
     canvasId: string,
     data: LineChartItem[],
@@ -378,8 +346,6 @@ export class ChartManager {
     return this.charts[canvasId];
   }
 
-  /* ==================== FORECAST ==================== */
-
   renderForecastChart(
     canvasId: string,
     timeline: LineChartItem[],
@@ -406,7 +372,12 @@ export class ChartManager {
               const { ctx: canvasCtx, chartArea } = chart;
               if (!chartArea) return null;
 
-              const gradient = canvasCtx.createLinearGradient(0, chartArea.bottom, 0, chartArea.top);
+              const gradient = canvasCtx.createLinearGradient(
+                0,
+                chartArea.bottom,
+                0,
+                chartArea.top
+              );
               gradient.addColorStop(0, 'transparent');
               gradient.addColorStop(
                 1,

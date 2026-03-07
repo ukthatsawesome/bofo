@@ -31,7 +31,6 @@ export interface ForecastSettings {
   [key: string]: unknown;
 }
 
-
 export interface TimelinePoint {
   date: string;
   balance: number;
@@ -103,7 +102,6 @@ export class ForecastEngine {
     const derived: Transaction[] = this.recurringCharges
       .filter((rc) => rc.is_active)
       .map((rc) => {
-        // Ensure logic doesn't retroactively change history
         const nextDue = rc.next_due_date || todayStr;
         const start = nextDue < todayStr ? todayStr : nextDue;
 
@@ -122,29 +120,25 @@ export class ForecastEngine {
   }
 
   public generateForecast(months: number | null = null): ForecastResult {
-    // 1. Settings & Constants
     const horizonMonths = months ?? Number(this.settings[SETTING_KEYS.FORECAST.HORIZON] ?? 6);
     const inflationEnabled = this.settings[SETTING_KEYS.FORECAST.INFLATION_ENABLED] === 'true';
-    const annualInflationRate = Number(this.settings[SETTING_KEYS.FORECAST.INFLATION_RATE] ?? 2.5) / 100;
-    // Daily rate factor: (1 + rate)^(1/365)
+    const annualInflationRate =
+      Number(this.settings[SETTING_KEYS.FORECAST.INFLATION_RATE] ?? 2.5) / 100;
+
     const dailyInflationMultiplier = Math.pow(1 + annualInflationRate, 1 / 365);
 
-    // 2. Date Boundaries
     const today = this._startOfDay(new Date());
-    // For forecast, we want "History Start" to be X months ago.
+
     const historyStart = this._addMonths(today, -3);
     const forecastEnd = this._addMonths(today, horizonMonths);
 
-    // 3. Initial State
     const initialAssets = this._sumAccounts(['bank', 'wallet', 'investment', 'asset']);
     const initialLiabilities = this._sumAccounts(['credit_card', 'loan', 'liability']);
     const initialCash = this._sumAccounts(['bank', 'wallet']);
 
-    // 4. Pre-process Transactions (O(T))
     const allTransactions = this._mergeRecurringIntoTransactions();
     const { oneTimeMap, recurringList } = this._partitionTransactions(allTransactions);
 
-    // 5. Timeline Generation (O(Days * Recurring))
     const timeline: TimelinePoint[] = [];
     let currentCash = this._calculateHistoricalCash(
       initialCash,
@@ -158,13 +152,8 @@ export class ForecastEngine {
     let totalFutureExpense = 0;
     let inflationFactor = 1.0;
 
-    // Iterate day-by-day from historyStart to forecastEnd
-    // Using a loop with timestamps to avoid excessive Date object creation overhead if possible,
-    // but explicit Date object is safer for calendar math (DST, leap years).
-    // Since horizon is small (~6-12 months), Date object overhead is negligible compared to string parsing.
     const cursor = new Date(historyStart);
 
-    // Optimizations for the loop
     const todayTime = today.getTime();
     const endTime = forecastEnd.getTime();
 
@@ -175,7 +164,6 @@ export class ForecastEngine {
       let dailyIncome = 0;
       let dailyExpense = 0;
 
-      // A. Process One-Time Transactions (O(1))
       const todaysOneTime = oneTimeMap.get(dateStr);
       if (todaysOneTime) {
         for (const tx of todaysOneTime) {
@@ -185,11 +173,8 @@ export class ForecastEngine {
         }
       }
 
-      // B. Process Recurring Transactions (O(R))
-      // We pass 'cursor' explicitly.
       for (const tx of recurringList) {
         if (this._isDue(tx, cursor)) {
-          // Check date range applicability
           if (!this._isWithinDateRange(tx, cursor)) continue;
 
           const amt = this._applyInflation(tx, isFuture, inflationEnabled, inflationFactor);
@@ -198,13 +183,12 @@ export class ForecastEngine {
         }
       }
 
-      // C. Update State
       currentCash += dailyIncome - dailyExpense;
 
       if (isFuture) {
         totalFutureIncome += dailyIncome;
         totalFutureExpense += dailyExpense;
-        // Increment inflation for NEXT day
+
         if (inflationEnabled) inflationFactor *= dailyInflationMultiplier;
       }
 
@@ -217,11 +201,9 @@ export class ForecastEngine {
         isFuture,
       });
 
-      // Next day
       cursor.setDate(cursor.getDate() + 1);
     }
 
-    // 6. Summary Calculation
     const netSavings = totalFutureIncome - totalFutureExpense;
     const avgMonthlyExpense = horizonMonths > 0 ? totalFutureExpense / horizonMonths : 0;
     const runway = avgMonthlyExpense > 0 ? initialCash / avgMonthlyExpense : Infinity;
@@ -257,13 +239,11 @@ export class ForecastEngine {
       if (tx.type !== 'income' && tx.type !== 'expense') continue;
 
       if (tx.frequency === 'once') {
-        // One-time: Index by date
-        const dateKey = tx.start_date.split('T')[0]; // Ensure YYYY-MM-DD
+        const dateKey = tx.start_date.split('T')[0];
         const list = oneTimeMap.get(dateKey) || [];
         list.push(tx);
         oneTimeMap.set(dateKey, list);
       } else {
-        // Recurring: Add to list
         recurringList.push(tx);
       }
     }
@@ -289,30 +269,16 @@ export class ForecastEngine {
     while (cursor.getTime() < endTime) {
       const dateStr = this._toDateString(cursor);
 
-      // One-time
       const ones = oneTimeMap.get(dateStr);
       if (ones) {
         for (const tx of ones) {
-          if (tx.type === 'income') cash -= tx.amount; // Reverse logic? No, wait.
-          // This function calculates "Historical Cash" as in "Starting from X months ago, what was the flow?"
-          // Actually, usually `initialCash` is the CURRENT balance.
-          // If we want to graph history, we usually work BACKWARDS from today or simulate forwards from (Today - Delta).
-          // The logic in the original file was:
-          // `cash = _calculateHistoricalCash(initialCash, historyStart, today)` where initialCash was TODAY'S balance.
-          // And it subtracted income and added expense?
-          // Original code:
-          // if (txDate >= historyStart && txDate < today) {
-          //    if (tx.type === 'income') cash -= tx.amount;
-          //    if (tx.type === 'expense') cash += tx.amount;
-          // }
-          // YES. It "unwinds" the transactions to find the starting balance X months ago.
-          // Then the main loop winds it forward again.
+          if (tx.type === 'income') cash -= tx.amount;
+
           if (tx.type === 'income') cash -= tx.amount;
           else cash += tx.amount;
         }
       }
 
-      // Recurring
       for (const tx of recurringList) {
         if (this._isDue(tx, cursor) && this._isWithinDateRange(tx, cursor)) {
           if (tx.type === 'income') cash -= tx.amount;
@@ -337,14 +303,7 @@ export class ForecastEngine {
     return tx.amount;
   }
 
-  // --- Logic Helpers ---
-
   private _isWithinDateRange(tx: Transaction, date: Date): boolean {
-    // Start Date check
-    // Optimization: Compare strings or timestamps?
-    // Since tx.start_date is string, we parse it once?
-    // Actually, _isDue handles specific frequency logic, but general range check is needed.
-    // Let's assume tx.start_date is YYYY-MM-DD.
     const txStartStr = tx.start_date;
     const dateStr = this._toDateString(date);
 
@@ -357,37 +316,23 @@ export class ForecastEngine {
   }
 
   private _isDue(tx: Transaction, date: Date): boolean {
-    // 'once' is handled by map lookup, so we don't strictly need it here,
-    // but safe to keep for robustness.
     if (tx.frequency === 'once') {
       return tx.start_date === this._toDateString(date);
     }
 
     const d = date.getDate();
-    const day = date.getDay(); // 0-6
-    const m = date.getMonth(); // 0-11
+    const day = date.getDay();
+    const m = date.getMonth();
 
-    // Parse start date components once? No, too expensive to cache everything.
-    // We can parse just what we need.
     const start = new Date(tx.start_date);
-    // Note: New Date(string) allocation is the bottleneck we wanted to avoid.
-    // But for recurring logic (weekly/monthly), we need the day of week/month of start.
-    // We can just parse the string manually for simpler forms?
-    // YYYY-MM-DD
-    // 0123456789
 
     if (tx.frequency === 'weekly') {
-      // Compare day of week (0-6)
-      // Need to know day of week of start_date.
-      // Using Date object for safety.
       return start.getDay() === day;
     }
 
     if (tx.frequency === 'monthly') {
-      // Due on same day of month
       const startDay = start.getDate();
-      // Handle edge cases (e.g. started on 31st, current month has 30)
-      // Original logic: min(startDay, lastDayOfMonth)
+
       const lastDayOfMonth = new Date(date.getFullYear(), m + 1, 0).getDate();
       const triggerDay = Math.min(startDay, lastDayOfMonth);
       return d === triggerDay;
@@ -405,8 +350,6 @@ export class ForecastEngine {
 
     return false;
   }
-
-  // --- Insight Generator (Extracted to keep GenerateForecast clean) ---
 
   private _generateInsights(
     futureTimeline: TimelinePoint[],
@@ -449,8 +392,6 @@ export class ForecastEngine {
     return insights;
   }
 
-  // --- Utilities ---
-
   private _sumAccounts(types: string[]): number {
     return this.accounts
       .filter((a) => types.includes(a.type))
@@ -458,12 +399,10 @@ export class ForecastEngine {
   }
 
   private _startOfDay(date: Date): Date {
-    // Create new date to avoid mutating original
     return new Date(date.getFullYear(), date.getMonth(), date.getDate());
   }
 
   private _toDateString(date: Date): string {
-    // Use centralized DateUtils for consistency
     return DateUtils.toISODateString(date);
   }
 
